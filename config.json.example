@@ -1,6 +1,16 @@
 {
   "traders": [
-    {
+     {
+      "id": "my_trader",
+      "name": "My AI Trader",
+      "ai_model": "deepseek",
+      "binance_api_key": "YOUR_BINANCE_API_KEY",       // ← 填入你的币安 API Key
+      "binance_secret_key": "YOUR_BINANCE_SECRET_KEY", // ← 填入你的币安 Secret Key
+      "deepseek_key": "YOUR_DEEPSEEK_API_KEY",         // ← 填入你的 DeepSeek API Key
+      "initial_balance": 1000.0,
+      "scan_interval_minutes": 3
+     },     
+     {
       "id": "hyperliquid_deepseek",
       "name": "Hyperliquid DeepSeek Trader",
       "enabled": true,
