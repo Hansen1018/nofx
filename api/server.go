@@ -534,8 +534,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 	// 设置扫描间隔默认值
 	scanIntervalMinutes := req.ScanIntervalMinutes
-	if scanIntervalMinutes < 3 {
-		scanIntervalMinutes = 3 // 默认3分钟，且不允许小于3
+	if scanIntervalMinutes <= 0 {
+		scanIntervalMinutes = 3 // 默认3分钟
 	}
 
 	// ✨ 查询交易所实际余额，覆盖用户输入
@@ -737,8 +737,6 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	scanIntervalMinutes := req.ScanIntervalMinutes
 	if scanIntervalMinutes <= 0 {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // 保持原值
-	} else if scanIntervalMinutes < 3 {
-		scanIntervalMinutes = 3
 	}
 
 	// 设置提示词模板，允许更新
@@ -1560,6 +1558,14 @@ func (s *Server) handlePerformance(c *gin.Context) {
 		return
 	}
 
+	// 从 query 参数读取历史成交显示条数 limit，默认不限制（0表示返回所有），最大 100
+	tradeLimit := 0 // 默认不限制，保持向后兼容
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			tradeLimit = l
+		}
+	}
+
 	// 分析最近100个周期的交易表现（避免长期持仓的交易记录丢失）
 	// 假设每3分钟一个周期，100个周期 = 5小时，足够覆盖大部分交易
 	performance, err := trader.GetDecisionLogger().AnalyzePerformance(100)
@@ -1568,6 +1574,11 @@ func (s *Server) handlePerformance(c *gin.Context) {
 			"error": fmt.Sprintf("分析历史表现失败: %v", err),
 		})
 		return
+	}
+
+	// 如果指定了 limit，则截取 recent_trades 到指定条数
+	if tradeLimit > 0 && len(performance.RecentTrades) > tradeLimit {
+		performance.RecentTrades = performance.RecentTrades[:tradeLimit]
 	}
 
 	c.JSON(http.StatusOK, performance)
