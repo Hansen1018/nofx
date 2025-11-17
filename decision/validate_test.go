@@ -359,12 +359,12 @@ func TestMinimumPositionSize(t *testing.T) {
 		},
 		// Binance 测试（最小 100 USDT）
 		{
-			name: "Binance_BTC开仓100USDT_应该通过",
+			name: "Binance_BTC开仓60USDT_应该通过",
 			decision: Decision{
 				Symbol:          "BTCUSDT",
 				Action:          "open_long",
 				Leverage:        10,
-				PositionSizeUSD: 100.0,
+				PositionSizeUSD: 60.0,
 				StopLoss:        90000,
 				TakeProfit:      110000,
 			},
@@ -380,7 +380,7 @@ func TestMinimumPositionSize(t *testing.T) {
 				Symbol:          "ETHUSDT",
 				Action:          "open_short",
 				Leverage:        5,
-				PositionSizeUSD: 100.0,
+				PositionSizeUSD: 60.0,
 				StopLoss:        4000,
 				TakeProfit:      3000,
 			},
@@ -391,12 +391,12 @@ func TestMinimumPositionSize(t *testing.T) {
 			wantError:       false,
 		},
 		{
-			name: "Binance_开仓99USDT_应该报错",
+			name: "Binance_开仓59USDT_应该报错",
 			decision: Decision{
 				Symbol:          "BTCUSDT",
 				Action:          "open_long",
 				Leverage:        10,
-				PositionSizeUSD: 99.0,
+				PositionSizeUSD: 59.0,
 				StopLoss:        90000,
 				TakeProfit:      110000,
 			},
@@ -408,12 +408,12 @@ func TestMinimumPositionSize(t *testing.T) {
 			errorMsg:        "开仓金额过小",
 		},
 		{
-			name: "Binance_开仓12USDT_应该报错",
+			name: "Binance_开仓11USDT_应该报错",
 			decision: Decision{
 				Symbol:          "SOLUSDT",
 				Action:          "open_long",
 				Leverage:        5,
-				PositionSizeUSD: 12.0,
+				PositionSizeUSD: 11.0,
 				StopLoss:        50,
 				TakeProfit:      200,
 			},
