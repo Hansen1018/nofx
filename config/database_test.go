@@ -206,6 +206,66 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 	}
 }
 
+// TestUpdateExchange_InsertShouldUseEncryptedValues 测试 INSERT 时应使用加密值
+// 这是 Bug 2: database.go:813 使用了未加密的值
+func TestUpdateExchange_InsertShouldUseEncryptedValues(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-004"
+
+	// 直接更新不存在的记录（触发 INSERT）
+	plainAPIKey := "plain-api-key-abc"
+	plainSecretKey := "plain-secret-key-def"
+	plainAsterKey := "plain-aster-key-ghi"
+
+	err := db.UpdateExchange(
+		userID,
+		"binance",
+		true,
+		plainAPIKey,
+		plainSecretKey,
+		false,
+		"",
+		"",
+		"",
+		plainAsterKey,
+	)
+	if err != nil {
+		t.Fatalf("INSERT 失败: %v", err)
+	}
+
+	// 验证数据库中存储的是加密值
+	exchanges, err := db.GetExchanges(userID)
+	if err != nil {
+		t.Fatalf("获取配置失败: %v", err)
+	}
+
+	// GetExchanges 会解密，所以我们应该看到原始值
+	if exchanges[0].APIKey != plainAPIKey {
+		t.Errorf("APIKey 解密后应该等于原始值，期望 %s，实际 %s", plainAPIKey, exchanges[0].APIKey)
+	}
+
+	// 直接查询数据库，验证存储的是加密格式
+	var storedAPIKey string
+	err = db.db.QueryRow(`SELECT api_key FROM exchanges WHERE id = ? AND user_id = ?`, "binance", userID).Scan(&storedAPIKey)
+	if err != nil {
+		t.Fatalf("查询数据库失败: %v", err)
+	}
+
+	// 🎯 关键断言：数据库中应该存储加密格式（ENC:v1:...）
+	if storedAPIKey == plainAPIKey {
+		t.Error("❌ Bug 确认：数据库中存储的是明文，应该是加密格式！")
+	}
+
+	// 如果有加密服务，验证是加密格式
+	if db.cryptoService != nil {
+		if !db.cryptoService.IsEncryptedStorageValue(storedAPIKey) {
+			t.Errorf("❌ Bug 确认：存储的值不是加密格式: %s", storedAPIKey)
+		}
+	}
+}
+
 // TestUpdateExchange_PartialUpdateShouldWork 测试部分字段更新
 func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 	db, cleanup := setupTestDB(t)
