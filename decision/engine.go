@@ -338,7 +338,7 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		accountEquity*1.5, accountEquity*10))
 	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆** (⚠️ 严格执行，不可超过)\n", altcoinLeverage, btcEthLeverage))
 	sb.WriteString("5. 保证金: 总使用率 ≤ 90%\n")
-	sb.WriteString("6. 开仓金额: **必须 ≥12 USDT** (所有币种统一规则，交易所最小名义价值 10 USDT + 20% 安全边际)\n")
+	sb.WriteString("6. 开仓金额: **BTC/ETH必须≥60 USDT,其他币种必须≥12 USDT** (主流币种更高流动性要求,交易所最小名义价值 + 安全边际)\n")
 	sb.WriteString("7. ⚠️ **开仓保证金检查**: 开仓前必须确保 `所需保证金 ≤ 可用余额`，所需保证金 = position_size_usd / leverage + 手续费\n\n")
 
 	// 3. 输出格式 - 动态生成
@@ -759,17 +759,25 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			return fmt.Errorf("仓位大小必须大于0: %.2f", d.PositionSizeUSD)
 		}
 
-		// ✅ 验证最小开仓金额（根据不同交易所设置不同限制）
-		// - Binance: MIN_NOTIONAL=100 USDT（严格限制）
-		// - Hyperliquid: szDecimals=5（精度更高，最小 12 USDT）
-		minPositionSize := 100.0 // 默认 Binance
-		if strings.ToLower(exchange) == "hyperliquid" {
-			minPositionSize = 12.0
-		}
+		// ✅ 验证最小开仓金额(按币种区分)
+        // - BTC/ETH: 最小 60 USDT(主流币种,更高流动性要求)
+        // - 山寨币及其他: 最小 12 USDT(通用规则)
+        var minPositionSize float64
+        symbolUpper := strings.ToUpper(d.Symbol)
 
-		if d.PositionSizeUSD < minPositionSize {
-			return fmt.Errorf("开仓金额过小(%.2f USDT)，必须≥%.2f USDT（%s 交易所要求）", d.PositionSizeUSD, minPositionSize, exchange)
-		}
+        if symbolUpper == "BTCUSDT" || symbolUpper == "ETHUSDT" {
+        minPositionSize = 60.0 // BTC/ETH 最低 60 USDT
+        } else {
+        minPositionSize = 12.0 // 其他币种最低 12 USDT
+        }
+
+        if d.PositionSizeUSD < minPositionSize {
+            if symbolUpper == "BTCUSDT" || symbolUpper == "ETHUSDT" {
+                 return fmt.Errorf("开仓金额过小(%.2f USDT),BTC/ETH必须≥60 USDT", d.PositionSizeUSD)
+              }
+             return fmt.Errorf("开仓金额过小(%.2f USDT),必须≥12 USDT", d.PositionSizeUSD)
+        }
+
 
 		// 验证仓位价值上限（加1%容差以避免浮点数精度问题）
 		tolerance := maxPositionValue * 0.01 // 1%容差
