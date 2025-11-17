@@ -760,9 +760,9 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		}
 
 		// ✅ 验证最小开仓金额（根据不同交易所设置不同限制）
-		// - Binance: MIN_NOTIONAL=100 USDT（严格限制）
+		// - Binance: MIN_NOTIONAL=12 USDT（严格限制）
 		// - Hyperliquid: szDecimals=5（精度更高，最小 12 USDT）
-		minPositionSize := 100.0 // 默认 Binance
+		minPositionSize := 12.0 // 默认 Binance
 		if strings.ToLower(exchange) == "hyperliquid" {
 			minPositionSize = 12.0
 		}
