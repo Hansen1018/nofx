@@ -324,6 +324,7 @@ func (d *Database) initDefaultData() error {
 		"btc_eth_leverage":     "5",                                                                                   // BTC/ETH杠杆倍数
 		"altcoin_leverage":     "5",                                                                                   // 山寨币杠杆倍数
 		"jwt_secret":           "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
+		"registration_enabled": "true",                                                                                // 默认允许注册
 	}
 
 	for key, value := range systemConfigs {
@@ -336,6 +337,101 @@ func (d *Database) initDefaultData() error {
 		}
 	}
 
+	return nil
+}
+
+// ensureDefaultUser 确保系统保留的 default 用户存在
+// 實現三階段自動修復：檢查 → 插入 → 清理修復
+func (d *Database) ensureDefaultUser() error {
+	// 階段 1: 檢查是否存在
+	var exists int
+	err := d.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id = 'default'`).Scan(&exists)
+	if err != nil {
+		log.Printf("⚠️  檢查 default user 時出錯: %v (繼續嘗試創建)", err)
+	} else if exists > 0 {
+		log.Printf("✅ default user 已存在")
+		return nil
+	}
+
+	// 階段 2: 嘗試正常插入
+	_, err = d.db.Exec(`
+		INSERT OR IGNORE INTO users (id, email, password_hash, otp_secret, otp_verified)
+		VALUES ('default', 'default@system.local', '', '', 1)
+	`)
+	if err != nil {
+		log.Printf("⚠️  創建 default user 時出錯: %v (嘗試自動修復)", err)
+	} else {
+		// 驗證插入是否成功
+		err = d.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id = 'default'`).Scan(&exists)
+		if err == nil && exists > 0 {
+			log.Printf("✅ 已成功創建 default user")
+			return nil
+		}
+	}
+
+	// 階段 3: 自動修復（清理可能衝突的孤立數據）
+	log.Printf("🔧 檢測到數據庫完整性問題，開始自動修復...")
+
+	// 3.1 檢查是否有孤立的記錄（user_id='default' 但 user 不存在）
+	var orphanedModels, orphanedExchanges int
+	d.db.QueryRow(`
+		SELECT COUNT(*) FROM ai_models
+		WHERE user_id = 'default' AND NOT EXISTS (SELECT 1 FROM users WHERE id = 'default')
+	`).Scan(&orphanedModels)
+	d.db.QueryRow(`
+		SELECT COUNT(*) FROM exchanges
+		WHERE user_id = 'default' AND NOT EXISTS (SELECT 1 FROM users WHERE id = 'default')
+	`).Scan(&orphanedExchanges)
+
+	if orphanedModels > 0 || orphanedExchanges > 0 {
+		log.Printf("   📦 發現 %d 個孤立的 AI models, %d 個孤立的 exchanges", orphanedModels, orphanedExchanges)
+		log.Printf("   🧹 正在清理孤立數據...")
+
+		// 臨時關閉外鍵約束以進行清理
+		if _, err := d.db.Exec("PRAGMA foreign_keys=OFF"); err != nil {
+			log.Printf("⚠️  關閉外鍵約束失敗: %v", err)
+		}
+
+		// 清理孤立數據
+		if orphanedModels > 0 {
+			if _, err := d.db.Exec(`DELETE FROM ai_models WHERE user_id = 'default'`); err != nil {
+				log.Printf("⚠️  清理孤立 AI models 失敗: %v", err)
+			} else {
+				log.Printf("   ✅ 已清理 %d 個孤立的 AI models", orphanedModels)
+			}
+		}
+
+		if orphanedExchanges > 0 {
+			if _, err := d.db.Exec(`DELETE FROM exchanges WHERE user_id = 'default'`); err != nil {
+				log.Printf("⚠️  清理孤立 exchanges 失敗: %v", err)
+			} else {
+				log.Printf("   ✅ 已清理 %d 個孤立的 exchanges", orphanedExchanges)
+			}
+		}
+
+		// 重新開啟外鍵約束
+		if _, err := d.db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+			log.Printf("⚠️  重新開啟外鍵約束失敗: %v", err)
+		}
+	}
+
+	// 3.2 使用 INSERT OR REPLACE 強制創建 default user
+	_, err = d.db.Exec(`
+		INSERT OR REPLACE INTO users (id, email, password_hash, otp_secret, otp_verified)
+		VALUES ('default', 'default@system.local', '', '', 1)
+	`)
+	if err != nil {
+		return fmt.Errorf("❌ 自動修復失敗，無法創建 default user: %w\n"+
+			"   💡 手動修復：sqlite3 nofx.db \"INSERT INTO users (id, email, password_hash) VALUES ('default', 'default@system.local', '');\"", err)
+	}
+
+	// 3.3 最終驗證
+	err = d.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id = 'default'`).Scan(&exists)
+	if err != nil || exists == 0 {
+		return fmt.Errorf("❌ default user 創建後驗證失敗")
+	}
+
+	log.Printf("✅ 自動修復成功！default user 已創建")
 	return nil
 }
 
@@ -954,12 +1050,12 @@ func (d *Database) UpdateTraderStatus(userID, id string, isRunning bool) error {
 func (d *Database) UpdateTrader(trader *TraderRecord) error {
 	_, err := d.db.Exec(`
 		UPDATE traders SET
-			name = ?, ai_model_id = ?, exchange_id = ?, initial_balance = ?,
+			name = ?, ai_model_id = ?, exchange_id = ?,
 			scan_interval_minutes = ?, btc_eth_leverage = ?, altcoin_leverage = ?,
 			trading_symbols = ?, custom_prompt = ?, override_base_prompt = ?,
 			system_prompt_template = ?, is_cross_margin = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ? AND user_id = ?
-	`, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance,
+	`, trader.Name, trader.AIModelID, trader.ExchangeID,
 		trader.ScanIntervalMinutes, trader.BTCETHLeverage, trader.AltcoinLeverage,
 		trader.TradingSymbols, trader.CustomPrompt, trader.OverrideBasePrompt,
 		trader.SystemPromptTemplate, trader.IsCrossMargin, trader.ID, trader.UserID)
@@ -972,7 +1068,8 @@ func (d *Database) UpdateTraderCustomPrompt(userID, id string, customPrompt stri
 	return err
 }
 
-// UpdateTraderInitialBalance 更新交易员初始余额（用于自动同步交易所实际余额）
+// UpdateTraderInitialBalance 更新交易员初始余额（仅支持手动更新）
+// ⚠️ 注意：系统不会自动调用此方法，仅供用户在充值/提现后手动同步使用
 func (d *Database) UpdateTraderInitialBalance(userID, id string, newBalance float64) error {
 	_, err := d.db.Exec(`UPDATE traders SET initial_balance = ? WHERE id = ? AND user_id = ?`, newBalance, id, userID)
 	return err
