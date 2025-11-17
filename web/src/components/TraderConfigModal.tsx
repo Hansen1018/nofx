@@ -435,12 +435,12 @@ export function TraderConfigModal({
                     onBlur={(e) => {
                       // Force minimum value on blur
                       const value = Number(e.target.value)
-                      if (value < 5) {
-                        handleInputChange('initial_balance', 5)
+                      if (value < 100) {
+                        handleInputChange('initial_balance', 100)
                       }
                     }}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="5"
+                    min="100"
                     step="0.01"
                   />
                   {!isEditMode && (
