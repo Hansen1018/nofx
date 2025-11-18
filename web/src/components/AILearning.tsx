@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import useSWR from 'swr'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { stripLeadingIcons } from '../lib/text'
 import { api } from '../lib/api'
+import RecordLimitSelector from './RecordLimitSelector'
 import {
   Brain,
   BarChart3,
@@ -63,9 +65,22 @@ interface AILearningProps {
 
 export default function AILearning({ traderId }: AILearningProps) {
   const { language } = useLanguage()
+
+  // 历史成交记录数量选择（从 localStorage 读取，默认 20）
+  const [tradeHistoryLimit, setTradeHistoryLimit] = useState<number>(() => {
+    const saved = localStorage.getItem('tradeHistoryLimit')
+    return saved ? parseInt(saved, 10) : 20
+  })
+
+  // 当 limit 变化时保存到 localStorage
+  const handleTradeHistoryLimitChange = (newLimit: number) => {
+    setTradeHistoryLimit(newLimit)
+    localStorage.setItem('tradeHistoryLimit', newLimit.toString())
+  }
+
   const { data: performance, error } = useSWR<PerformanceAnalysis>(
-    traderId ? `performance-${traderId}` : 'performance',
-    () => api.getPerformance(traderId),
+    traderId ? `performance-${traderId}-${tradeHistoryLimit}` : `performance-${tradeHistoryLimit}`,
+    () => api.getPerformance(traderId, tradeHistoryLimit),
     {
       refreshInterval: 30000, // 30秒刷新（AI学习分析数据更新频率较低）
       revalidateOnFocus: false,
@@ -384,20 +399,32 @@ export default function AILearning({ traderId }: AILearningProps) {
                 className="text-6xl font-bold mono"
                 style={{
                   color:
-                    (performance.sharpe_ratio || 0) >= 2
-                      ? '#10B981'
-                      : (performance.sharpe_ratio || 0) >= 1
-                        ? '#22D3EE'
-                        : (performance.sharpe_ratio || 0) >= 0
-                          ? '#F0B90B'
-                          : '#F87171',
+                    performance.total_trades < 2
+                      ? '#94A3B8'
+                      : (performance.sharpe_ratio || 0) >= 2
+                        ? '#10B981'
+                        : (performance.sharpe_ratio || 0) >= 1
+                          ? '#22D3EE'
+                          : (performance.sharpe_ratio || 0) >= 0
+                            ? '#F0B90B'
+                            : '#F87171',
                   textShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
                 }}
               >
-                {performance.sharpe_ratio
-                  ? performance.sharpe_ratio.toFixed(2)
-                  : 'N/A'}
+                {performance.total_trades < 2
+                  ? 'N/A'
+                  : performance.sharpe_ratio
+                    ? performance.sharpe_ratio.toFixed(2)
+                    : 'N/A'}
               </div>
+              {performance.total_trades < 2 && (
+                <div
+                  className="text-xs mt-1"
+                  style={{ color: '#94A3B8' }}
+                >
+                  {t('insufficientTradesForSharpe', language)}
+                </div>
+              )}
 
               {performance.sharpe_ratio !== undefined && (
                 <div className="text-right mb-2">
@@ -825,21 +852,30 @@ export default function AILearning({ traderId }: AILearningProps) {
               backdropFilter: 'blur(10px)',
             }}
           >
-            <div className="flex items-center gap-2">
-              <ScrollText className="w-6 h-6" style={{ color: '#FCD34D' }} />
-              <div>
-                <h3 className="font-bold text-lg" style={{ color: '#FCD34D' }}>
-                  {t('tradeHistory', language)}
-                </h3>
-                <p className="text-xs" style={{ color: '#94A3B8' }}>
-                  {performance?.recent_trades &&
-                  performance.recent_trades.length > 0
-                    ? t('completedTrades', language, {
-                        count: performance.recent_trades.length,
-                      })
-                    : t('completedTradesWillAppear', language)}
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ScrollText className="w-6 h-6" style={{ color: '#FCD34D' }} />
+                <div>
+                  <h3 className="font-bold text-lg" style={{ color: '#FCD34D' }}>
+                    {t('tradeHistory', language)}
+                  </h3>
+                  <p className="text-xs" style={{ color: '#94A3B8' }}>
+                    {performance?.total_trades && performance.total_trades > 0
+                      ? t('currentStrategyTrades', language, {
+                          count: performance.total_trades,
+                        })
+                      : t('completedTradesWillAppear', language)}
+                  </p>
+                </div>
               </div>
+
+              {/* 历史成交数量选择器 */}
+              <RecordLimitSelector
+                limit={tradeHistoryLimit}
+                onLimitChange={handleTradeHistoryLimitChange}
+                options={[5, 10, 20, 50]}
+                language={language}
+              />
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { EquityChart } from '../components/EquityChart'
 import AILearning from '../components/AILearning'
+import RecordLimitSelector from '../components/RecordLimitSelector'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { t, type Language } from '../i18n/translations'
@@ -54,6 +55,18 @@ export default function TraderDashboard() {
   )
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
 
+  // 决策记录数量选择（从 localStorage 读取，默认 5）
+  const [decisionLimit, setDecisionLimit] = useState<number>(() => {
+    const saved = localStorage.getItem('decisionLimit')
+    return saved ? parseInt(saved, 10) : 5
+  })
+
+  // 当 limit 变化时保存到 localStorage
+  const handleLimitChange = (newLimit: number) => {
+    setDecisionLimit(newLimit)
+    localStorage.setItem('decisionLimit', newLimit.toString())
+  }
+
   // 获取trader列表（仅在用户登录时）
   const { data: traders, error: tradersError } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
@@ -81,7 +94,7 @@ export default function TraderDashboard() {
 
   // 如果在trader页面，获取该trader的数据
   const { data: status } = useSWR<SystemStatus>(
-    selectedTraderId ? `status-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `status-${selectedTraderId}` : null,
     () => api.getStatus(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -91,7 +104,7 @@ export default function TraderDashboard() {
   )
 
   const { data: account } = useSWR<AccountInfo>(
-    selectedTraderId ? `account-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `account-${selectedTraderId}` : null,
     () => api.getAccount(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -101,7 +114,7 @@ export default function TraderDashboard() {
   )
 
   const { data: positions } = useSWR<Position[]>(
-    selectedTraderId ? `positions-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `positions-${selectedTraderId}` : null,
     () => api.getPositions(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -111,8 +124,10 @@ export default function TraderDashboard() {
   )
 
   const { data: decisions } = useSWR<DecisionRecord[]>(
-    selectedTraderId ? `decisions/latest-${selectedTraderId}` : null,
-    () => api.getLatestDecisions(selectedTraderId),
+    user && token && selectedTraderId
+      ? `decisions/latest-${selectedTraderId}-${decisionLimit}`
+      : null,
+    () => api.getLatestDecisions(selectedTraderId, decisionLimit),
     {
       refreshInterval: 30000,
       revalidateOnFocus: false,
@@ -121,7 +136,7 @@ export default function TraderDashboard() {
   )
 
   const { data: stats } = useSWR<Statistics>(
-    selectedTraderId ? `statistics-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `statistics-${selectedTraderId}` : null,
     () => api.getStatistics(selectedTraderId),
     {
       refreshInterval: 30000,
@@ -268,6 +283,8 @@ export default function TraderDashboard() {
     )
   }
 
+  const highlightColor = '#60a5fa'
+
   return (
     <div>
       {/* Trader Header */}
@@ -332,7 +349,7 @@ export default function TraderDashboard() {
               style={{
                 color: selectedTrader.ai_model.includes('qwen')
                   ? '#c084fc'
-                  : '#60a5fa',
+                  : highlightColor,
               }}
             >
               {getModelDisplayName(
@@ -340,6 +357,10 @@ export default function TraderDashboard() {
                   selectedTrader.ai_model
               )}
             </span>
+          </span>
+          <span>•</span>
+          <span>
+            Prompt: <span className="font-semibold" style={{ color: highlightColor }}>{selectedTrader.system_prompt_template || '-'}</span>
           </span>
           {status && (
             <>
@@ -370,7 +391,13 @@ export default function TraderDashboard() {
       )}
 
       {/* Account Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <StatCard
+          title={t('initialBalance', language)}
+          value={`${account?.initial_balance?.toFixed(2) || '0.00'} USDT`}
+          coloredSubtitle={`${account?.total_pnl !== undefined && account.total_pnl >= 0 ? '+' : ''}${account?.total_pnl?.toFixed(2) || '0.00'} USDT`}
+          positive={(account?.total_pnl ?? 0) >= 0}
+        />
         <StatCard
           title={t('totalEquity', language)}
           value={`${account?.total_equity?.toFixed(2) || '0.00'} USDT`}
@@ -570,28 +597,37 @@ export default function TraderDashboard() {
           style={{ animationDelay: '0.2s' }}
         >
           <div
-            className="flex items-center gap-3 mb-5 pb-4 border-b"
+            className="flex items-center justify-between mb-5 pb-4 border-b"
             style={{ borderColor: '#2B3139' }}
           >
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
-              }}
-            >
-              <Brain className="w-5 h-5" style={{ color: '#FFFFFF' }} />
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+                }}
+              >
+                <Brain className="w-5 h-5" style={{ color: '#FFFFFF' }} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+                  {t('recentDecisions', language)}
+                </h2>
+                {decisions && decisions.length > 0 && (
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {t('lastCycles', language, { count: decisions.length })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                {t('recentDecisions', language)}
-              </h2>
-              {decisions && decisions.length > 0 && (
-                <div className="text-xs" style={{ color: '#848E9C' }}>
-                  {t('lastCycles', language, { count: decisions.length })}
-                </div>
-              )}
-            </div>
+
+            {/* 显示数量选择器 */}
+            <RecordLimitSelector
+              limit={decisionLimit}
+              onLimitChange={handleLimitChange}
+              language={language}
+            />
           </div>
 
           <div
@@ -637,12 +673,14 @@ function StatCard({
   change,
   positive,
   subtitle,
+  coloredSubtitle,
 }: {
   title: string
   value: string
   change?: number
   positive?: boolean
   subtitle?: string
+  coloredSubtitle?: string
 }) {
   return (
     <div className="stat-card animate-fade-in">
@@ -667,6 +705,14 @@ function StatCard({
             {positive ? '▲' : '▼'} {positive ? '+' : ''}
             {change.toFixed(2)}%
           </div>
+        </div>
+      )}
+      {coloredSubtitle && (
+        <div
+          className="text-sm mt-2 mono font-bold"
+          style={{ color: positive ? '#0ECB81' : '#F6465D' }}
+        >
+          {coloredSubtitle}
         </div>
       )}
       {subtitle && (
