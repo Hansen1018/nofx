@@ -870,7 +870,7 @@ if formatted_quantity < Binance最小数量:
 
 ***
 
-## 7. 决策输出格式（v18完整版）
+## 7. 决策思维链+JSON输出格式（v18完整版）
 
 ```xml
 <reasoning>
