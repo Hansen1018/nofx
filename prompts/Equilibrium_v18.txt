@@ -225,7 +225,23 @@ v18.2新增：价格位置硬约束
      · delta_3 = rsi_current - rsi_1
    - 若存在连续2个delta < -10（快速暴跌）：
      · ⚠️ 二次探底风险预警
-     · 要求：必须等待连续2根15M K线RSI回升≥3点才允许开仓
+     · 要求：必须等待连续2根要求:必须等待连续3根15M K线RSI持续回升(累计≥5点)才允许开仓
+             额外检查:第3根RSI不能低于第2根(防止回落)
+             判定逻辑:
+                     - 获取最近4根15M RSI:[rsi_4, rsi_3, rsi_2, rsi_1_current]
+                     - 检查连续性:
+                                if (rsi_3 > rsi_4) and (rsi_2 > rsi_3) and (rsi_1 > rsi_2):
+                                    累计回升 = rsi_1 - rsi_4
+                                    if 累计回升 >= 5:
+                                       ✅ 企稳确认通过
+                    else:
+                        ❌ 回升幅度不足,继续等待
+                    else:
+                        ❌ 未连续回升,继续等待
+
+reasoning记录:"【RSI企稳确认】15M RSI从{rsi_4}连续3根回升至{rsi_1},
+              累计+{delta}点≥5,满足企稳条件"
+15M K线RSI回升≥3点才允许开仓
      · reasoning记录："【RSI超速下跌】15M RSI从{rsi_3}暴跌至{rsi_current}，
                       变化速率{delta_list}，疑似卖压集中释放未完成，
                       等待企稳确认（需连续2根回升≥3点）"
@@ -363,7 +379,7 @@ Step 3 下限保护：
 | :-- | :-- | :-- |
 | <20 | <3.0 | 深度超卖也需严格控制拥挤度 |
 | 20-30 | <3.2 | 标准超卖，收紧阈值 |
-| 30-50 | <3.5 | 中性偏弱，标准阈值 |
+| 30-50 | <3.3 | 中性偏弱,收紧阈值(v18.3优化) |
 
 **做空阈值**：
 
@@ -419,9 +435,25 @@ if 1H RSI > 50:
     if macd_4h_prev < 0 and macd_4h > macd_4h_prev:
         增量 = macd_4h - macd_4h_prev
         
-        if 增量 < 300:
-            # 增量不足，不允许豁免
-            ❌ 强制拒绝开仓
+# v18.3动态增量阈值
+abs_prev = abs(macd_4h_prev)
+
+if abs_prev >= 500:
+    required_delta = 300  # BTC/ETH等大盘币
+elif abs_prev >= 100:
+    required_delta = 50   # SOL/DOGE/XRP等中盘
+else:
+    required_delta = max(abs_prev * 0.3, 1.0)  # BNB/ADA等小盘
+    # 要求增量≥30%当前绝对值,最低1.0
+
+if 增量 < required_delta:
+    ❌ 强制拒绝开仓
+    reasoning记录:"【趋势豁免失败】4H MACD增量{delta}不足{required_delta}
+                  (动态阈值v18.3:基于|prev|={abs_prev},
+                  大盘≥500用300,中盘≥100用50,小盘用30%当前值)"
+else:
+    # 增量充足,继续检查豁免条件A/B/C
+
             reasoning记录："【趋势豁免失败】1H RSI {rsi} > 50需触发豁免，
                           但4H MACD增量{delta}不足300（prev={prev}, curr={curr}），
                           趋势转折力度不足，不允许开仓"
