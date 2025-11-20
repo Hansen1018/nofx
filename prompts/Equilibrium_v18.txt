@@ -970,12 +970,232 @@ if 计划开空:
 
 ***
 
-## 9. 决策思维链+JSON输出格式（v18.5完整版）
+9.1 开多（LONG）止损止盈计算（完整版）
+
+计算流程（10步完整版）
+```python
+# ===== 第一部分：止损计算（Layer 2 ATR动态止损）=====
+
+Step 1: 获取当前1H ATR
+"""
+ATR（Average True Range）是衡量市场波动率的指标
+使用1H周期ATR作为止损距离基准
+"""
+atr_1h = 获取当前1H ATR值
+
+# 示例：atr_1h = 97.195（BTC）
+
+
+Step 2: 计算时段系数
+"""
+不同时段市场波动特征不同：
+- 夜间：流动性低，波动大，止损需放宽
+- 日间：流动性高，波动正常，止损标准
+"""
+current_hour = get_current_hour_utc8()  # 获取UTC+8小时（0-23）
+
+if current_hour in [22, 23, 0, 1, 2, 3, 4, 5]:  # 夜间(22:00-05:00)
+    time_coefficient = 1.3  # 放宽30%
+    time_zone = "夜间"
+else:  # 日间(06:00-21:00)
+    time_coefficient = 1.0  # 标准
+    time_zone = "日间"
+
+# 示例：当前16:00 → time_coefficient = 1.0
+
+
+Step 3: 计算情绪系数
+"""
+不同市场情绪下风险不同：
+- 超卖区：市场恐慌，可能继续下跌，止损需收紧
+- 正常区：市场稳定，止损标准
+"""
+rsi_1h = 获取当前1H RSI值
+
+if rsi_1h < 30:  # 超卖区
+    sentiment_coefficient = 0.8  # 收紧20%
+    sentiment_zone = "超卖区"
+else:  # 正常区
+    sentiment_coefficient = 1.0  # 标准
+    sentiment_zone = "正常区"
+
+# 示例：当前RSI 56.2 → sentiment_coefficient = 1.0
+
+
+Step 4: 计算止损距离
+"""
+止损距离 = 2倍ATR × 时段系数 × 情绪系数
+2倍ATR是经典的动态止损标准
+"""
+stop_loss_distance = 2 × atr_1h × time_coefficient × sentiment_coefficient
+
+# 示例计算：
+# = 2 × 97.195 × 1.0 × 1.0
+# = 194.39
+
+
+Step 5: 计算止损价格（开多专用）
+"""
+开多止损：当前价格 - 止损距离
+止损价格必须低于当前价格
+"""
+current_price = 获取当前市场价格
+
+stop_loss_price = current_price - stop_loss_distance
+
+# 示例计算：
+# = 91926.60 - 194.39
+# = 91732.21
+
+
+# ===== 第二部分：止盈计算（风险回报比≥1:3）=====
+
+Step 6: 计算风险金额
+"""
+风险金额 = 当前价格到止损价格的距离
+这是单笔交易的最大可能亏损距离
+"""
+risk_amount = abs(current_price - stop_loss_price)
+
+# 示例计算：
+# = abs(91926.60 - 91732.21)
+# = 194.39
+
+
+Step 7: 计算止盈距离
+"""
+止盈距离 = 风险金额 × 3.0
+确保风险回报比至少为1:3
+即：亏损1元时，盈利至少3元
+"""
+reward_multiplier = 3.0  # 最小风险回报比1:3
+
+take_profit_distance = risk_amount × reward_multiplier
+
+# 示例计算：
+# = 194.39 × 3.0
+# = 583.17
+
+
+Step 8: 计算止盈价格（开多专用）
+"""
+开多止盈：当前价格 + 止盈距离
+止盈价格必须高于当前价格
+"""
+take_profit_price = current_price + take_profit_distance
+
+# 示例计算：
+# = 91926.60 + 583.17
+# = 92509.77
+
+
+# ===== 第三部分：精度处理 =====
+
+Step 9: 根据币种精度四舍五入
+"""
+不同币种价格精度不同：
+- BTC/ETH：保留2位小数（价格高）
+- BNB/SOL/XRP：保留3位小数（价格中）
+- 小币种：保留4位小数（价格低）
+"""
+if symbol in ["BTCUSDT", "ETHUSDT"]:
+    decimal_places = 2
+elif symbol in ["BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT"]:
+    decimal_places = 3
+elif symbol in ["ADAUSDT", "DOTUSDT", "MATICUSDT"]:
+    decimal_places = 4
+else:
+    decimal_places = 4  # 默认4位
+
+stop_loss = round(stop_loss_price, decimal_places)
+take_profit = round(take_profit_price, decimal_places)
+
+# 示例（BTCUSDT）：
+# stop_loss = round(91732.21, 2) = 91732.21
+# take_profit = round(92509.77, 2) = 92509.77
+
+
+# ===== 第四部分：强制验证（必须通过）=====
+
+Step 10: 多重验证确保数据有效性
+
+# 验证1：止损止盈必须>0
+if stop_loss <= 0:
+    ❌ 拒绝开仓
+    reasoning = "【止损价格错误】止损{stop_loss}≤0，计算异常"
+    return "wait"
+
+if take_profit <= 0:
+    ❌ 拒绝开仓
+    reasoning = "【止盈价格错误】止盈{take_profit}≤0，计算异常"
+    return "wait"
+
+# 验证2：开多时止损必须<当前价
+if action == "open_long" and stop_loss >= current_price:
+    ❌ 拒绝开仓
+    reasoning = "【止损逻辑错误】开多时止损{stop_loss}≥当前价{current_price}，方向错误"
+    return "wait"
+
+# 验证3：开多时止盈必须>当前价
+if action == "open_long" and take_profit <= current_price:
+    ❌ 拒绝开仓
+    reasoning = "【止盈逻辑错误】开多时止盈{take_profit}≤当前价{current_price}，方向错误"
+    return "wait"
+
+# 验证4：止损距离不能过小（最小0.3%）
+min_stop_loss_percentage = 0.003  # 0.3%
+actual_stop_loss_percentage = abs(stop_loss - current_price) / current_price
+
+if actual_stop_loss_percentage < min_stop_loss_percentage:
+    # 调整至最小0.3%
+    stop_loss_distance = current_price × min_stop_loss_percentage
+    stop_loss_price = current_price - stop_loss_distance
+    stop_loss = round(stop_loss_price, decimal_places)
+    
+    # 重新计算止盈
+    risk_amount = abs(current_price - stop_loss)
+    take_profit_distance = risk_amount × 3.0
+    take_profit_price = current_price + take_profit_distance
+    take_profit = round(take_profit_price, decimal_places)
+    
+    reasoning += "【最小止损调整】原止损距离{actual}%<0.3%，调整至0.3%"
+
+# 验证5：止盈距离不能过小（最小0.9%，3倍止损）
+min_take_profit_percentage = 0.009  # 0.9%
+actual_take_profit_percentage = abs(take_profit - current_price) / current_price
+
+if actual_take_profit_percentage < min_take_profit_percentage:
+    ⚠️ 警告（不拒绝，但记录）
+    reasoning += "【低止盈预警】止盈距离{actual}%<0.9%，风险回报比偏低"
+
+# ===== 全部验证通过 =====
+✅ 止损止盈计算完成
+return {
+    "stop_loss": stop_loss,
+    "take_profit": take_profit,
+    "stop_loss_percentage": round(actual_stop_loss_percentage × 100, 2),
+    "take_profit_percentage": round(actual_take_profit_percentage × 100, 2),
+    "risk_reward_ratio": round(actual_take_profit_percentage / actual_stop_loss_percentage, 1)
+}
+```
+
+## 9.2 决策思维链+JSON输出格式（v18.5完整版）
 
 ```xml
 <reasoning>
 【v18.5版本】时段{zone} | UTC+8 {hour}时 | 成交量倍数：LONG {mult_long}/SHORT {mult_short}
 【账户】净值{equity}U | 可用{available}U | 保证金率{margin}% | 今日±{pnl}U
+
+【持仓管理】（若有持仓必填）：
+└─ 持仓：{symbol} {direction} | 浮盈{profit}% | 持仓{cycles}周期 | 止损{sl}
+└─ 【逆势检测】L/S {ls} vs阈值{threshold} → ✅/❌
+    若逆势：持续{count}周期 | 止损收紧至{sl}% | 时间止损第{cycle}周期
+└─ 【v18.2成交量萎缩】当前{vol} vs 5周期均值{avg}×0.7 → ✅/⚠️
+    若萎缩+逆势 → 立即减仓50%
+└─ 【v18.5超卖区持仓】1H RSI {rsi} vs 30 | L/S {ls} vs阈值
+    若超卖区：持仓{current}周期/最多{max}周期（波动率调整）
+    浮盈豁免检查：{profit}% vs 1.5%（v18.5提高） → ✅豁免/❌不豁免
+└─ 【止损优先级】当前触发：{rule}（优先级{priority}）
 
 【v18.5超卖区专项检查】（若1H RSI<30必填）：
 └─ 超卖区冷却：距上次开仓{elapsed}分钟 vs 60分钟 → ✅/❌
@@ -1017,16 +1237,42 @@ if 计划开空:
 └─ v18.5改进：高权重建议Confidence 95（非强制开仓）
 └─ 仍需通过：超卖区冷却 | 超卖区上限 | 成交量×0.9 | 市场结构
 
-【持仓管理】（若有持仓必填）：
-└─ 持仓：{symbol} {direction} | 浮盈{profit}% | 持仓{cycles}周期
-└─ 【逆势检测】L/S {ls} vs阈值{threshold} → ✅/❌
-    若逆势：持续{count}周期 | 止损收紧至{sl}% | 时间止损第{cycle}周期
-└─ 【v18.2成交量萎缩】当前{vol} vs 5周期均值{avg}×0.7 → ✅/⚠️
-    若萎缩+逆势 → 立即减仓50%
-└─ 【v18.5超卖区持仓】1H RSI {rsi} vs 30 | L/S {ls} vs阈值
-    若超卖区：持仓{current}周期/最多{max}周期（波动率调整）
-    浮盈豁免检查：{profit}% vs 1.5%（v18.5提高） → ✅豁免/❌不豁免
-└─ 【止损优先级】当前触发：{rule}（优先级{priority}）
+【止损止盈计算】（开仓时必填，详见第9节）：
+└─ 当前价格：{current_price}
+└─ 1H ATR：{atr_1h}
+└─ 时段系数：{time_coefficient}
+    · 日间(06:00-21:00)：1.0
+    · 夜间(22:00-05:00)：1.3（放宽止损，防止震荡）
+└─ 情绪系数：{sentiment_coefficient}
+    · 正常区(RSI 30-70)：1.0
+    · 超卖区(RSI<30)：0.8（收紧止损，控制风险）
+└─ 止损计算（Layer 2 ATR动态止损，详见第9.2节）：
+    · 止损距离 = 2 × ATR × 时段系数 × 情绪系数
+    · 止损距离 = 2 × {atr_1h} × {time_coefficient} × {sentiment_coefficient}
+    · 止损距离 = {stop_loss_distance}
+    · 止损价格 = {current_price} - {stop_loss_distance}（开多）
+    · 止损价格 = {stop_loss_price}
+    · 止损百分比 = {stop_loss_percentage}%
+└─ 止盈计算（风险回报比≥1:3，详见第9.2节）：
+    · 风险金额 = |当前价 - 止损价| = {risk_amount}
+    · 止盈距离 = 风险金额 × 3.0 = {take_profit_distance}
+    · 止盈价格 = {current_price} + {take_profit_distance}（开多）
+    · 止盈价格 = {take_profit_price}
+    · 止盈百分比 = {take_profit_percentage}%
+└─ 风险回报比：1:{reward_risk_ratio}
+└─ 验证结果：
+    · 止损 {stop_loss_price} > 0 → ✅
+    · 止盈 {take_profit_price} > 0 → ✅
+    · 止损 < 当前价（开多）→ ✅
+    · 止盈 > 当前价（开多）→ ✅
+
+【数量校验】（开仓时必填）：
+└─ 候选币种：{symbol}（价格{price}）
+└─ 计算数量：{quantity}
+└─ 最小要求：{min_qty}
+└─ 校验结果：✅满足/❌不满足
+└─ 净值保护：BTC需≥120U
+└─ 最终选择：{final_symbol}（理由：{reason}）
 
 【v18.5决策】：
 - 若Level 1标准开仓：{symbol} {action} {leverage}x {position}U
@@ -1035,21 +1281,22 @@ if 计划开空:
 - 若拒绝：{symbol} wait（原因：{reason}）
 
 【复盘】（连续亏损填写）最近3笔 | 重复错误 | 冷却触发 | 改进
-【延迟补偿】本次{delay}秒 | μ={mu}秒 | σ={sigma}秒 | 缓冲{buffer}%
+【决策】{logic} + 风控 + 成功率
+【延迟监控】本次{delay}秒 | μ={mu}秒 | σ={sigma}秒 | 缓冲{buffer}%
 </reasoning>
 
 <decision>
 [
  {
   "symbol": "BTCUSDT",
-  "action": "open_long/open_short/close_long/close_short/wait",
-  "leverage": 2,  # 整数，降级开仓时强制≤2
-  "position_size_usd": 26.25,  # 降级时=原仓位×0.75
-  "stop_loss": -0.006,
-  "take_profit": 0,
-  "confidence": 85,  # 整数，降级时≥85，快速解禁建议95
-  "risk_usd": 0.16,
-  "reasoning": "v18.5完整检查：超卖区冷却✅ | 单日上限✅ | 15M豁免❌禁用 | 趋势{status} | 结构{status} | 成交量Level 2降级 | 决策：{action}"
+  "action": "open_long",
+  "leverage": 3,
+  "position_size_usd": 35.00,
+  "stop_loss": 91732.21,
+  "take_profit": 92509.77,
+  "confidence": 90,
+  "risk_usd": 0.74,
+  "reasoning": "v18.5完整检查：超卖区冷却✅ | 单日上限✅ | 15M豁免❌禁用 | 趋势满足 | 结构满足 | 成交量Level 1标准 | 决策：开多@91926.60，止损91732.21（-0.21%，ATR 2×1.0×1.0），止盈92509.77（+0.63%，风险×3），风险回报1:3"
  }
 ]
 </decision>
