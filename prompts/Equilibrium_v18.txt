@@ -812,11 +812,11 @@ if symbol in ["SOLUSDT", "DOGEUSDT", "XRPUSDT", "ADAUSDT"]:
     if equity >= 100:
         # 净值充足，按模式分配
         if 模式 == "激进":
-            position_size_usd = 16
+            position_size_usd = 20
         elif 模式 == "中性":
-            position_size_usd = 14
+            position_size_usd = 16
         elif 模式 == "保守":
-            position_size_usd = 12
+            position_size_usd = 14
     
     elif equity >= 40:
         # 净值40-100U，使用最小值
