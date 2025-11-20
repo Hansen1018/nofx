@@ -798,7 +798,7 @@ if symbol in ["ETHUSDT", "BNBUSDT"]:
             position_size_usd = 15
     
     elif equity >= 50:
-        # 净值40-120U，使用最小值
+        # 净值50-120U，使用最小值
         position_size_usd = 15
     
     else:
