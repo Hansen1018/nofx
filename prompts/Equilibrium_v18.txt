@@ -806,8 +806,8 @@ if symbol in ["ETHUSDT", "BNBUSDT"]:
 
 # ===== 一线山寨（SOL/DOGE/XRP等）=====
 if symbol in ["SOLUSDT", "DOGEUSDT", "XRPUSDT", "ADAUSDT"]:
-    # 最小名义价值：12U
-    min_position_size = 12
+    # 最小名义价值：14U
+    min_position_size = 14
     
     if equity >= 100:
         # 净值充足，按模式分配
