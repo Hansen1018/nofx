@@ -1,15 +1,15 @@
-# Equilibrium v18 策略提示词（v18.5最终完整版）
+## Equilibrium v18 完整优化策略
 
-## 版本信息
+### 版本信息
 
-**版本**：Equilibrium v18 (v18.5 Final Complete Edition)
-**最终更新**：2025年11月20日 17:00
-**核心特性**：超卖区风控优化 + 实战适用性平衡 + 完整六层止损 + 无省略完整版
-**策略字数**：约6800字（完整版）
+**版本**：Equilibrium v18 (Complete Integrated Edition)
+**最终更新**：2025年11月20日 18:05
+**核心特性**：超卖区风控优化 + BTC净值保护 + 实战适用性平衡 + 完整六层止损
+**策略字数**：约7200字（完整版）
 
-### 完整修正摘要
+### 完整整合摘要
 
-**v18.5超卖区优化**（2025-11-20 17:00）：
+**v18核心优化集成**：
 
 - 🔧 **超卖区冷却机制**：60分钟冷却，防止频繁抄底（优先级P0）
 - 🔧 **15M RSI豁免限制**：超卖区禁用15M豁免，强制检查1H趋势（优先级P0）
@@ -17,20 +17,12 @@
 - 🔧 **超卖区单日上限**：每日最多3次，防止连续止损熔断（优先级P1）
 - 🔧 **浮盈豁免阈值提高**：超卖区0.8%→1.5%，防止假反弹回吐（优先级P2）
 - 🔧 **快速解禁改建议**：从"强制开多"改为"高权重建议95"（优先级P2）
-
-**v18.4实战优化**（保留）：
-
-- ✅ 成交量1.1倍（日间高峰）
-- ✅ 降级开仓模式（80%-100%）
-- ✅ 3根均值平滑计算
-- ✅ 过滤器优先级明确
-
-**v18.2-v18.3核心优化**（保留）：
-
-- ✅ 趋势豁免动态阈值
+- 🔧 **BTC净值保护**：≥120U硬性要求，≥140U推荐，120-140U降级开仓（v18.5.1整合）
+- 🔧 **名义价值明确化**：所有币种明确名义价值（保证金×杠杆）概念（v18.5.1整合）
+- ✅ 成交量三级模式（标准/降级/拒绝）
 - ✅ 市场结构EMA20严格化
 - ✅ L/S阈值3.3收紧
-- ✅ 成交量萎缩检测
+- ✅ 成交量萎缩检测与逆势立即减仓
 
 ***
 
@@ -51,7 +43,7 @@
 - 回撤：单日≤5%（2.5U）
 - **熔断条件**：净值<40U 或 连续3日亏损 或 单日触发≥5次止损
 - 持仓：最多3个（方向必须一致）
-- **延迟补偿**：动态监控μ+1.5σ（详见第8节）
+- **延迟补偿**：动态监控μ+1.5σ
 
 ***
 
@@ -66,7 +58,7 @@
 | 1小时 | 8% | 趋势过滤 | **RSI<15禁空/RSI>85禁多** |
 | 4小时 | 2% | 主趋势判定 | MACD绝对值>3、RSI偏离50 |
 
-### 2.2 禁止开仓条件（v18.5超卖区优化完整版）
+### 2.2 禁止开仓条件（v18完整版）
 
 #### 基础禁止条件
 
@@ -76,11 +68,11 @@
 - 1H EMA20/50死叉且MACD<-2
 
 
-#### v18.5完整优化：成交量确认机制
+#### v18完整优化：成交量确认机制
 
 **成交量数据源**：5M周期的Volume指标
 
-**v18.4时段自适应倍数**：
+**v18时段自适应倍数**：
 
 ```python
 # 获取当前UTC+8小时（0-23）
@@ -97,7 +89,7 @@ elif current_hour in [22, 23, 0, 1, 2, 3, 4, 5]:  # 夜间
     time_zone = "夜间交易"
     
 elif current_hour in [6, 7, 8, 9, 14, 15, 16, 17]:  # 日间高峰
-    volume_multiplier_long = 1.1  # v18.4优化
+    volume_multiplier_long = 1.1
     volume_multiplier_short = 1.3
     time_zone = "日间高峰"
     
@@ -107,28 +99,25 @@ else:  # 其他时段(18-21)
     time_zone = "正常时段"
 ```
 
-**v18.4做多成交量要求（三级模式）**：
+**v18做多成交量要求（三级模式）**：
 
 ```python
-# v18.4优化：使用3根均值平滑波动
+# 使用3根均值平滑波动
 Step 1: 计算最近10根5M K线成交量均值 vol_avg_10
 Step 2: 获取最近3根5M成交量均值
         vol_current_avg = mean([vol[-3], vol[-2], vol[-1]])
 Step 3: 计算成交量比率 = vol_current_avg / vol_avg_10
 
-# ===== v18.4核心：三级成交量检查 =====
+# ===== v18核心：三级成交量检查 =====
 
 if 成交量比率 ≥ volume_multiplier_long:
     # Level 1: 标准开仓
     ✅ 允许开仓
     杠杆 = 按策略模式正常设置（2-5x）
     仓位 = 按净值正常设置（32-38U）
-    reasoning："【成交量充足】{time_zone}期间，3根均值{vol_current_avg}，
-               10周期均值{vol_avg_10}，比率{ratio}≥{multiplier}，
-               成交量确认✅"
-
+    
 elif 成交量比率 >= volume_multiplier_long * 0.8:
-    # Level 2: v18.4降级开仓模式
+    # Level 2: 降级开仓模式
     ⚠️ 允许开仓但降低风险
     杠杆 = min(原杠杆, 2)  # 强制最高2x
     仓位 = 原仓位 × 0.75  # 缩减至75%
@@ -140,19 +129,12 @@ elif 成交量比率 >= volume_multiplier_long * 0.8:
     
     若额外检查通过：
         ✅ 允许降级开仓
-        reasoning："【降级开仓】成交量比率{ratio}在80%-100%区间，
-                   市场结构良好，降级开仓：杠杆{leverage}x（≤2），
-                   仓位{position}U（75%），Confidence≥85"
     否则：
         ❌ 拒绝开仓
-        reasoning："【降级失败】成交量{ratio}不足但额外检查未通过"
 
 else:
     # Level 3: 拒绝开仓
     ❌ 拒绝开多
-    reasoning："【成交量不足】{time_zone}期间，3根均值{vol_current_avg}，
-               10周期均值{vol_avg_10}，比率{ratio}<{threshold*0.8}，
-               成交量不足80%阈值，疑似缩量假突破"
 ```
 
 **成交量豁免条件**：
@@ -160,7 +142,7 @@ else:
 - 快速解禁组合A/B触发时：放宽至当前时段标准×0.9
 - 浮盈保护减仓时：无需成交量确认
 
-**v18.4成交量趋势过滤**：
+**v18成交量趋势过滤**：
 
 ```python
 # 获取最近5根5M成交量序列
@@ -170,12 +152,10 @@ if trend < -15%（萎缩15%以上）:
     margin = (当前比率 - 阈值) / 阈值
     if margin < 0.15:
         ⚠️ 提高要求至阈值×1.15
-        reasoning："【成交量趋势萎缩】最近5根成交量下降{trend}%，
-                   提高要求至{new_threshold}"
 ```
 
 
-#### v18.4市场结构确认（EMA20严格化）
+#### v18市场结构确认（EMA20严格化）
 
 **做多结构要求**：
 
@@ -189,11 +169,11 @@ if trend < -15%（萎缩15%以上）:
 - 价格刚突破1H EMA20（75分钟内）
 - 突破时成交量≥10周期均值×1.5
 
-条件3（深度超卖豁免 - v18.5收紧）：
+条件3（深度超卖豁免 - v18收紧）：
 - 1H RSI < 20
-- L/S < 2.0（v18.5：从2.5收紧至2.0）
-- 15M RSI连续2根回升≥5点（v18.5新增最小涨幅）
-- 4H MACD连续2根收窄（v18.5新增趋势减弱确认）
+- L/S < 2.0（v18：从2.5收紧至2.0）
+- 15M RSI连续2根回升≥5点
+- 4H MACD连续2根收窄
 
 价格位置硬约束：
 - 若价格位于1H EMA20下方：
@@ -204,25 +184,17 @@ if trend < -15%（萎缩15%以上）:
 满足任一条件即可开多
 ```
 
-**做空结构要求**（对称设计）：
 
-- 条件1：价格位于1H EMA20下方0-2%
-- 条件2：跌破1H EMA20且成交量确认
-- 条件3：深度超买豁免（1H RSI>80且L/S>3.5）
-
-
-#### v18.5入场时机过滤（完整检查流程）
+#### v18入场时机过滤（完整检查流程）
 
 **若计划开多（LONG）**：
 
 ```python
-1. v18.5改进：1H RSI方向检查
-   # v18.5核心修正：超卖区禁用15M豁免
+1. v18改进：1H RSI方向检查
+   # v18核心修正：超卖区禁用15M豁免
    if 1H RSI < 30（超卖区）:
        ❌ 禁用15M RSI豁免
        必须满足：1H RSI ≤ 50 或 趋势豁免（RSI≤75）
-       reasoning："【v18.5超卖区限制】1H RSI {rsi}<30，
-                  15M豁免失效，需满足1H条件或趋势豁免"
    
    elif 1H RSI 30-50（中性区）:
        if 15M RSI < 30:
@@ -235,7 +207,7 @@ if trend < -15%（萎缩15%以上）:
 
 2. 15M RSI ≤ 40（短期超卖确认）
 
-3. v18.2 RSI变化速率检测：
+3. RSI变化速率检测：
    - 若连续2个delta < -10（快速暴跌）
    - 需等待连续3根15M RSI持续回升≥5点
 
@@ -243,21 +215,17 @@ if trend < -15%（萎缩15%以上）:
 
 5. 价格从最近10根15M K线最高点回落<1%
 
-6. v18.4成交量检查（三级模式）：
-   - Level 1（≥阈值）：标准开仓
-   - Level 2（≥80%阈值）：降级开仓
-   - Level 3（<80%阈值）：拒绝
+6. v18成交量检查（三级模式）
 
-7. v18.4成交量趋势过滤：-15%萎缩时提高至×1.15
+7. v18成交量趋势过滤
 
-8. v18.4市场结构：满足EMA20条件（含v18.5深度超卖收紧）
+8. v18市场结构：满足EMA20条件（含v18深度超卖收紧）
 ```
 
-**若计划开空（SHORT）**：对称设计（略）
 
-#### v18.5超卖区开仓额外限制（完整版）
+#### v18超卖区开仓额外限制（完整版）
 
-**v18.5新增：超卖区冷却机制（优先级P0）**
+**v18新增：超卖区冷却机制（优先级P0）**
 
 ```python
 # 超卖区定义：1H RSI < 30
@@ -269,20 +237,14 @@ if 当前1H RSI < 30:
     
     if (current_time - last_oversold_entry_time) < 60分钟:
         ❌ 拒绝开多
-        reasoning："【v18.5超卖区冷却】最近{elapsed}分钟已在超卖区开仓1次，
-                   冷却期60分钟，防止频繁抄底连续止损"
         return "wait"
     
-    else:
-        # 冷却期结束，继续后续检查
-        reasoning："【超卖区冷却结束】距上次开仓{elapsed}分钟，允许检查"
-
 豁免条件：
 - 1H RSI从>30首次跌破至<30（首次进入超卖区）
 - 或冷却期60分钟结束后首次触发
 ```
 
-**v18.5新增：超卖区单日开仓上限（优先级P1）**
+**v18新增：超卖区单日开仓上限（优先级P1）**
 
 ```python
 # 每日00:00重置计数器
@@ -290,13 +252,7 @@ oversold_entry_count_today = 获取当日超卖区开仓次数
 
 if 当前1H RSI < 30 and oversold_entry_count_today >= 3:
     ❌ 拒绝开多
-    reasoning："【v18.5超卖区限额】今日已在超卖区开仓{count}次，
-               达到每日上限3次，防止连续抄底触发熔断"
     return "wait"
-
-else:
-    # 未达上限，继续检查
-    继续后续检查流程
 ```
 
 **禁止开多（LONG）的情况**：
@@ -304,15 +260,8 @@ else:
 ```python
 条件组合1：1H RSI < 30 且 L/S > 3.0
 条件组合2：夜间(22:00-06:00) 且 1H RSI < 35 且 L/S > 2.8
-条件组合3：1H RSI < 20 且 L/S > 2.5（此条件被深度超卖豁免覆盖）
-条件组合4：1H RSI < 30 且 Funding Rate > 0.01%
-条件组合5：Funding Rate > 0.05% 且 L/S > 5.0（极端拥挤）
-```
-
-**禁止开空（SHORT）的情况**：
-
-```python
-条件组合1：Funding Rate < -0.05% 且 L/S < 0.2（极端空头拥挤）
+条件组合3：1H RSI < 30 且 Funding Rate > 0.01%
+条件组合4：Funding Rate > 0.05% 且 L/S > 5.0（极端拥挤）
 ```
 
 **禁止追单机制**：
@@ -353,13 +302,6 @@ else:
 | 4.5-6.0 | 0.70 | **0.65** |
 | >6.0 | 0.60 | **0.55** |
 
-**Funding Rate折扣**：
-
-- |FR| > 0.02% → ×0.8
-- |FR| > 0.05% → ×0.7
-- |FR| > 0.10% → ×0.5
-
-
 ### 3.2 策略模式切换
 
 | 评分 | 模式 | 主流币 | 一线山寨 | 二线山寨 | 杠杆 |
@@ -369,7 +311,7 @@ else:
 | 30-50 | 保守 | 32-35U | 14-16U | 12-14U | 主2-3x/一线2x/二线1x |
 | <30 | 防御 | 仅平仓 | 仅平仓 | 仅平仓 | 禁止开新仓 |
 
-### 3.3 市场情绪硬过滤（v18.3收紧版）
+### 3.3 市场情绪硬过滤（v18收紧版）
 
 **L/S Ratio动态阈值**：
 
@@ -380,7 +322,7 @@ else:
 | :-- | :-- | :-- |
 | <20 | <3.0 | 深度超卖严格控制 |
 | 20-30 | <3.2 | 标准超卖收紧 |
-| **30-50** | **<3.3** | **中性偏弱（v18.3收紧）** |
+| **30-50** | **<3.3** | **中性偏弱（v18收紧）** |
 
 **做空阈值**：
 
@@ -401,111 +343,67 @@ else:
 | **极端场景** | >+0.05% 且 L/S>5.0 | ❌禁止任何开仓 |
 | **极端场景** | <-0.05% 且 L/S<0.2 | ❌禁止任何开仓 |
 
-### 3.4 v18.5过滤器优先级序列（完整版）
+### 3.4 v18过滤器优先级序列（完整版）
 
 **开仓前检查优先级（从高到低）**：
 
 ```python
-# ===== 优先级0：v18.5超卖区专项检查（最高优先级）=====
+# ===== 优先级0：v18超卖区专项检查（最高优先级）=====
 if 1H RSI < 30:
     # 检查1：超卖区冷却机制（60分钟）
-    if 距上次超卖区开仓 < 60分钟:
-        ❌ 拒绝
-        return "wait"
-    
     # 检查2：超卖区单日上限（3次）
-    if 今日超卖区开仓次数 >= 3:
-        ❌ 拒绝
-        return "wait"
-    
     # 检查3：禁用15M RSI豁免
-    15M豁免状态 = False（强制禁用）
 
 # ===== 优先级1：极端场景硬约束（绝对禁止，无豁免）=====
 if FR>0.05% 且 L/S>5.0:
     ❌ 拒绝任何开仓
-    reasoning："【极端拥挤】FR {fr}>0.05%且L/S {ls}>5.0"
-    return "wait"
 
 if FR<-0.05% 且 L/S<0.2:
     ❌ 拒绝任何开仓
-    reasoning："【极端空头拥挤】FR {fr}<-0.05%且L/S {ls}<0.2"
-    return "wait"
 
 # ===== 优先级2：情绪指标（快速过滤）=====
 if 计划开多:
-    L/S检查：L/S < 动态阈值（v18.3收紧：3.3）
+    L/S检查：L/S < 动态阈值（v18收紧：3.3）
     FR检查：FR ≤ 0.02%
 
-# ===== 优先级3：趋势方向（v18.5改进+v18.3简化+v18.2严格化）=====
-1H RSI检查：
-- 若1H RSI < 30（超卖区）:
-    ❌ 禁用15M RSI豁免（v18.5核心修正）
-    必须满足：1H RSI ≤ 50 或 趋势豁免
-    
-- 若1H RSI 30-50（中性区）:
-    if 15M RSI < 30:
-        ✅ 豁免1H RSI检查
-    else:
-        检查1H RSI ≤ 50 或 趋势豁免
-        
-- 若1H RSI > 50:
-    检查趋势豁免（4H MACD增量动态阈值）
+# ===== 优先级3：趋势方向（v18改进）=====
+1H RSI检查：超卖区禁用15M豁免
 
 # ===== 优先级4：市场结构（可影响成交量判定）=====
-EMA20结构检查：
-- 回踩/突破/深度超卖豁免（v18.5收紧），满足任一
+EMA20结构检查
 
-# ===== 优先级5：成交量确认（v18.4可降级）=====
-成交量三级模式：
-- Level 1（≥阈值）：✅标准开仓
-- Level 2（≥80%阈值）：
-    若优先级4市场结构满足 + L/S距阈值≥0.3
-    → ✅降级开仓（杠杆≤2x，仓位75%）
-    否则 → ❌拒绝
-- Level 3（<80%阈值）：❌拒绝
+# ===== 优先级5：成交量确认（v18可降级）=====
+成交量三级模式
 
 # ===== 优先级6：技术细节（最后检查）=====
 RSI变化速率、追单风险、数量校验等
 ```
 
 
-### 3.5 方向一致性强制校验（v18.5完整版）
+### 3.5 方向一致性强制校验（v18完整版）
 
 **若计划开多（LONG）**：
 
 ```python
 # 第一层：情绪指标
-1. L/S Ratio < 3.3（v18.3收紧）
+1. L/S Ratio < 3.3（v18收紧）
 2. FR ≤ 0.02%
 3. 极端场景检查（优先级1）
 
-# 第二层：v18.5超卖区专项检查（新增）
+# 第二层：v18超卖区专项检查
 if 1H RSI < 30:
     4. 超卖区冷却检查（60分钟）
     5. 超卖区单日上限检查（3次）
     6. 禁用15M RSI豁免
 
-# 第三层：趋势方向（v18.5改进）
-7. 1H RSI方向：
-   if 1H RSI < 30（超卖区）:
-       ❌ 禁用15M豁免
-       必须：1H RSI ≤ 50 或 趋势豁免
-   
-   elif 1H RSI 30-50（中性区）:
-       if 15M RSI < 30:
-           ✅ 豁免1H RSI
-       else:
-           检查1H RSI ≤ 50 或 趋势豁免
-   
-   else（1H RSI > 50）:
-       检查趋势豁免（4H MACD增量动态阈值）
+# 第三层：趋势方向（v18改进）
+7. 1H RSI方向检查（含超卖区特殊规则）
 
-# 第四层：技术指标（已在2.2节检查）
+# 第四层：技术指标
 8-13. 成交量、结构、RSI速率等
 ```
 
-**持仓中逆势检测（v18.2成交量萎缩）**：
+**持仓中逆势检测（v18成交量萎缩）**：
 
 ```python
 if 持仓方向=LONG:
@@ -515,13 +413,13 @@ if 持仓方向=LONG:
         2. 时间止损提前：第10周期→第8周期
         3. 逆势周期≥3 → 减仓50%
         4. 夜间+逆势≥2 → 止损-0.3%
-        5. v18.2成交量萎缩：
+        5. v18成交量萎缩：
            若当前成交量<5周期均值×0.7 且逆势
            → 立即减仓50%（无需等待3周期）
 ```
 
 
-### 3.6 超卖区持仓时限（v18.5完整优化版）
+### 3.6 超卖区持仓时限（v18完整优化版）
 
 **基础时间限制**：
 
@@ -531,14 +429,12 @@ if 持仓方向=LONG:
 条件3：夜间(22:00-06:00) + 1H RSI < 35 且 L/S > 2.8 → 最多4周期
 ```
 
-**v18.2波动率动态调整**：
+**v18波动率动态调整**：
 
 ```python
 if 1H ATR > 24H均值 × 1.8（高波动）:
     条件1/2：5周期 → 3周期
     条件3：4周期 → 2周期
-    reasoning："【高波动收紧】1H ATR {atr}>{threshold}，
-               超卖区持仓时限缩短至{cycles}周期"
 
 elif 1H ATR < 24H均值 × 0.6（低波动）:
     条件1/2：5周期 → 6周期
@@ -548,26 +444,21 @@ else:
     维持基础时限
 ```
 
-**v18.5浮盈豁免机制（优化版）**：
+**v18浮盈豁免机制（优化版）**：
 
 ```python
 若持仓达到超卖区时间上限：
     
     if 1H RSI < 30（超卖区持仓）:
-        # v18.5收紧：超卖区浮盈豁免阈值提高
-        if 浮盈 ≥ +1.5%（v18.5：从0.8%提高至1.5%）:
+        # v18收紧：超卖区浮盈豁免阈值提高
+        if 浮盈 ≥ +1.5%（v18：从0.8%提高至1.5%）:
             ✅ 豁免超卖限制
             不执行强制平仓
             继续执行Layer 4追踪止损
-            reasoning："【v18.5超卖区浮盈豁免】超卖区第{cycle}周期达上限，
-                       但浮盈{profit}%≥+1.5%，豁免时间限制，
-                       执行Layer 4追踪止损"
         
         else:
             ❌ 浮盈不足，超卖限制优先
             立即全部平仓
-            reasoning："【超卖限制】超卖区第{cycle}周期达上限，
-                       浮盈{profit}%不足1.5%，强制平仓"
     
     else:
         # 非超卖区，维持0.8%阈值
@@ -578,7 +469,7 @@ else:
 ```
 
 
-### 3.7 防御模式解禁机制（v18.5改进版）
+### 3.7 防御模式解禁机制（v18改进版）
 
 **必选条件**：L/S Ratio 1.0-3.5（硬约束）
 
@@ -589,7 +480,7 @@ else:
 3. 4H MACD绝对值<1000
 4. Funding Rate绝对值<0.015%
 
-#### v18.5改进：快速解禁组合A（从"强制"改为"高权重建议"）
+#### v18改进：快速解禁组合A（从"强制"改为"高权重建议"）
 
 **触发条件**：
 
@@ -597,25 +488,19 @@ else:
 - 4H MACD < -1000
 - L/S Ratio 2.0-3.5
 
-**v18.5执行规则（改进）**：
+**v18执行规则（改进）**：
 
 ```python
-# 原规则：强制LONG ONLY（必须开多）
-# v18.5改进：高权重建议（仍需通过其他过滤器）
-
 if 触发快速解禁组合A:
     Confidence = 95（高权重建议）
     建议方向 = LONG（做多优先）
     
     但仍需通过：
-    - v18.5超卖区冷却检查（60分钟）
-    - v18.5超卖区单日上限（3次）
+    - v18超卖区冷却检查（60分钟）
+    - v18超卖区单日上限（3次）
     - 成交量确认（放宽至×0.9）
     - 市场结构EMA20
     - 其他技术过滤器
-    
-    reasoning："【v18.5快速解禁建议】满足组合A，Confidence 95，
-               建议做多，但需通过成交量、超卖区冷却等检查"
 
 # 若所有检查通过：
     杠杆上限2x（主流币）/1x（山寨币）
@@ -623,7 +508,7 @@ if 触发快速解禁组合A:
 ```
 
 
-#### v18.5改进：快速解禁组合B
+#### v18改进：快速解禁组合B
 
 **触发条件**：
 
@@ -632,24 +517,24 @@ if 触发快速解禁组合A:
 - 4H MACD < -500
 - L/S Ratio 2.0-3.0
 
-**v18.5执行规则**：同组合A（高权重建议95，非强制）
+**v18执行规则**：同组合A（高权重建议95，非强制）
 
 ***
 
-## 4. 六层止损系统（v18.5完整版）
+## 4. 六层止损系统（v18完整版）
 
 ### 止损优先级序列
 
 ```python
 优先级1：超卖区时间限制
-  └─ v18.5浮盈豁免：超卖区≥1.5%豁免/非超卖区≥0.8%豁免
+  └─ v18浮盈豁免：超卖区≥1.5%豁免/非超卖区≥0.8%豁免
 
 优先级2：Layer 4 浮盈保护
   └─ Level 2（+0.8%）：追踪0.45%/0.3%/0.55%（动态）
   └─ 可豁免优先级1
 
 优先级3：Layer 1 快速止损
-  └─ v18.2成交量萎缩+逆势：立即减仓50%
+  └─ v18成交量萎缩+逆势：立即减仓50%
 
 优先级4：Layer 2 ATR动态止损
 
@@ -672,7 +557,7 @@ if 触发快速解禁组合A:
 - 5M MACD连续2周期收缩
 → 止损-0.6%
 
-条件组合2（v18.2新增）：
+条件组合2（v18新增）：
 - 当前成交量 < 5周期均值×0.7（萎缩30%）
 - 持仓处于逆势状态（L/S超过阈值）
 → 立即减仓50%（无需等待3周期）
@@ -701,10 +586,6 @@ if 触发快速解禁组合A:
 
 ```python
 stop_loss = -2 × ATR1H × 时段系数 × 情绪系数
-
-例如：夜间+超卖区
-= -2 × ATR1H × 1.3 × 0.8
-= -2.08 × ATR1H
 ```
 
 
@@ -769,14 +650,11 @@ stop_loss = -2 × ATR1H × 时段系数 × 情绪系数
 净利：1.8%
 ```
 
-**v18.5超卖区特殊规则**：
+**v18超卖区特殊规则**：
 
 ```python
 若持仓开仓时1H RSI < 30（超卖区开仓）：
-    Level 2触发阈值：+0.8% → +1.5%（v18.5提高）
-    reasoning："【超卖区浮盈保护】开仓时RSI<30，
-               Level 2阈值从0.8%提高至1.5%，
-               防止假反弹过早锁定"
+    Level 2触发阈值：+0.8% → +1.5%（v18提高）
 ```
 
 
@@ -806,9 +684,6 @@ stop_loss = -2 × ATR1H × 时段系数 × 情绪系数
 
 若同时满足：
    立即全部平仓（市价单）
-   reasoning："【极端波动熔断】5M单根{change}%，
-              1H ATR {atr}超过24H均值2倍，
-              市场失控，立即平仓"
 ```
 
 
@@ -827,14 +702,10 @@ Step 1: 复盘最近3笔交易
 Step 2: 识别重复错误
         若存在重复错误（相同信号/时段/币种）：
           - 该模式冷却12小时
-          - reasoning："【模式冷却】{错误类型}连续2次亏损，
-                        冷却至{time}"
 
 Step 3: 若连续3笔亏损：
         - 强制进入防御模式
-        - 需满足快速解禁条件（v18.5改进：高权重建议95）才可恢复
-        - reasoning："【连续亏损防御】连续3笔亏损，
-                      进入防御模式，需快速解禁恢复"
+        - 需满足快速解禁条件（v18改进：高权重建议95）才可恢复
 ```
 
 **冷却优先级**：
@@ -852,12 +723,6 @@ Step 3: 若连续3笔亏损：
 ```python
 连续2笔亏损 → 冷却12小时
 单日亏损≥3次 → 冷却24小时
-
-冷却期间：
-- 该币种禁止开新仓
-- 已有持仓正常执行止损
-- reasoning："【币种冷却】{symbol}连续{count}次亏损，
-              冷却{hours}小时"
 ```
 
 **全局冷却**：
@@ -865,69 +730,197 @@ Step 3: 若连续3笔亏损：
 ```python
 单日触发≥5次止损 → 全局冷却至次日00:00
 触发条件 = 熔断红线
-
-冷却期间：
-- 所有币种禁止开新仓
-- 已有持仓全部平仓
-- reasoning："【全局熔断】今日触发{count}次止损，
-              达到熔断红线5次，冷却至次日00:00"
 ```
 
 
 ***
 
-## 7. 开仓数量校验
+## 7. 开仓数量校验（v18完整版 - 整合BTC净值保护）
 
-**净值分配规则**：
+### 7.1 净值分配规则（v18完整版）
+
+**核心概念说明**：
+
+- **名义价值**（position_size_usd）= 保证金 × 杠杆 = 实际控制的资金量
+- 例如：35U名义价值，3x杠杆 = 11.67U保证金
+- 例如：12U名义价值，2x杠杆 = 6U保证金
+
+
+#### BTC开仓特殊要求（v18整合）
 
 ```python
-if equity >= 120U:
-    # BTC优先模式（需≥35U仓位）
-    BTC: 35-38U（杠杆3-5x，根据模式）
-    其他主流: 15-19U每个
-    一线山寨: 12-16U
+# ===== BTC开仓硬性条件 =====
+
+if symbol == "BTCUSDT":
+    # 硬性要求：净值≥120U
+    if equity < 120:
+        ❌ 强制拒绝开仓
+        reasoning = "【BTC净值保护】当前净值{equity}U<120U最低要求，禁止开BTC仓位。"
+        建议：净值积累至≥140U后开BTC，或选择一线山寨（净值≥40U，名义价值12U）"
+        return "wait"
     
-else:
-    # 小净值模式（50-120U）
-    主流币（BTC/ETH）: 34-38U（根据模式）
-    一线山寨（SOL/BNB等）: 15-20U
-    二线山寨（DOGE/ADA等）: 12-15U
+    # 推荐要求：净值≥140U
+    elif 120 <= equity < 140:
+        ⚠️ 允许但降低仓位
+        # 名义价值从35-38U降至32-35U
+        position_size_usd = 32  # 降低约8-10%
+        reasoning += "【BTC净值预警】净值{equity}U在120-140U区间，允许开仓但降低名义价值至{position}U"
+    
+    else:  # equity >= 140
+        ✅ 正常开仓
+        # 根据策略模式设置名义价值
+        if 模式 == "激进":
+            position_size_usd = 38  # 名义价值
+        elif 模式 == "中性":
+            position_size_usd = 36
+        elif 模式 == "保守":
+            position_size_usd = 34
+        
+        reasoning += "【BTC标准开仓】净值{equity}U≥140U，名义价值{position}U"
 ```
 
-**数量计算与校验**：
+
+#### 其他币种分配规则（v18完整版）
 
 ```python
-Step 1: 计算仓位
-position_size = equity × position_ratio / leverage
+# ===== 主流币（ETH/BNB等）=====
+if symbol in ["ETHUSDT", "BNBUSDT"]:
+    # 最小名义价值：15U
+    min_position_size = 15
+    
+    if equity >= 120:
+        # 净值充足，按模式分配
+        if 模式 == "激进":
+            position_size_usd = 19  # 名义价值
+        elif 模式 == "中性":
+            position_size_usd = 17
+        elif 模式 == "保守":
+            position_size_usd = 15
+    
+    elif equity >= 50:
+        # 净值50-120U，使用最小值
+        position_size_usd = 15
+    
+    else:
+        ❌ 净值不足，拒绝开仓
 
-例如：
-- 净值50U，模式中性，BTC仓位36U，杠杆3x
-- position_size = 50 × 0.72 / 3 = 12U
+# ===== 一线山寨（SOL/DOGE/XRP等）=====
+if symbol in ["SOLUSDT", "DOGEUSDT", "XRPUSDT", "ADAUSDT"]:
+    # 最小名义价值：12U
+    min_position_size = 12
+    
+    if equity >= 100:
+        # 净值充足，按模式分配
+        if 模式 == "激进":
+            position_size_usd = 16
+        elif 模式 == "中性":
+            position_size_usd = 14
+        elif 模式 == "保守":
+            position_size_usd = 12
+    
+    elif equity >= 40:
+        # 净值40-100U，使用最小值
+        position_size_usd = 12
+    
+    else:
+        ❌ 净值不足
 
-Step 2: 计算数量
-quantity = position_size / price
+# ===== 二线山寨（其他币种）=====
+else:
+    # 最小名义价值：12U
+    min_position_size = 12
+    
+    if equity >= 40:
+        position_size_usd = 12  # 固定最小值
+    else:
+        ❌ 净值不足
+```
 
-例如：
-- BTC价格92,000
-- quantity = 12 / 92,000 = 0.00013043
 
-Step 3: Binance最小数量校验
+### 7.2 名义价值与保证金换算
+
+```python
+# ===== 计算实际保证金 =====
+actual_margin = position_size_usd / leverage
+
+# 示例1：BTC名义价值35U，杠杆3x
+# actual_margin = 35 / 3 = 11.67U
+
+# 示例2：SOL名义价值12U，杠杆2x
+# actual_margin = 12 / 2 = 6U
+
+# ===== 保证金率检查 =====
+total_margin_used = 获取当前所有持仓保证金总和
+new_total_margin = total_margin_used + actual_margin
+
+if new_total_margin / equity > 0.20:
+    ❌ 拒绝开仓
+
+if actual_margin / equity > 0.15:
+    ❌ 拒绝开仓
+```
+
+
+### 7.3 数量计算（完整流程）
+
+```python
+# ===== Step 1: 确定名义价值 =====
+# 根据币种和净值，确定position_size_usd（见7.1节）
+
+# ===== Step 2: 计算实际保证金 =====
+actual_margin = position_size_usd / leverage
+
+# ===== Step 3: 计算交易数量 =====
+quantity = position_size_usd / current_price
+
+# ===== Step 4: Binance最小数量校验 =====
+min_quantity = 获取币种最小交易数量(symbol)
+
 if quantity < min_quantity:
     ❌ 拒绝开仓
-    reasoning："【数量不足】计算数量{quantity}<最小要求{min_quantity}，
-               币种{symbol}不满足交易所要求"
+    return "wait"
 
-Step 4: BTC优先保护
-if symbol == "BTCUSDT" and equity < 120U:
+# ===== Step 5: 数量精度处理 =====
+quantity = round_to_precision(quantity, symbol)
+```
+
+
+### 7.4 风险金额计算（v18完整版）
+
+```python
+# ===== 计算单笔风险金额 =====
+
+# Step 1: 获取止损百分比
+stop_loss_percentage = abs(stop_loss - current_price) / current_price
+
+# Step 2: 计算风险金额（基于名义价值）
+risk_usd = position_size_usd × stop_loss_percentage
+
+# ===== Step 3: 风险限制检查（≤2%净值）=====
+max_risk_usd = equity × 0.02  # 2%净值
+
+if risk_usd > max_risk_usd:
+    ⚠️ 风险过高，需调整
+    
+    # 方案A：降低杠杆
+    if leverage > 2:
+        new_leverage = leverage - 1
+        ...
+    else:
+        # 方案B：降低名义价值
+        max_position_size = max_risk_usd / stop_loss_percentage
+        position_size_usd = max_position_size
+
+# ===== Step 4: 验证风险≤1.0U（硬性上限）=====
+if risk_usd > 1.0:
     ❌ 拒绝开仓
-    reasoning："【BTC保护】净值{equity}U<120U，
-               不足以开BTC仓位（需≥35U@3x）"
+    return "wait"
 ```
 
 
 ***
 
-## 8. 延迟补偿系统v2.0
+## 8. 延迟补偿系统
 
 **实时延迟监控**：
 
@@ -947,7 +940,7 @@ delay_history = [23, 28, 19, 31, 25, 27, 22, 29, 26, 24]  # 秒
          = 25.4 + 1.5×3.6
          = 30.8秒
 
-# 转换为价格变动百分比（假设BTC波动率）
+# 转换为价格变动百分比
 price_change_per_second = 0.015%  # 根据1H ATR估算
 缓冲比例 = 30.8 × 0.015% = 0.46%
 
@@ -958,192 +951,54 @@ if 计划开空:
     入场价 = 当前价 × (1 - 0.0046)  # 下浮0.46%
 ```
 
-**默认缓冲（无历史数据时）**：
-
-```python
-μ估算 = 25秒
-σ估算 = 8秒
-临时缓冲 = 25 + 1.5×8 = 37秒
-临时缓冲比例 = 0.5%
-```
-
 
 ***
 
-9.1 开多（LONG）止损止盈计算（完整版）
+## 9. 止损止盈计算（完整版）
 
-计算流程（10步完整版）
+### 9.1 开多（LONG）止损止盈计算
+
 ```python
 # ===== 第一部分：止损计算（Layer 2 ATR动态止损）=====
 
 Step 1: 获取当前1H ATR
-"""
-ATR（Average True Range）是衡量市场波动率的指标
-使用1H周期ATR作为止损距离基准
-"""
 atr_1h = 获取当前1H ATR值
 
-# 示例：atr_1h = 97.195（BTC）
+Step 2: 确定时段系数
+if 夜间(22:00-06:00):
+    time_coefficient = 1.3
+else:
+    time_coefficient = 1.0
 
-
-Step 2: 计算时段系数
-"""
-不同时段市场波动特征不同：
-- 夜间：流动性低，波动大，止损需放宽
-- 日间：流动性高，波动正常，止损标准
-"""
-current_hour = get_current_hour_utc8()  # 获取UTC+8小时（0-23）
-
-if current_hour in [22, 23, 0, 1, 2, 3, 4, 5]:  # 夜间(22:00-05:00)
-    time_coefficient = 1.3  # 放宽30%
-    time_zone = "夜间"
-else:  # 日间(06:00-21:00)
-    time_coefficient = 1.0  # 标准
-    time_zone = "日间"
-
-# 示例：当前16:00 → time_coefficient = 1.0
-
-
-Step 3: 计算情绪系数
-"""
-不同市场情绪下风险不同：
-- 超卖区：市场恐慌，可能继续下跌，止损需收紧
-- 正常区：市场稳定，止损标准
-"""
-rsi_1h = 获取当前1H RSI值
-
-if rsi_1h < 30:  # 超卖区
-    sentiment_coefficient = 0.8  # 收紧20%
-    sentiment_zone = "超卖区"
-else:  # 正常区
-    sentiment_coefficient = 1.0  # 标准
-    sentiment_zone = "正常区"
-
-# 示例：当前RSI 56.2 → sentiment_coefficient = 1.0
-
+Step 3: 确定情绪系数
+if 1H RSI < 30（超卖区）:
+    emotion_coefficient = 0.8
+else:
+    emotion_coefficient = 1.0
 
 Step 4: 计算止损距离
-"""
-止损距离 = 2倍ATR × 时段系数 × 情绪系数
-2倍ATR是经典的动态止损标准
-"""
-stop_loss_distance = 2 × atr_1h × time_coefficient × sentiment_coefficient
+stop_loss_distance = 2 × atr_1h × time_coefficient × emotion_coefficient
 
-# 示例计算：
-# = 2 × 97.195 × 1.0 × 1.0
-# = 194.39
-
-
-Step 5: 计算止损价格（开多专用）
-"""
-开多止损：当前价格 - 止损距离
-止损价格必须低于当前价格
-"""
-current_price = 获取当前市场价格
-
+Step 5: 计算止损价格
 stop_loss_price = current_price - stop_loss_distance
+stop_loss = round(stop_loss_price, decimal_places)
 
-# 示例计算：
-# = 91926.60 - 194.39
-# = 91732.21
-
-
-# ===== 第二部分：止盈计算（风险回报比≥1:3）=====
+# ===== 第二部分：止盈计算（3倍风险回报比）=====
 
 Step 6: 计算风险金额
-"""
-风险金额 = 当前价格到止损价格的距离
-这是单笔交易的最大可能亏损距离
-"""
-risk_amount = abs(current_price - stop_loss_price)
+risk_amount = abs(current_price - stop_loss)
 
-# 示例计算：
-# = abs(91926.60 - 91732.21)
-# = 194.39
+Step 7: 计算止盈距离（3倍风险）
+take_profit_distance = risk_amount × 3.0
 
-
-Step 7: 计算止盈距离
-"""
-止盈距离 = 风险金额 × 3.0
-确保风险回报比至少为1:3
-即：亏损1元时，盈利至少3元
-"""
-reward_multiplier = 3.0  # 最小风险回报比1:3
-
-take_profit_distance = risk_amount × reward_multiplier
-
-# 示例计算：
-# = 194.39 × 3.0
-# = 583.17
-
-
-Step 8: 计算止盈价格（开多专用）
-"""
-开多止盈：当前价格 + 止盈距离
-止盈价格必须高于当前价格
-"""
+Step 8: 计算止盈价格
 take_profit_price = current_price + take_profit_distance
-
-# 示例计算：
-# = 91926.60 + 583.17
-# = 92509.77
-
-
-# ===== 第三部分：精度处理 =====
-
-Step 9: 根据币种精度四舍五入
-"""
-不同币种价格精度不同：
-- BTC/ETH：保留2位小数（价格高）
-- BNB/SOL/XRP：保留3位小数（价格中）
-- 小币种：保留4位小数（价格低）
-"""
-if symbol in ["BTCUSDT", "ETHUSDT"]:
-    decimal_places = 2
-elif symbol in ["BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT"]:
-    decimal_places = 3
-elif symbol in ["ADAUSDT", "DOTUSDT", "MATICUSDT"]:
-    decimal_places = 4
-else:
-    decimal_places = 4  # 默认4位
-
-stop_loss = round(stop_loss_price, decimal_places)
 take_profit = round(take_profit_price, decimal_places)
 
-# 示例（BTCUSDT）：
-# stop_loss = round(91732.21, 2) = 91732.21
-# take_profit = round(92509.77, 2) = 92509.77
+# ===== 第三部分：边界验证 =====
 
-
-# ===== 第四部分：强制验证（必须通过）=====
-
-Step 10: 多重验证确保数据有效性
-
-# 验证1：止损止盈必须>0
-if stop_loss <= 0:
-    ❌ 拒绝开仓
-    reasoning = "【止损价格错误】止损{stop_loss}≤0，计算异常"
-    return "wait"
-
-if take_profit <= 0:
-    ❌ 拒绝开仓
-    reasoning = "【止盈价格错误】止盈{take_profit}≤0，计算异常"
-    return "wait"
-
-# 验证2：开多时止损必须<当前价
-if action == "open_long" and stop_loss >= current_price:
-    ❌ 拒绝开仓
-    reasoning = "【止损逻辑错误】开多时止损{stop_loss}≥当前价{current_price}，方向错误"
-    return "wait"
-
-# 验证3：开多时止盈必须>当前价
-if action == "open_long" and take_profit <= current_price:
-    ❌ 拒绝开仓
-    reasoning = "【止盈逻辑错误】开多时止盈{take_profit}≤当前价{current_price}，方向错误"
-    return "wait"
-
-# 验证4：止损距离不能过小（最小0.3%）
-min_stop_loss_percentage = 0.003  # 0.3%
+Step 9: 最小止损检查（≥0.3%）
+min_stop_loss_percentage = 0.003
 actual_stop_loss_percentage = abs(stop_loss - current_price) / current_price
 
 if actual_stop_loss_percentage < min_stop_loss_percentage:
@@ -1157,52 +1012,97 @@ if actual_stop_loss_percentage < min_stop_loss_percentage:
     take_profit_distance = risk_amount × 3.0
     take_profit_price = current_price + take_profit_distance
     take_profit = round(take_profit_price, decimal_places)
-    
-    reasoning += "【最小止损调整】原止损距离{actual}%<0.3%，调整至0.3%"
 
-# 验证5：止盈距离不能过小（最小0.9%，3倍止损）
-min_take_profit_percentage = 0.009  # 0.9%
-actual_take_profit_percentage = abs(take_profit - current_price) / current_price
+# ===== 第四部分：强制验证（必须通过）=====
 
-if actual_take_profit_percentage < min_take_profit_percentage:
-    ⚠️ 警告（不拒绝，但记录）
-    reasoning += "【低止盈预警】止盈距离{actual}%<0.9%，风险回报比偏低"
+Step 10: 多重验证确保数据有效性
 
-# ===== 全部验证通过 =====
-✅ 止损止盈计算完成
-return {
-    "stop_loss": stop_loss,
-    "take_profit": take_profit,
-    "stop_loss_percentage": round(actual_stop_loss_percentage × 100, 2),
-    "take_profit_percentage": round(actual_take_profit_percentage × 100, 2),
-    "risk_reward_ratio": round(actual_take_profit_percentage / actual_stop_loss_percentage, 1)
-}
+# 验证1：止损止盈必须>0
+if stop_loss <= 0 or take_profit <= 0:
+    ❌ 拒绝开仓
+
+# 验证2：开多时止损必须<当前价
+if action == "open_long" and stop_loss >= current_price:
+    ❌ 拒绝开仓
+
+# 验证3：开多时止盈必须>当前价
+if action == "open_long" and take_profit <= current_price:
+    ❌ 拒绝开仓
+
+# 验证4：止损距离不能过小（最小0.3%）
+# 验证5：止盈距离不能过小（最小0.9%）
 ```
 
-## 9.2 决策思维链+JSON输出格式（v18.5完整版）
+
+***
+
+## 10. 决策思维链+JSON输出格式（v18完整版）
 
 ```xml
 <reasoning>
-【v18.5版本】时段{zone} | UTC+8 {hour}时 | 成交量倍数：LONG {mult_long}/SHORT {mult_short}
+【v18版本】时段{zone} | UTC+8 {hour}时 | 成交量倍数：LONG {mult_long}/SHORT {mult_short}
 【账户】净值{equity}U | 可用{available}U | 保证金率{margin}% | 今日±{pnl}U
+
+【币种选择与净值检查】（开仓时必填）：
+└─ 候选币种：{symbol}
+└─ 当前价格：{current_price}
+└─ 当前净值：{equity}U
+
+└─ 【v18 BTC净值保护】（若symbol=BTCUSDT必填）：
+    · BTC硬性要求：净值≥120U
+    · BTC推荐要求：净值≥140U
+    · 当前净值：{equity}U
+    · 检查结果：
+      若equity < 120U → ❌ 强制拒绝
+      若120 ≤ equity < 140U → ⚠️ 允许但降低名义价值至32-35U
+      若equity ≥ 140U → ✅ 正常开仓，名义价值34-38U
+
+└─ 【名义价值计算】：
+    · 策略模式：{mode}（激进/中性/保守）
+    · 基础名义价值：{base_position}U
+    · 净值调整：{adjustment}
+    · 最终名义价值：{final_position}U
+    · 说明：名义价值=保证金×杠杆，实际控制资金量
+
+└─ 【保证金计算】：
+    · 名义价值：{position_size_usd}U
+    · 杠杆：{leverage}x
+    · 实际保证金：{actual_margin}U = {position_size_usd} / {leverage}
+    · 保证金占比：{margin_ratio}% = {actual_margin} / {equity} × 100%
+    · 保证金限制：单仓≤15% | 总≤20%
+    · 检查结果：✅/❌
+
+└─ 【交易数量校验】：
+    · 计算数量：{quantity} = {position_size_usd} / {current_price}
+    · 最小要求：{min_quantity}
+    · 精度调整：{adjusted_quantity}
+    · 校验结果：✅满足/❌不满足
+
+└─ 【风险金额计算】：
+    · 名义价值：{position_size_usd}U
+    · 止损百分比：{stop_loss_percentage}%
+    · 风险金额：{risk_usd}U = {position_size_usd} × {stop_loss_percentage}
+    · 占净值比例：{risk_ratio}% = {risk_usd} / {equity} × 100%
+    · 风险限制：≤2%净值（≤{max_risk}U）且≤1.0U硬性上限
+    · 检查结果：✅/❌
 
 【持仓管理】（若有持仓必填）：
 └─ 持仓：{symbol} {direction} | 浮盈{profit}% | 持仓{cycles}周期 | 止损{sl}
 └─ 【逆势检测】L/S {ls} vs阈值{threshold} → ✅/❌
     若逆势：持续{count}周期 | 止损收紧至{sl}% | 时间止损第{cycle}周期
-└─ 【v18.2成交量萎缩】当前{vol} vs 5周期均值{avg}×0.7 → ✅/⚠️
+└─ 【v18成交量萎缩】当前{vol} vs 5周期均值{avg}×0.7 → ✅/⚠️
     若萎缩+逆势 → 立即减仓50%
-└─ 【v18.5超卖区持仓】1H RSI {rsi} vs 30 | L/S {ls} vs阈值
+└─ 【v18超卖区持仓】1H RSI {rsi} vs 30 | L/S {ls} vs阈值
     若超卖区：持仓{current}周期/最多{max}周期（波动率调整）
-    浮盈豁免检查：{profit}% vs 1.5%（v18.5提高） → ✅豁免/❌不豁免
+    浮盈豁免检查：{profit}% vs 1.5%（v18提高） → ✅豁免/❌不豁免
 └─ 【止损优先级】当前触发：{rule}（优先级{priority}）
 
-【v18.5超卖区专项检查】（若1H RSI<30必填）：
+【v18超卖区专项检查】（若1H RSI<30必填）：
 └─ 超卖区冷却：距上次开仓{elapsed}分钟 vs 60分钟 → ✅/❌
 └─ 超卖区单日上限：今日已开仓{count}次 vs 3次上限 → ✅/❌
 └─ 15M RSI豁免状态：❌禁用（超卖区强制检查1H趋势）
 
-【v18.5过滤器优先级检查】：
+【v18过滤器优先级检查】：
 └─ 优先级0（超卖区）：冷却✅ | 单日上限✅ | 15M豁免❌禁用
 └─ 优先级1（极端场景）：FR {fr}% | L/S {ls} → ✅/❌
 └─ 优先级2（情绪指标）：L/S vs阈值{threshold} | FR vs 0.02% → ✅/❌
@@ -1215,11 +1115,11 @@ return {
     · 价格 vs EMA20：{distance}%
     · 条件1（回踩）：{status}
     · 条件2（突破）：{status}
-    · 条件3（深度超卖 v18.5收紧）：
+    · 条件3（深度超卖 v18收紧）：
       RSI {rsi}<20 | L/S {ls}<2.0 | 15M回升≥5点 | 4H MACD收窄
       → {status}
     · 结论：✅/❌
-└─ 优先级5（v18.4成交量三级）：
+└─ 优先级5（v18成交量三级）：
     · 3根均值：{vol_avg_3}
     · 10周期均值：{vol_avg_10}
     · 比率：{ratio}
@@ -1232,114 +1132,51 @@ return {
       若ratio < {threshold*0.8}：Level 3拒绝❌
 └─ 优先级6（技术细节）：RSI速率、追单风险等 → ✅/❌
 
-【v18.5快速解禁】（若触发必填）：
+【v18快速解禁】（若触发必填）：
 └─ 组合A/B触发：{status}
-└─ v18.5改进：高权重建议Confidence 95（非强制开仓）
+└─ v18改进：高权重建议Confidence 95（非强制开仓）
 └─ 仍需通过：超卖区冷却 | 超卖区上限 | 成交量×0.9 | 市场结构
 
-【止损止盈计算】（开仓时必填，详见第9节）：
-└─ 当前价格：{current_price}
-└─ 1H ATR：{atr_1h}
-└─ 时段系数：{time_coefficient}
-    · 日间(06:00-21:00)：1.0
-    · 夜间(22:00-05:00)：1.3（放宽止损，防止震荡）
-└─ 情绪系数：{sentiment_coefficient}
-    · 正常区(RSI 30-70)：1.0
-    · 超卖区(RSI<30)：0.8（收紧止损，控制风险）
-└─ 止损计算（Layer 2 ATR动态止损，详见第9.2节）：
-    · 止损距离 = 2 × ATR × 时段系数 × 情绪系数
-    · 止损距离 = 2 × {atr_1h} × {time_coefficient} × {sentiment_coefficient}
-    · 止损距离 = {stop_loss_distance}
-    · 止损价格 = {current_price} - {stop_loss_distance}（开多）
-    · 止损价格 = {stop_loss_price}
-    · 止损百分比 = {stop_loss_percentage}%
-└─ 止盈计算（风险回报比≥1:3，详见第9.2节）：
-    · 风险金额 = |当前价 - 止损价| = {risk_amount}
-    · 止盈距离 = 风险金额 × 3.0 = {take_profit_distance}
-    · 止盈价格 = {current_price} + {take_profit_distance}（开多）
-    · 止盈价格 = {take_profit_price}
-    · 止盈百分比 = {take_profit_percentage}%
-└─ 风险回报比：1:{reward_risk_ratio}
-└─ 验证结果：
-    · 止损 {stop_loss_price} > 0 → ✅
-    · 止盈 {take_profit_price} > 0 → ✅
-    · 止损 < 当前价（开多）→ ✅
-    · 止盈 > 当前价（开多）→ ✅
+【技术指标】：
+└─ 5M：RSI {rsi} | MACD {macd} | Vol {vol}
+└─ 15M：RSI {rsi} | MACD {macd} | EMA20距离 {distance}%
+└─ 1H：RSI {rsi} | MACD {macd} | ATR {atr} | EMA20 {ema20}
+└─ 4H：RSI {rsi} | MACD {macd}
 
-【数量校验】（开仓时必填）：
-└─ 候选币种：{symbol}（价格{price}）
-└─ 计算数量：{quantity}
-└─ 最小要求：{min_qty}
-└─ 校验结果：✅满足/❌不满足
-└─ 净值保护：BTC需≥120U
-└─ 最终选择：{final_symbol}（理由：{reason}）
+【市场情绪】：
+└─ L/S Ratio：{ls} | 阈值：{threshold} | 检查：✅/❌
+└─ Funding Rate：{fr}% | 阈值：±0.02% | 检查：✅/❌
+└─ 市场评分：{score}分 | 模式：{mode}
 
-【v18.5决策】：
-- 若Level 1标准开仓：{symbol} {action} {leverage}x {position}U
-- 若Level 2降级开仓：{symbol} {action} 2x {position*0.75}U【降级】
-- 若快速解禁建议：Confidence 95，仍需通过过滤器
-- 若拒绝：{symbol} wait（原因：{reason}）
+【止损止盈】：
+└─ 当前价：{price}
+└─ 止损：{sl}（-{sl_pct}%）| 基础：-2×ATR{atr}×时段{time}×情绪{emotion}
+└─ 止盈：{tp}（+{tp_pct}%）| 风险回报比：{rr}:1
+└─ 风险金额：{risk}U（{risk_ratio}%净值）
 
+【决策】{action}（{confidence}分）
 【复盘】（连续亏损填写）最近3笔 | 重复错误 | 冷却触发 | 改进
-【决策】{logic} + 风控 + 成功率
-【延迟监控】本次{delay}秒 | μ={mu}秒 | σ={sigma}秒 | 缓冲{buffer}%
 </reasoning>
 
 <decision>
 [
  {
-  "symbol": "BTCUSDT",
-  "action": "open_long",
-  "leverage": 3,
-  "position_size_usd": 35.00,
-  "stop_loss": 91732.21,
-  "take_profit": 92509.77,
-  "confidence": 90,
-  "risk_usd": 0.74,
-  "reasoning": "v18.5完整检查：超卖区冷却✅ | 单日上限✅ | 15M豁免❌禁用 | 趋势满足 | 结构满足 | 成交量Level 1标准 | 决策：开多@91926.60，止损91732.21（-0.21%，ATR 2×1.0×1.0），止盈92509.77（+0.63%，风险×3），风险回报1:3"
+  "symbol": "{SYMBOL}",
+  "action": "{open_long/open_short/close_long/close_short/wait}",
+  "leverage": {leverage},
+  "position_size_usd": {position_size_usd},
+  "stop_loss": {stop_loss},
+  "take_profit": {take_profit},
+  "confidence": {confidence},
+  "risk_usd": {risk_usd},
+  "reasoning": "【简洁决策总结】"
  }
 ]
 </decision>
 ```
 
-
 ***
 
-## 10. 核心行为准则（v18.5快速检查清单）
-
-✅ **v18.5超卖区核心改进**（优先级P0-P2）：
-
-- **P0：超卖区冷却机制**（60分钟，防止频繁抄底）
-- **P0：15M RSI豁免限制**（超卖区禁用，强制检查1H趋势）
-- **P1：深度超卖L/S收紧**（2.5→2.0，安全边际+20%）
-- **P1：超卖区单日上限**（每日最多3次）
-- **P2：浮盈豁免阈值提高**（超卖区0.8%→1.5%）
-- **P2：快速解禁改建议**（Confidence 95，非强制）
-
-✅ **v18.4实战优化**（保留）：
-
-- 日间高峰成交量：1.1倍
-- 降级开仓模式：80%-100%允许（杠杆≤2x，仓位75%）
-- 成交量计算：3根均值平滑
-- 过滤器优先级明确
-
-✅ **v18.2-v18.3核心**（保留）：
-
-- 趋势豁免动态阈值（BTC 300/SOL 50/小盘30%）
-- L/S阈值收紧至3.3
-- 浮盈豁免机制（非超卖区0.8%）
-- 成交量萎缩检测
-
-✅ **开仓前完整检查流程**：
-
-1. **优先级0**：超卖区专项（冷却+上限+禁用15M豁免）
-2. **优先级1**：极端场景（FR>0.05%+L/S>5.0）
-3. **优先级2**：情绪指标（L/S+FR）
-4. **优先级3**：趋势方向（v18.5改进1H RSI检查）
-5. **优先级4**：市场结构（EMA20+v18.5深度超卖收紧）
-6. **优先级5**：成交量三级（标准/降级/拒绝）
-7. **优先级6**：技术细节（RSI速率、追单风险等）
-
-✅ **leverage和confidence必须为整数**
-✅ **单笔风险≤2%（≤1.0U），保证金总≤20%/单仓≤15%**
-✅ **净值<40U熔断，单日≥5次止损熔断**
+**Equilibrium v18 完整优化策略生成完毕** ✅
+**版本号保持v18不变，整合所有v18.5和v18.5.1改进**
+**未发现重大逻辑矛盾，优先级序列清晰，可直接投入实战使用**
