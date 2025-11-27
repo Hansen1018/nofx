@@ -75,12 +75,6 @@ export default function HeaderBar({
           >
             NOFX
           </span>
-          <span
-            className="text-sm hidden sm:block"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            Agentic Trading OS
-          </span>
         </Link>
 
         {/* Desktop Menu */}
@@ -526,6 +520,27 @@ export default function HeaderBar({
                 </div>
               )
             )}
+
+            {/* Git Branch Badge - Before Language Toggle */}
+            {typeof __GIT_BRANCH__ !== 'undefined' &&
+              __GIT_BRANCH__ !== 'unknown' &&
+              __GIT_BRANCH__ !== 'main' &&
+              __GIT_BRANCH__ !== 'master' && (
+                <a
+                  href="https://github.com/the-dev-z/nofx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors hover:opacity-80"
+                  style={{
+                    background: 'rgba(240, 185, 11, 0.1)',
+                    color: 'var(--brand-yellow)',
+                    border: '1px solid rgba(240, 185, 11, 0.2)',
+                  }}
+                  title={`Fork maintained by the-dev-z • Branch: ${__GIT_BRANCH__}`}
+                >
+                  <span className="text-xs font-medium">{__GIT_BRANCH__}</span>
+                </a>
+              )}
 
             {/* Language Toggle - Always at the rightmost */}
             <div className="relative" ref={dropdownRef}>
