@@ -124,6 +124,12 @@ func (s *Server) setupRoutes() {
 			// 服务器IP查询（需要认证，用于白名单配置）
 			protected.GET("/server-ip", s.handleGetServerIP)
 
+			// 提示词模板管理（需要认证）
+			protected.POST("/prompt-templates", s.handleCreatePromptTemplate)
+			protected.PUT("/prompt-templates/:name", s.handleUpdatePromptTemplate)
+			protected.DELETE("/prompt-templates/:name", s.handleDeletePromptTemplate)
+			protected.POST("/prompt-templates/reload", s.handleReloadPromptTemplates)
+
 			// AI交易员管理
 			protected.GET("/my-traders", s.handleTraderList)
 			protected.GET("/traders/:id/config", s.handleGetTraderConfig)
@@ -458,6 +464,8 @@ type UpdateExchangeConfigRequest struct {
 		AsterUser             string `json:"aster_user"`
 		AsterSigner           string `json:"aster_signer"`
 		AsterPrivateKey       string `json:"aster_private_key"`
+		LighterWalletAddr     string `json:"lighter_wallet_addr"`
+		LighterPrivateKey     string `json:"lighter_private_key"`
 	} `json:"exchanges"`
 }
 
@@ -566,6 +574,13 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		switch req.ExchangeID {
 		case "binance":
 			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+		case "okx":
+			tempTrader = trader.NewOKXTrader(
+				exchangeCfg.APIKey,
+				exchangeCfg.SecretKey,
+				exchangeCfg.OKXPassphrase,
+				exchangeCfg.Testnet,
+			)
 		case "hyperliquid":
 			tempTrader, createErr = trader.NewHyperliquidTrader(
 				exchangeCfg.APIKey, // private key
@@ -1011,7 +1026,14 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
 	if err != nil {
 		log.Printf("❌ 解密模型配置失败 (UserID: %s): %v", userID, err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "解密数据失败"})
+		// 根据错误类型提供更具体的错误信息
+		errMsg := "解密数据失败"
+		if strings.Contains(err.Error(), "timestamp") {
+			errMsg = "时间戳验证失败：请检查系统时间是否正确"
+		} else if strings.Contains(err.Error(), "unwrap") || strings.Contains(err.Error(), "RSA") {
+			errMsg = "密钥解密失败：请刷新页面重试"
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
 
@@ -1034,7 +1056,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	}
 
 	// 重新加载该用户的所有交易员，使新配置立即生效
-	err = s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.ReloadUserTraders(s.database, userID)
 	if err != nil {
 		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
 		// 这里不返回错误，因为模型配置已经成功更新到数据库
@@ -1108,7 +1130,14 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
 	if err != nil {
 		log.Printf("❌ 解密交易所配置失败 (UserID: %s): %v", userID, err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "解密数据失败"})
+		// 根据错误类型提供更具体的错误信息
+		errMsg := "解密数据失败"
+		if strings.Contains(err.Error(), "timestamp") {
+			errMsg = "时间戳验证失败：请检查系统时间是否正确"
+		} else if strings.Contains(err.Error(), "unwrap") || strings.Contains(err.Error(), "RSA") {
+			errMsg = "密钥解密失败：请刷新页面重试"
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
 
@@ -1123,7 +1152,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 	// 更新每个交易所的配置
 	for exchangeID, exchangeData := range req.Exchanges {
-		err := s.database.UpdateExchange(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey)
+		err := s.database.UpdateExchange(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
 			return
@@ -1131,7 +1160,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	}
 
 	// 重新加载该用户的所有交易员，使新配置立即生效
-	err = s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.ReloadUserTraders(s.database, userID)
 	if err != nil {
 		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
 		// 这里不返回错误，因为交易所配置已经成功更新到数据库
@@ -1958,7 +1987,20 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models)
+	// 转换为安全的响应结构，移除敏感信息
+	safeModels := make([]SafeModelConfig, len(models))
+	for i, model := range models {
+		safeModels[i] = SafeModelConfig{
+			ID:              model.ID, // 模型ID（例如 "deepseek"）
+			Name:            model.Name,
+			Provider:        model.Provider,
+			Enabled:         model.Enabled,
+			CustomAPIURL:    model.CustomAPIURL,
+			CustomModelName: model.CustomModelName,
+		}
+	}
+
+	c.JSON(http.StatusOK, safeModels)
 }
 
 // handleGetSupportedExchanges 获取系统支持的交易所列表
@@ -2071,6 +2113,108 @@ func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"name":    template.Name,
 		"content": template.Content,
+	})
+}
+
+// handleCreatePromptTemplate 创建新的提示词模板
+func (s *Server) handleCreatePromptTemplate(c *gin.Context) {
+	var req struct {
+		Name    string `json:"name" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	// 检查模板是否已存在
+	if decision.TemplateExists(req.Name) {
+		c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("模板已存在: %s", req.Name)})
+		return
+	}
+
+	// 保存模板
+	if err := decision.SavePromptTemplate(req.Name, req.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("创建模板失败: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "模板创建成功",
+		"name":    req.Name,
+	})
+}
+
+// handleUpdatePromptTemplate 更新提示词模板
+func (s *Server) handleUpdatePromptTemplate(c *gin.Context) {
+	templateName := c.Param("name")
+
+	var req struct {
+		Content string `json:"content" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	// 检查模板是否存在
+	if !decision.TemplateExists(templateName) {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("模板不存在: %s", templateName)})
+		return
+	}
+
+	// 更新模板
+	if err := decision.SavePromptTemplate(templateName, req.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新模板失败: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "模板更新成功",
+		"name":    templateName,
+	})
+}
+
+// handleDeletePromptTemplate 删除提示词模板
+func (s *Server) handleDeletePromptTemplate(c *gin.Context) {
+	templateName := c.Param("name")
+
+	// 删除模板
+	if err := decision.DeletePromptTemplate(templateName); err != nil {
+		if strings.Contains(err.Error(), "不能删除系统模板") {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		} else if strings.Contains(err.Error(), "模板不存在") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除模板失败: %v", err)})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "模板删除成功",
+	})
+}
+
+// handleReloadPromptTemplates 重新加载所有提示词模板
+func (s *Server) handleReloadPromptTemplates(c *gin.Context) {
+	if err := decision.ReloadPromptTemplates(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("重新加载失败: %v", err),
+		})
+		return
+	}
+
+	templates := decision.GetAllPromptTemplates()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "重新加载成功",
+		"count":   len(templates),
 	})
 }
 

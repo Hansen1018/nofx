@@ -23,11 +23,15 @@ type AutoTraderConfig struct {
 	AIModel string // AI模型: "qwen" 或 "deepseek"
 
 	// 交易平台选择
-	Exchange string // "binance", "hyperliquid" 或 "aster"
+	Exchange string // "binance", "bybit", "hyperliquid", "aster" 或 "lighter"
 
 	// 币安API配置
 	BinanceAPIKey    string
 	BinanceSecretKey string
+
+	// Bybit API配置
+	BybitAPIKey    string
+	BybitSecretKey string
 
 	// Hyperliquid配置
 	HyperliquidPrivateKey string
@@ -38,6 +42,12 @@ type AutoTraderConfig struct {
 	AsterUser       string // Aster主钱包地址
 	AsterSigner     string // Aster API钱包地址
 	AsterPrivateKey string // Aster API钱包私钥
+
+	// LIGHTER配置
+	LighterWalletAddr       string // LIGHTER钱包地址（L1 wallet）
+	LighterPrivateKey       string // LIGHTER L1私钥（用于识别账户）
+	LighterAPIKeyPrivateKey string // LIGHTER API Key私钥（40字节，用于签名交易）
+	LighterTestnet          bool   // 是否使用testnet
 
 	CoinPoolAPIURL string
 
@@ -73,6 +83,9 @@ type AutoTraderConfig struct {
 	DefaultCoins []string // 默认币种列表（从数据库获取）
 	TradingCoins []string // 实际交易币种列表
 
+	// K线时间周期配置
+	Timeframes []string // K线时间周期列表（如 ["3m", "4h"]）
+
 	// 系统提示词模板
 	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
 }
@@ -89,6 +102,8 @@ type AutoTrader struct {
 	decisionLogger        logger.IDecisionLogger // 决策日志记录器
 	initialBalance        float64
 	dailyPnL              float64
+	dailyPnLBase          float64              // 日盈亏基准（当日开始时的净值）
+	needsDailyBaseline    bool                 // 是否需要重新设置日基准
 	customPrompt          string   // 自定义交易策略prompt
 	overrideBasePrompt    bool     // 是否覆盖基础prompt
 	systemPromptTemplate  string   // 系统提示词模板名称
@@ -105,6 +120,8 @@ type AutoTrader struct {
 	peakPnLCache          map[string]float64 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
 	peakPnLCacheMutex     sync.RWMutex       // 缓存读写锁
 	lastBalanceSyncTime   time.Time          // 上次余额同步时间
+	positionStopLoss      map[string]float64 // 持仓止损价格缓存 (symbol_side -> 止损价)
+	positionTakeProfit    map[string]float64 // 持仓止盈价格缓存 (symbol_side -> 止盈价)
 	database              interface{}        // 数据库引用（用于自动更新余额）
 	userID                string             // 用户ID
 }
@@ -178,6 +195,9 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 	case "binance":
 		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
 		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey, userID)
+	case "bybit":
+		log.Printf("🏦 [%s] 使用Bybit合约交易", config.Name)
+		trader = NewBybitTrader(config.BybitAPIKey, config.BybitSecretKey)
 	case "hyperliquid":
 		log.Printf("🏦 [%s] 使用Hyperliquid交易", config.Name)
 		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
@@ -189,6 +209,29 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		trader, err = NewAsterTrader(config.AsterUser, config.AsterSigner, config.AsterPrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("初始化Aster交易器失败: %w", err)
+		}
+	case "lighter":
+		log.Printf("🏦 [%s] 使用LIGHTER交易", config.Name)
+
+		// 優先使用 V2（需要 API Key）
+		if config.LighterAPIKeyPrivateKey != "" {
+			log.Printf("✓ 使用 LIGHTER SDK (V2) - 完整簽名支持")
+			trader, err = NewLighterTraderV2(
+				config.LighterPrivateKey,
+				config.LighterWalletAddr,
+				config.LighterAPIKeyPrivateKey,
+				config.LighterTestnet,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("初始化LIGHTER交易器(V2)失败: %w", err)
+			}
+		} else {
+			// 降級使用 V1（基本HTTP實現）
+			log.Printf("⚠️  使用 LIGHTER 基本實現 (V1) - 功能受限，請配置 API Key")
+			trader, err = NewLighterTrader(config.LighterPrivateKey, config.LighterWalletAddr, config.LighterTestnet)
+			if err != nil {
+				return nil, fmt.Errorf("初始化LIGHTER交易器(V1)失败: %w", err)
+			}
 		}
 	default:
 		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)
@@ -224,6 +267,8 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		defaultCoins:          config.DefaultCoins,
 		tradingCoins:          config.TradingCoins,
 		lastResetTime:         time.Now(),
+		dailyPnLBase:          config.InitialBalance,
+		needsDailyBaseline:    true,
 		startTime:             time.Now(),
 		callCount:             0,
 		isRunning:             false,
@@ -233,6 +278,8 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(), // 初始化为当前时间
+		positionStopLoss:      make(map[string]float64),
+		positionTakeProfit:    make(map[string]float64),
 		database:              database,
 		userID:                userID,
 	}, nil
@@ -315,8 +362,10 @@ func (at *AutoTrader) runCycle() error {
 	// 2. 重置日盈亏（每天重置）
 	if time.Since(at.lastResetTime) > 24*time.Hour {
 		at.dailyPnL = 0
+		at.dailyPnLBase = 0
+		at.needsDailyBaseline = true
 		at.lastResetTime = time.Now()
-		log.Println("📅 日盈亏已重置")
+		log.Println("📅 日盈亏已重置，等待新的基准净值")
 	}
 
 	// 4. 收集交易上下文
@@ -327,6 +376,9 @@ func (at *AutoTrader) runCycle() error {
 		at.decisionLogger.LogDecision(record)
 		return fmt.Errorf("构建交易上下文失败: %w", err)
 	}
+
+	// 更新日盈亏指标（使用当前净值同步基准）
+	at.updatePnLMetrics(ctx.Account.TotalEquity)
 
 	// 保存账户状态快照
 	record.AccountState = logger.AccountSnapshot{
@@ -517,11 +569,35 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	currentPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		symbol, err := SafeString(pos, "symbol")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 symbol: %v", err)
+			continue
+		}
+
+		side, err := SafeString(pos, "side")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 side: %v", err)
+			continue
+		}
+
+		entryPrice, err := SafeFloat64(pos, "entryPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 entryPrice: %v", err)
+			continue
+		}
+
+		markPrice, err := SafeFloat64(pos, "markPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 markPrice: %v", err)
+			continue
+		}
+
+		quantity, err := SafeFloat64(pos, "positionAmt")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity // 空仓数量为负，转为正数
 		}
@@ -531,8 +607,17 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			continue
 		}
 
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl, err := SafeFloat64(pos, "unRealizedProfit")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 unRealizedProfit: %v", err)
+			continue
+		}
+
+		liquidationPrice, err := SafeFloat64(pos, "liquidationPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 liquidationPrice: %v", err)
+			continue
+		}
 
 		// 计算占用保证金（估算）
 		leverage := 10 // 默认值，实际应该从持仓信息获取
@@ -616,6 +701,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
 		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		Timeframes:      at.config.Timeframes,      // K线时间线配置
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
@@ -674,7 +760,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	}
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -754,7 +840,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	}
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -824,7 +910,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	log.Printf("  🔄 平多仓: %s", decision.Symbol)
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -850,7 +936,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	log.Printf("  🔄 平空仓: %s", decision.Symbol)
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -876,7 +962,7 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 	log.Printf("  🎯 调整止损: %s → %.2f", decision.Symbol, decision.NewStopLoss)
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -937,8 +1023,13 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 		log.Printf("  🚨 建议：手动平掉其中一个方向的持仓，或检查系统是否有BUG")
 	}
 
-	// 取消旧的止损单（只删除止损单，不影响止盈单）
-	// 注意：如果存在双向持仓，这会删除两个方向的止损单
+	// ⚠️ Save-Restore Pattern: 保存当前止盈价格，因为 Hyperliquid
+	// 取消止损时会连带取消所有挂单（包括止盈），需要在设置新止损后恢复止盈
+	posKey := decision.Symbol + "_" + strings.ToLower(positionSide)
+	savedTakeProfit := at.positionTakeProfit[posKey]
+
+	// 取消旧的止损单
+	// 注意：Hyperliquid 会删除所有挂单，但我们会在后面恢复止盈
 	if err := at.trader.CancelStopLossOrders(decision.Symbol); err != nil {
 		log.Printf("  ⚠ 取消旧止损单失败: %v", err)
 		// 不中断执行，继续设置新止损
@@ -952,6 +1043,21 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 	}
 
 	log.Printf("  ✓ 止损已调整: %.2f (当前价格: %.2f)", decision.NewStopLoss, marketData.CurrentPrice)
+
+	// 更新内存中的止损价格
+	at.positionStopLoss[posKey] = decision.NewStopLoss
+
+	// ⚠️ Save-Restore: 仅 Hyperliquid 需要恢复被误删的止盈单
+	// 因为 Hyperliquid 的 CancelStopLossOrders 会删除所有挂单（包括止盈）
+	if at.exchange == "hyperliquid" && savedTakeProfit > 0 {
+		log.Printf("  🔄 [Hyperliquid Restore] 检测到止盈单被误删，正在恢复止盈: %.2f", savedTakeProfit)
+		if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, quantity, savedTakeProfit); err != nil {
+			log.Printf("  ⚠️ [Restore] 恢复止盈单失败: %v（止盈可能丢失，请检查）", err)
+		} else {
+			log.Printf("  ✓ [Restore] 止盈单已恢复: %.2f", savedTakeProfit)
+		}
+	}
+
 	return nil
 }
 
@@ -960,7 +1066,7 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	log.Printf("  🎯 调整止盈: %s → %.2f", decision.Symbol, decision.NewTakeProfit)
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -1021,8 +1127,13 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 		log.Printf("  🚨 建议：手动平掉其中一个方向的持仓，或检查系统是否有BUG")
 	}
 
-	// 取消旧的止盈单（只删除止盈单，不影响止损单）
-	// 注意：如果存在双向持仓，这会删除两个方向的止盈单
+	// ⚠️ Save-Restore Pattern: 保存当前止损价格，因为 Hyperliquid
+	// 取消止盈时会连带取消所有挂单（包括止损），需要在设置新止盈后恢复止损
+	posKey := decision.Symbol + "_" + strings.ToLower(positionSide)
+	savedStopLoss := at.positionStopLoss[posKey]
+
+	// 取消旧的止盈单
+	// 注意：Hyperliquid 会删除所有挂单，但我们会在后面恢复止损
 	if err := at.trader.CancelTakeProfitOrders(decision.Symbol); err != nil {
 		log.Printf("  ⚠ 取消旧止盈单失败: %v", err)
 		// 不中断执行，继续设置新止盈
@@ -1036,6 +1147,21 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	}
 
 	log.Printf("  ✓ 止盈已调整: %.2f (当前价格: %.2f)", decision.NewTakeProfit, marketData.CurrentPrice)
+
+	// 更新内存中的止盈价格
+	at.positionTakeProfit[posKey] = decision.NewTakeProfit
+
+	// ⚠️ Save-Restore: 仅 Hyperliquid 需要恢复被误删的止损单
+	// 因为 Hyperliquid 的 CancelTakeProfitOrders 会删除所有挂单（包括止损）
+	if at.exchange == "hyperliquid" && savedStopLoss > 0 {
+		log.Printf("  🔄 [Hyperliquid Restore] 检测到止损单被误删，正在恢复止损: %.2f", savedStopLoss)
+		if err := at.trader.SetStopLoss(decision.Symbol, positionSide, quantity, savedStopLoss); err != nil {
+			log.Printf("  ⚠️ [Restore] 恢复止损单失败: %v（止损可能丢失，请检查）", err)
+		} else {
+			log.Printf("  ✓ [Restore] 止损单已恢复: %.2f", savedStopLoss)
+		}
+	}
+
 	return nil
 }
 
@@ -1049,7 +1175,7 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	}
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.Timeframes)
 	if err != nil {
 		return err
 	}
@@ -1650,4 +1776,17 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 
 	posKey := symbol + "_" + side
 	delete(at.peakPnLCache, posKey)
+}
+
+// updatePnLMetrics 更新日盈亏指标
+// 如果 dailyPnLBase 为 0 或需要重新设置基准，则使用当前净值作为基准
+func (at *AutoTrader) updatePnLMetrics(currentEquity float64) {
+	if at.dailyPnLBase == 0 || at.needsDailyBaseline {
+		at.dailyPnLBase = currentEquity
+		at.dailyPnL = 0
+		at.needsDailyBaseline = false
+		log.Printf("📊 日盈亏基准同步：%.2f USDT", currentEquity)
+	} else {
+		at.dailyPnL = currentEquity - at.dailyPnLBase
+	}
 }

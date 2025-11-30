@@ -21,6 +21,33 @@ export const translations = {
     configNav: 'Config',
     dashboardNav: 'Dashboard',
     faqNav: 'FAQ',
+    promptsNav: 'Prompts',
+
+    // Prompts Management Page
+    promptsManagement: 'Prompt Management',
+    promptsManagementDesc: 'Manage your AI trading strategy prompt templates',
+    promptsCreateBtn: '+ New Template',
+    promptsRefreshBtn: '🔄 Refresh',
+    promptsSaveBtn: '💾 Save',
+    promptsDeleteBtn: '🗑️ Delete',
+    promptsTemplateList: '📁 Template List',
+    promptsNewTemplate: 'New Template',
+    promptsConfirmDelete: 'Confirm Delete',
+    promptsCancelBtn: 'Cancel',
+    promptsCreateBtn2: 'Create',
+    promptsLoadFailed: 'Failed to load templates',
+    promptsGetFailed: 'Failed to get template content',
+    promptsSaveSuccess: 'Saved successfully',
+    promptsSaveFailed: 'Save failed',
+    promptsCreateSuccess: 'Created successfully',
+    promptsCreateFailed: 'Create failed',
+    promptsDeleteSuccess: 'Deleted successfully',
+    promptsDeleteFailed: 'Delete failed',
+    promptsEnterName: 'Enter template name (English)',
+    promptsConfirmDeleteMsg: 'Are you sure you want to delete template「{name}」? This action cannot be undone.',
+    promptsSelectPrompt: 'Please select a template from the list',
+    promptsCharCount: 'Characters: {count}',
+    promptsLineCount: 'Lines: {count}',
 
     // Footer
     footerTitle: 'NOFX - AI Trading System',
@@ -222,6 +249,21 @@ export const translations = {
       'API wallet private key - Get from https://www.asterdex.com/en/api-wallet (only used locally for signing, never transmitted)',
     asterUsdtWarning:
       'Important: Aster only tracks USDT balance. Please ensure you use USDT as margin currency to avoid P&L calculation errors caused by price fluctuations of other assets (BNB, ETH, etc.)',
+
+    // LIGHTER Configuration
+    lighterWalletAddress: 'L1 Wallet Address',
+    lighterPrivateKey: 'L1 Private Key',
+    lighterApiKeyPrivateKey: 'API Key Private Key',
+    enterLighterWalletAddress: 'Enter Ethereum wallet address (0x...)',
+    enterLighterPrivateKey: 'Enter L1 private key (32 bytes)',
+    enterLighterApiKeyPrivateKey: 'Enter API Key private key (40 bytes, optional)',
+    lighterWalletAddressDesc: 'Your Ethereum wallet address for account identification',
+    lighterPrivateKeyDesc: 'L1 private key for account identification (32-byte ECDSA key)',
+    lighterApiKeyPrivateKeyDesc: 'API Key private key for transaction signing (40-byte Poseidon2 key)',
+    lighterApiKeyOptionalNote: 'Without API Key, system will use limited V1 mode',
+    lighterV1Description: 'Basic Mode - Limited functionality, testing framework only',
+    lighterV2Description: 'Full Mode - Supports Poseidon2 signing and real trading',
+    lighterPrivateKeyImported: 'LIGHTER private key imported',
 
     // Exchange names
     hyperliquidExchangeName: 'Hyperliquid',
@@ -869,6 +911,33 @@ export const translations = {
     configNav: '配置',
     dashboardNav: '看板',
     faqNav: '常见问题',
+    promptsNav: '提示词',
+
+    // Prompts Management Page
+    promptsManagement: '提示词管理',
+    promptsManagementDesc: '管理您的 AI 交易策略提示词模板',
+    promptsCreateBtn: '+ 新建模板',
+    promptsRefreshBtn: '🔄 刷新',
+    promptsSaveBtn: '💾 保存',
+    promptsDeleteBtn: '🗑️ 删除',
+    promptsTemplateList: '📁 模板列表',
+    promptsNewTemplate: '新建模板',
+    promptsConfirmDelete: '确认删除',
+    promptsCancelBtn: '取消',
+    promptsCreateBtn2: '创建',
+    promptsLoadFailed: '加载模板失败',
+    promptsGetFailed: '获取模板内容失败',
+    promptsSaveSuccess: '保存成功',
+    promptsSaveFailed: '保存失败',
+    promptsCreateSuccess: '创建成功',
+    promptsCreateFailed: '创建失败',
+    promptsDeleteSuccess: '删除成功',
+    promptsDeleteFailed: '删除失败',
+    promptsEnterName: '输入模板名称（英文）',
+    promptsConfirmDeleteMsg: '确定要删除模板「{name}」吗？此操作无法撤销。',
+    promptsSelectPrompt: '请从上方选择一个模板',
+    promptsCharCount: '字符数: {count}',
+    promptsLineCount: '行数: {count}',
 
     // Footer
     footerTitle: 'NOFX - AI交易系统',
@@ -1067,6 +1136,21 @@ export const translations = {
       'API 钱包私钥 - 从 https://www.asterdex.com/zh-CN/api-wallet 获取（仅在本地用于签名，不会被传输）',
     asterUsdtWarning:
       '重要提示：Aster 仅统计 USDT 余额。请确保您使用 USDT 作为保证金币种，避免其他资产（BNB、ETH等）的价格波动导致盈亏统计错误',
+
+    // LIGHTER 配置
+    lighterWalletAddress: 'L1 錢包地址',
+    lighterPrivateKey: 'L1 私鑰',
+    lighterApiKeyPrivateKey: 'API Key 私鑰',
+    enterLighterWalletAddress: '請輸入以太坊錢包地址（0x...）',
+    enterLighterPrivateKey: '請輸入 L1 私鑰（32 字節）',
+    enterLighterApiKeyPrivateKey: '請輸入 API Key 私鑰（40 字節，可選）',
+    lighterWalletAddressDesc: '您的以太坊錢包地址，用於識別賬戶',
+    lighterPrivateKeyDesc: 'L1 私鑰用於賬戶識別（32 字節 ECDSA 私鑰）',
+    lighterApiKeyPrivateKeyDesc: 'API Key 私鑰用於簽名交易（40 字節 Poseidon2 私鑰）',
+    lighterApiKeyOptionalNote: '如果不提供 API Key，系統將使用功能受限的 V1 模式',
+    lighterV1Description: '基本模式 - 功能受限，僅用於測試框架',
+    lighterV2Description: '完整模式 - 支持 Poseidon2 簽名和真實交易',
+    lighterPrivateKeyImported: 'LIGHTER 私鑰已導入',
 
     // Exchange names
     hyperliquidExchangeName: 'Hyperliquid',

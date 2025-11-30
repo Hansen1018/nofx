@@ -26,8 +26,10 @@ interface TraderConfigData {
   is_cross_margin: boolean
   use_coin_pool: boolean
   use_oi_top: boolean
+  timeframes?: string // K线时间线选择 (逗号分隔，例如: "3m,4h")
   initial_balance?: number // 可选：创建时不需要，编辑时使用
   scan_interval_minutes: number
+  is_running?: boolean
 }
 
 interface TraderConfigModalProps {
@@ -63,7 +65,10 @@ export function TraderConfigModal({
     is_cross_margin: true,
     use_coin_pool: false,
     use_oi_top: false,
+    timeframes: '3m,4h', // 默认时间线
+    initial_balance: 100,
     scan_interval_minutes: 3,
+    is_running: false,
   })
   const [isSaving, setIsSaving] = useState(false)
   const [availableCoins, setAvailableCoins] = useState<string[]>([])
@@ -98,8 +103,10 @@ export function TraderConfigModal({
         is_cross_margin: true,
         use_coin_pool: false,
         use_oi_top: false,
+        timeframes: '3m,4h', // 默认时间线
         initial_balance: 1000,
         scan_interval_minutes: 3,
+        is_running: false,
       })
     }
     // 确保旧数据也有默认的 system_prompt_template
@@ -109,16 +116,35 @@ export function TraderConfigModal({
         system_prompt_template: 'default',
       }))
     }
+    // 确保旧数据也有默认的 timeframes
+    if (traderData && traderData.timeframes === undefined) {
+      setFormData((prev) => ({
+        ...prev,
+        timeframes: '3m,4h',
+      }))
+    }
   }, [traderData, isEditMode, availableModels, availableExchanges])
 
   // 获取系统配置中的币种列表
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await httpClient.get('/api/config')
-        const config = await response.json()
-        if (config.default_coins) {
-          setAvailableCoins(config.default_coins)
+        const result = await httpClient.get<{ default_coins?: string[] }>(
+          '/api/config'
+        )
+        if (result.success && result.data?.default_coins) {
+          setAvailableCoins(result.data.default_coins)
+        } else {
+          // 使用默认币种列表
+          setAvailableCoins([
+            'BTCUSDT',
+            'ETHUSDT',
+            'SOLUSDT',
+            'BNBUSDT',
+            'XRPUSDT',
+            'DOGEUSDT',
+            'ADAUSDT',
+          ])
         }
       } catch (error) {
         console.error('Failed to fetch config:', error)
@@ -141,10 +167,14 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchPromptTemplates = async () => {
       try {
-        const response = await httpClient.get('/api/prompt-templates')
-        const data = await response.json()
-        if (data.templates) {
-          setPromptTemplates(data.templates)
+        const result = await httpClient.get<{ templates?: { name: string }[] }>(
+          '/api/prompt-templates'
+        )
+        if (result.success && result.data?.templates) {
+          setPromptTemplates(result.data.templates)
+        } else {
+          // 使用默认模板列表
+          setPromptTemplates([{ name: 'default' }, { name: 'aggressive' }])
         }
       } catch (error) {
         console.error('Failed to fetch prompt templates:', error)
@@ -194,30 +224,26 @@ export function TraderConfigModal({
     setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        throw new Error('未登录，请先登录')
+      const result = await httpClient.get<{
+        total_equity?: number
+        balance?: number
+      }>(`/api/account?trader_id=${traderData.trader_id}`)
+
+      if (result.success && result.data) {
+        // total_equity = 当前账户净值（包含未实现盈亏）
+        // 这应该作为新的初始余额
+        const currentBalance =
+          result.data.total_equity || result.data.balance || 0
+
+        setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
+        toast.success('已获取当前余额')
+      } else {
+        throw new Error(result.message || '获取余额失败')
       }
-
-      const response = await httpClient.get(
-        `/api/account?trader_id=${traderData.trader_id}`,
-        {
-          Authorization: `Bearer ${token}`,
-        }
-      )
-
-      const data = await response.json()
-
-      // total_equity = 当前账户净值（包含未实现盈亏）
-      // 这应该作为新的初始余额
-      const currentBalance = data.total_equity || data.balance || 0
-
-      setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-      toast.success('已获取当前余额')
     } catch (error) {
       console.error('获取余额失败:', error)
       setBalanceFetchError('获取余额失败，请检查网络连接')
-      toast.error('获取余额失败，请检查网络连接')
+      // Note: Network/system errors already shown via toast by httpClient
     } finally {
       setIsFetchingBalance(false)
     }
@@ -241,6 +267,7 @@ export function TraderConfigModal({
         is_cross_margin: formData.is_cross_margin,
         use_coin_pool: formData.use_coin_pool,
         use_oi_top: formData.use_oi_top,
+        timeframes: formData.timeframes, // K线时间线配置
         scan_interval_minutes: formData.scan_interval_minutes,
       }
 

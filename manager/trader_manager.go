@@ -212,6 +212,21 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
+	// 处理时间线配置
+	var timeframes []string
+	if traderCfg.Timeframes != "" {
+		// 解析逗号分隔的时间线列表
+		tfs := strings.Split(traderCfg.Timeframes, ",")
+		for _, tf := range tfs {
+			tf = strings.TrimSpace(tf)
+			if tf != "" {
+				timeframes = append(timeframes, tf)
+			}
+		}
+		log.Printf("✓ 交易员 %s 配置时间线: %v", traderCfg.Name, timeframes)
+	}
+	// 如果为空，将使用 market.Get 中的默认值 ["3m", "4h"]
+
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
@@ -238,6 +253,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
+		Timeframes:            timeframes,                     // K线时间线配置
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
 	}
 
@@ -245,6 +261,9 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	if exchangeCfg.ID == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
+	} else if exchangeCfg.ID == "bybit" {
+		traderConfig.BybitAPIKey = exchangeCfg.APIKey
+		traderConfig.BybitSecretKey = exchangeCfg.SecretKey
 	} else if exchangeCfg.ID == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
@@ -252,6 +271,10 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+	} else if exchangeCfg.ID == "lighter" {
+		traderConfig.LighterPrivateKey = exchangeCfg.LighterPrivateKey
+		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
+		traderConfig.LighterTestnet = exchangeCfg.Testnet
 	}
 
 	// 根据AI模型设置API密钥
@@ -259,6 +282,8 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		traderConfig.QwenKey = aiModelCfg.APIKey
 	} else if aiModelCfg.Provider == "deepseek" {
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
+	} else if aiModelCfg.Provider == "custom" || aiModelCfg.Provider == "openai" {
+		traderConfig.CustomAPIKey = aiModelCfg.APIKey
 	}
 
 	// 创建trader实例
@@ -319,6 +344,21 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
+	// 处理时间线配置
+	var timeframes []string
+	if traderCfg.Timeframes != "" {
+		// 解析逗号分隔的时间线列表
+		tfs := strings.Split(traderCfg.Timeframes, ",")
+		for _, tf := range tfs {
+			tf = strings.TrimSpace(tf)
+			if tf != "" {
+				timeframes = append(timeframes, tf)
+			}
+		}
+		log.Printf("✓ 交易员 %s 配置时间线: %v", traderCfg.Name, timeframes)
+	}
+	// 如果为空，将使用 market.Get 中的默认值 ["3m", "4h"]
+
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
@@ -345,12 +385,16 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
+		Timeframes:            timeframes, // K线时间线配置
 	}
 
 	// 根据交易所类型设置API密钥
 	if exchangeCfg.ID == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
+	} else if exchangeCfg.ID == "bybit" {
+		traderConfig.BybitAPIKey = exchangeCfg.APIKey
+		traderConfig.BybitSecretKey = exchangeCfg.SecretKey
 	} else if exchangeCfg.ID == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
@@ -358,6 +402,10 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+	} else if exchangeCfg.ID == "lighter" {
+		traderConfig.LighterPrivateKey = exchangeCfg.LighterPrivateKey
+		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
+		traderConfig.LighterTestnet = exchangeCfg.Testnet
 	}
 
 	// 根据AI模型设置API密钥
@@ -365,6 +413,8 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		traderConfig.QwenKey = aiModelCfg.APIKey
 	} else if aiModelCfg.Provider == "deepseek" {
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
+	} else if aiModelCfg.Provider == "custom" || aiModelCfg.Provider == "openai" {
+		traderConfig.CustomAPIKey = aiModelCfg.APIKey
 	}
 
 	// 创建trader实例
@@ -1024,6 +1074,21 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
+	// 处理时间线配置
+	var timeframes []string
+	if traderCfg.Timeframes != "" {
+		// 解析逗号分隔的时间线列表
+		tfs := strings.Split(traderCfg.Timeframes, ",")
+		for _, tf := range tfs {
+			tf = strings.TrimSpace(tf)
+			if tf != "" {
+				timeframes = append(timeframes, tf)
+			}
+		}
+		log.Printf("✓ 交易员 %s 配置时间线: %v", traderCfg.Name, timeframes)
+	}
+	// 如果为空，将使用 market.Get 中的默认值 ["3m", "4h"]
+
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                   traderCfg.ID,
@@ -1044,6 +1109,7 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		IsCrossMargin:        traderCfg.IsCrossMargin,
 		DefaultCoins:         defaultCoins,
 		TradingCoins:         tradingCoins,
+		Timeframes:           timeframes,                     // K线时间线配置
 		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
 		HyperliquidTestnet:   exchangeCfg.Testnet,            // Hyperliquid测试网
 	}
@@ -1052,6 +1118,9 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 	if exchangeCfg.ID == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
+	} else if exchangeCfg.ID == "bybit" {
+		traderConfig.BybitAPIKey = exchangeCfg.APIKey
+		traderConfig.BybitSecretKey = exchangeCfg.SecretKey
 	} else if exchangeCfg.ID == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
@@ -1059,6 +1128,10 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+	} else if exchangeCfg.ID == "lighter" {
+		traderConfig.LighterPrivateKey = exchangeCfg.LighterPrivateKey
+		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
+		traderConfig.LighterTestnet = exchangeCfg.Testnet
 	}
 
 	// 根据AI模型设置API密钥
@@ -1066,6 +1139,8 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		traderConfig.QwenKey = aiModelCfg.APIKey
 	} else if aiModelCfg.Provider == "deepseek" {
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
+	} else if aiModelCfg.Provider == "custom" || aiModelCfg.Provider == "openai" {
+		traderConfig.CustomAPIKey = aiModelCfg.APIKey
 	}
 
 	// 创建trader实例
@@ -1093,11 +1168,68 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 // RemoveTrader 从内存中移除指定的trader（不影响数据库）
 // 用于更新trader配置时强制重新加载
 func (tm *TraderManager) RemoveTrader(traderID string) {
+	var traderToStop *trader.AutoTrader
+
+	tm.mu.Lock()
+	if t, exists := tm.traders[traderID]; exists {
+		traderToStop = t
+		delete(tm.traders, traderID)
+		log.Printf("✓ Trader %s 已从内存映射中移除", traderID)
+	}
+	tm.mu.Unlock()
+
+	// 在锁外停止交易员，避免阻塞其他操作
+	if traderToStop != nil {
+		status := traderToStop.GetStatus()
+		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
+			log.Printf("⏹ 正停止旧的交易员实例 %s ...", traderID)
+			traderToStop.Stop()
+			log.Printf("✓ 旧实例 %s 已停止", traderID)
+		}
+	}
+}
+
+// HasTrader 检查trader是否存在（测试辅助方法）
+func (tm *TraderManager) HasTrader(traderID string) bool {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	_, exists := tm.traders[traderID]
+	return exists
+}
+
+// AddTraderForTest 添加测试用trader（仅用于测试）
+// 注意：此方法不应在生产代码中使用
+func (tm *TraderManager) AddTraderForTest(traderID string, t *trader.AutoTrader) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
+	tm.traders[traderID] = t
+}
 
-	if _, exists := tm.traders[traderID]; exists {
-		delete(tm.traders, traderID)
-		log.Printf("✓ Trader %s 已从内存中移除", traderID)
+// ReloadUserTraders 强制重新加载用户的所有交易员（用于配置更新后）
+func (tm *TraderManager) ReloadUserTraders(database *config.Database, userID string) error {
+	// 1. 获取数据库中的交易员列表
+	traders, err := database.GetTraders(userID)
+	if err != nil {
+		return fmt.Errorf("获取用户 %s 的交易员列表失败: %w", userID, err)
 	}
+
+	// 2. 移除内存中的这些交易员
+	tm.mu.Lock()
+	for _, t := range traders {
+		if oldTrader, exists := tm.traders[t.ID]; exists {
+			// 如果交易员正在运行，先停止它
+			status := oldTrader.GetStatus()
+			if isRunning, ok := status["is_running"].(bool); ok && isRunning {
+				oldTrader.Stop()
+				log.Printf("⏹  配置更新: 已停止并移除运行中的交易员 %s", t.Name)
+			} else {
+				log.Printf("🔄 配置更新: 已移除交易员实例 %s", t.Name)
+			}
+			delete(tm.traders, t.ID)
+		}
+	}
+	tm.mu.Unlock()
+
+	// 3. 重新加载（LoadUserTraders 会处理并发锁）
+	return tm.LoadUserTraders(database, userID)
 }

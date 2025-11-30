@@ -446,7 +446,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       buildRequest: (models) => ({
         models: Object.fromEntries(
           models.map((model) => [
-            model.provider,
+            model.id,
             {
               enabled: model.enabled,
               api_key: model.apiKey || '',
@@ -518,7 +518,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const request = {
         models: Object.fromEntries(
           updatedModels.map((model) => [
-            model.provider, // 使用 provider 而不是 id
+            model.id,
             {
               enabled: model.enabled,
               api_key: model.apiKey || '',
@@ -1906,7 +1906,10 @@ function ExchangeConfigModal({
     if (secureInputTarget === 'aster') {
       setAsterPrivateKey(trimmed)
     }
-    console.log('Secure input obfuscation log:', obfuscationLog)
+    // 仅在开发环境输出调试信息
+    if (import.meta.env.DEV) {
+      console.log('Secure input obfuscation log:', obfuscationLog)
+    }
     setSecureInputTarget(null)
   }
 
@@ -2095,8 +2098,9 @@ function ExchangeConfigModal({
 
             {selectedExchange && (
               <>
-                {/* Binance 和其他 CEX 交易所的字段 */}
+                {/* Binance/Bybit 和其他 CEX 交易所的字段 */}
                 {(selectedExchange.id === 'binance' ||
+                  selectedExchange.id === 'bybit' ||
                   selectedExchange.type === 'cex') &&
                   selectedExchange.id !== 'hyperliquid' &&
                   selectedExchange.id !== 'aster' && (
@@ -2584,10 +2588,13 @@ function ExchangeConfigModal({
                   (!asterUser.trim() ||
                     !asterSigner.trim() ||
                     !asterPrivateKey.trim())) ||
+                (selectedExchange.id === 'bybit' &&
+                  (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedExchange.type === 'cex' &&
                   selectedExchange.id !== 'hyperliquid' &&
                   selectedExchange.id !== 'aster' &&
                   selectedExchange.id !== 'binance' &&
+                  selectedExchange.id !== 'bybit' &&
                   selectedExchange.id !== 'okx' &&
                   (!apiKey.trim() || !secretKey.trim()))
               }

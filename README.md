@@ -4,14 +4,69 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
-**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md)
+**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md) | [한국어](docs/i18n/ko/README.md)
 
 **📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Prompt Writing Guide](docs/prompt-guide.md) ([中文](docs/prompt-guide.zh-CN.md)) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
 ---
 
+> ## ⚠️ Experimental Community Fork (Unofficial)
+>
+> **🔬 This is an experimental, independently maintained fork by individual developers.**
+>
+> - 🚨 **Not Official**: This is NOT the official NOFX version
+> - 🧪 **Experimental Features**: Contains experimental fixes and features under testing
+> - 👤 **Independent Maintenance**: Maintained by [the-dev-z](https://github.com/the-dev-z)
+> - 🔗 **Upstream**: Based on [tinkle-community/nofx](https://github.com/tinkle-community/nofx)
+> - 💬 **Feedback**: Report issues at [Issues](https://github.com/the-dev-z/nofx/issues)
+>
+> **Use at your own risk. For production use, consider the official upstream version.**
+
+---
+
+## 🌿 Branch Strategy
+
+This fork maintains multiple branches for different use cases:
+
+| Branch | Status | Purpose | Recommended For |
+|--------|--------|---------|-----------------|
+| **z-dev-v2** | 🟢 Stable | Production-ready with critical fixes | Production environments |
+| **z-dev-v3** | 🟡 Experimental | Latest features (Bybit, LIGHTER DEX, Prompts Management UI) | Testing & Development |
+| **z-dev** | 🔒 Protected | Reserved for major releases | Pull Requests only |
+
+### 🎯 Unique Features in This Fork
+
+**Compared to upstream, this fork adds:**
+
+#### ✅ Already Implemented
+- **🔐 Security Enhancements**
+  - Removed hardcoded JWT secrets from config examples
+  - Improved encryption error handling
+  - Better API key validation
+
+- **🎨 UI/UX Improvements**
+  - Auto-detect Git branch and display fork attribution
+  - Prompts Management UI (CRUD operations for AI templates)
+  - Optimized Header layout
+
+- **📊 V3 Exclusive Features** (z-dev-v3 branch)
+  - Bybit Futures support with broker commission tracking
+  - LIGHTER DEX integration (SDK + frontend UI)
+  - Axios-based httpClient with unified error handling
+  - Korean language support
+
+#### 🚧 In Progress
+- Prompts Management i18n (multi-language support)
+- More comprehensive testing coverage
+
+### 📌 Choosing Your Branch
+
+- **For Production**: Use `z-dev-v2` - stable and battle-tested
+- **For Latest Features**: Use `z-dev-v3` - includes Bybit, LIGHTER DEX, more exchanges
+- **For Contributing**: Submit PRs to `z-dev` branch
+
+---
 ## 📑 Table of Contents
 
 - [🚀 Universal AI Trading Operating System](#-universal-ai-trading-operating-system)
@@ -48,11 +103,10 @@
 - **Multi-Agent Self-Play & Self-Evolution**: Strategies automatically compete and select the best, continuously iterating based on account-level PnL and risk constraints
 - **Integrated Execution & Risk Control**: Low-latency routing, slippage/risk control sandbox, account-level limits, one-click market switching
 
-### 🏢 Backed by [Amber.ac](https://amber.ac)
-
 ### 👥 Core Team
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **Official Twitter (Only)** - [@nofx_official](https://x.com/nofx_official)
 
 ### 💼 Seed Funding Round Open
 
@@ -243,7 +297,7 @@ NOFX is built with a modern, modular architecture:
 
 Before using this system, you need a Binance Futures account. **Use our referral link to save on trading fees:**
 
-**🎁 [Register Binance - Get Fee Discount](https://www.binance.com/join?ref=TINKLEVIP)**
+**🎁 [Register Binance - Get Fee Discount](https://www.binance.com/join?ref=NOFXENG)**
 
 ### Registration Steps:
 
@@ -277,20 +331,33 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 
 #### Step 1: Prepare Configuration
 ```bash
-# Copy configuration template
+# 1. Copy environment variables template
+cp .env.example .env
+
+# 2. Generate security keys (Important for production!)
+# Generate JWT secret
+openssl rand -base64 64
+
+# Edit .env and set JWT_SECRET with the generated key
+nano .env  # Add: JWT_SECRET=your-generated-key
+
+# 3. Copy configuration template
 cp config.json.example config.json
 
-# Edit and fill in your API keys
+# 4. Edit and fill in your API keys
 nano config.json  # or use any editor
 ```
 
-⚠️ **Note**: Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
+⚠️ **Security Notes**:
+- **JWT_SECRET** is required for production environments
+- Set **ENVIRONMENT=production** in .env for production deployment
+- Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
 
 #### Step 2: One-Click Start
 ```bash
 # Option 1: Use convenience script (Recommended)
-chmod +x scripts/start.sh
-./scripts/start.sh start --build
+chmod +x ./start.sh
+./start.sh start --build
 
 > #### Docker Compose Version Notes
 >
@@ -315,10 +382,10 @@ Open your browser and visit: **http://localhost:3000**
 
 #### Manage Your System
 ```bash
-./scripts/start.sh logs      # View logs
-./scripts/start.sh status    # Check status
-./scripts/start.sh stop      # Stop services
-./scripts/start.sh restart   # Restart services
+./start.sh logs      # View logs
+./start.sh status    # Check status
+./start.sh stop      # Stop services
+./start.sh restart   # Restart services
 ```
 
 **📖 For detailed Docker deployment guide, troubleshooting, and advanced configuration:**

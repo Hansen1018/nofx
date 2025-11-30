@@ -1,19 +1,33 @@
 package manager
 
 import (
+	"nofx/config"
+	"nofx/trader"
 	"testing"
+	"time"
+
+	"github.com/agiledragon/gomonkey/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestRemoveTrader 测试从内存中移除trader
 func TestRemoveTrader(t *testing.T) {
 	tm := NewTraderManager()
 
-	// 创建一个模拟的 trader 并添加到 map
+	// 创建一个真实的 AutoTrader 实例
 	traderID := "test-trader-123"
-	tm.traders[traderID] = nil // 使用 nil 作为占位符，实际测试中只需验证删除逻辑
+	cfg := trader.AutoTraderConfig{
+		ID:             traderID,
+		Name:           "Test Trader",
+		InitialBalance: 1000,
+		ScanInterval:   1 * time.Minute,
+	}
+	at, _ := trader.NewAutoTrader(cfg, nil, "user1")
+
+	tm.traders[traderID] = at
 
 	// 验证 trader 存在
-	if _, exists := tm.traders[traderID]; !exists {
+	if !tm.HasTrader(traderID) {
 		t.Fatal("trader 应该存在于 map 中")
 	}
 
@@ -21,8 +35,60 @@ func TestRemoveTrader(t *testing.T) {
 	tm.RemoveTrader(traderID)
 
 	// 验证 trader 已被移除
+	if tm.HasTrader(traderID) {
+		t.Error("trader 应该已从 map 中移除")
+	}
+}
+
+// TestRemoveTrader_StopsRunningTrader 测试移除正在运行的 trader 时会自动停止它
+func TestRemoveTrader_StopsRunningTrader(t *testing.T) {
+	tm := NewTraderManager()
+	traderID := "test-trader-running"
+
+	// 创建一个真实的 AutoTrader 实例
+	cfg := trader.AutoTraderConfig{
+		ID:             traderID,
+		Name:           "Test Running Trader",
+		InitialBalance: 1000,
+		ScanInterval:   100 * time.Millisecond, // 短间隔
+	}
+	at, _ := trader.NewAutoTrader(cfg, nil, "user1")
+
+	tm.traders[traderID] = at
+
+	// 模拟启动 Trader (手动设置状态)
+	// 注意：真正的 Run() 是阻塞循环，我们在测试中可以通过 hack 或者 wrapper 来模拟运行状态，
+	// 但最准确的是在一个 goroutine 中运行它，然后验证 Stop() 是否能让它退出。
+	// 这里我们利用 AutoTrader 的特性：Run() 会设置 isRunning=true，Stop() 会设置 isRunning=false。
+
+	// 启动一个 goroutine 运行 trader
+	go func() {
+		at.Run()
+	}()
+
+	// 等待启动完成 (简单等待，或者可以用更复杂的同步机制)
+	time.Sleep(50 * time.Millisecond)
+
+	// 验证正在运行
+	status := at.GetStatus()
+	if isRunning, ok := status["is_running"].(bool); !ok || !isRunning {
+		t.Fatal("Trader 应该是运行状态")
+	}
+
+	// 调用 RemoveTrader
+	// 期望：RemoveTrader 会调用 at.Stop()，这将导致 at.Run() 循环退出，并设置 isRunning=false
+	tm.RemoveTrader(traderID)
+
+	// 验证 trader 已被移除
 	if _, exists := tm.traders[traderID]; exists {
 		t.Error("trader 应该已从 map 中移除")
+	}
+
+	// 验证 trader 已停止
+	// Stop() 是阻塞等待 goroutine 结束的，所以这里应该已经停止
+	statusAfter := at.GetStatus()
+	if isRunning, ok := statusAfter["is_running"].(bool); ok && isRunning {
+		t.Error("Trader 应该已经被停止")
 	}
 }
 
@@ -45,8 +111,15 @@ func TestRemoveTrader_Concurrent(t *testing.T) {
 	tm := NewTraderManager()
 	traderID := "test-trader-concurrent"
 
-	// 添加 trader
-	tm.traders[traderID] = nil
+	// 创建一个真实的 AutoTrader 实例用于并发测试
+	cfg := trader.AutoTraderConfig{
+		ID:             traderID,
+		Name:           "Test Concurrent Trader",
+		InitialBalance: 1000,
+		ScanInterval:   1 * time.Minute,
+	}
+	at, _ := trader.NewAutoTrader(cfg, nil, "user1")
+	tm.traders[traderID] = at
 
 	// 并发调用 RemoveTrader
 	done := make(chan bool, 10)
@@ -63,7 +136,7 @@ func TestRemoveTrader_Concurrent(t *testing.T) {
 	}
 
 	// 验证 trader 已被移除
-	if _, exists := tm.traders[traderID]; exists {
+	if tm.HasTrader(traderID) {
 		t.Error("trader 应该已从 map 中移除")
 	}
 }
@@ -73,8 +146,15 @@ func TestGetTrader_AfterRemove(t *testing.T) {
 	tm := NewTraderManager()
 	traderID := "test-trader-get"
 
-	// 添加 trader
-	tm.traders[traderID] = nil
+	// 创建一个真实的 AutoTrader 实例
+	cfg := trader.AutoTraderConfig{
+		ID:             traderID,
+		Name:           "Test Get Trader",
+		InitialBalance: 1000,
+		ScanInterval:   1 * time.Minute,
+	}
+	at, _ := trader.NewAutoTrader(cfg, nil, "user1")
+	tm.traders[traderID] = at
 
 	// 移除 trader
 	tm.RemoveTrader(traderID)
@@ -84,4 +164,104 @@ func TestGetTrader_AfterRemove(t *testing.T) {
 	if err == nil {
 		t.Error("获取已移除的 trader 应该返回错误")
 	}
+}
+
+// TestHasTrader 测试HasTrader方法
+func TestHasTrader(t *testing.T) {
+	tm := NewTraderManager()
+	traderID := "test-trader-has"
+
+	// 初始状态：trader 不存在
+	if tm.HasTrader(traderID) {
+		t.Error("trader 不应该存在")
+	}
+
+	// 创建一个真实的 AutoTrader 实例
+	cfg := trader.AutoTraderConfig{
+		ID:             traderID,
+		Name:           "Test Has Trader",
+		InitialBalance: 1000,
+		ScanInterval:   1 * time.Minute,
+	}
+	at, _ := trader.NewAutoTrader(cfg, nil, "user1")
+	tm.traders[traderID] = at
+
+	// 验证 trader 存在
+	if !tm.HasTrader(traderID) {
+		t.Error("trader 应该存在")
+	}
+
+	// 移除 trader
+	tm.RemoveTrader(traderID)
+
+	// 验证 trader 不存在
+	if tm.HasTrader(traderID) {
+		t.Error("trader 不应该存在")
+	}
+}
+
+// TestAddTraderFromDB_CustomProvider_LoadAPIKey 测试 Custom Provider 的 API Key 是否被正确加载
+func TestAddTraderFromDB_CustomProvider_LoadAPIKey(t *testing.T) {
+	tm := NewTraderManager()
+
+	// 1. 准备测试数据
+	traderCfg := &config.TraderRecord{
+		ID:   "trader-custom-1",
+		Name: "Custom Trader",
+	}
+	aiModelCfg := &config.AIModelConfig{
+		Provider: "custom",
+		APIKey:   "sk-custom-test-key",
+	}
+	exchangeCfg := &config.ExchangeConfig{
+		ID: "binance",
+	}
+
+	// 2. Mock trader.NewAutoTrader
+	var capturedConfig trader.AutoTraderConfig
+	patches := gomonkey.ApplyFunc(trader.NewAutoTrader, func(cfg trader.AutoTraderConfig, db interface{}, uid string) (*trader.AutoTrader, error) {
+		capturedConfig = cfg
+		return &trader.AutoTrader{}, nil
+	})
+	defer patches.Reset()
+
+	// 3. 执行 AddTraderFromDB
+	err := tm.AddTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, "", "", 10, 20, 60, []string{}, nil, "user1")
+
+	// 4. 验证
+	assert.NoError(t, err)
+	assert.Equal(t, "sk-custom-test-key", capturedConfig.CustomAPIKey, "Custom Provider 的 API Key 应该被正确加载到 AutoTraderConfig 中")
+}
+
+// TestAddTraderFromDB_OpenAIProvider_LoadAPIKey 测试 OpenAI Provider 的 API Key 是否被正确加载
+func TestAddTraderFromDB_OpenAIProvider_LoadAPIKey(t *testing.T) {
+	tm := NewTraderManager()
+
+	// 1. 准备测试数据
+	traderCfg := &config.TraderRecord{
+		ID:   "trader-openai-1",
+		Name: "OpenAI Trader",
+	}
+	aiModelCfg := &config.AIModelConfig{
+		Provider: "openai",
+		APIKey:   "sk-openai-test-key",
+	}
+	exchangeCfg := &config.ExchangeConfig{
+		ID: "binance",
+	}
+
+	// 2. Mock trader.NewAutoTrader
+	var capturedConfig trader.AutoTraderConfig
+	patches := gomonkey.ApplyFunc(trader.NewAutoTrader, func(cfg trader.AutoTraderConfig, db interface{}, uid string) (*trader.AutoTrader, error) {
+		capturedConfig = cfg
+		return &trader.AutoTrader{}, nil
+	})
+	defer patches.Reset()
+
+	// 3. 执行 AddTraderFromDB
+	err := tm.AddTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, "", "", 10, 20, 60, []string{}, nil, "user1")
+
+	// 4. 验证
+	assert.NoError(t, err)
+	assert.Equal(t, "sk-openai-test-key", capturedConfig.CustomAPIKey, "OpenAI Provider 的 API Key 应该被正确加载到 AutoTraderConfig 中")
 }
