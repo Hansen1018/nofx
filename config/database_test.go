@@ -206,6 +206,66 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 	}
 }
 
+// TestUpdateExchange_InsertShouldUseEncryptedValues 测试 INSERT 时应使用加密值
+// 这是 Bug 2: database.go:813 使用了未加密的值
+func TestUpdateExchange_InsertShouldUseEncryptedValues(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-004"
+
+	// 直接更新不存在的记录（触发 INSERT）
+	plainAPIKey := "plain-api-key-abc"
+	plainSecretKey := "plain-secret-key-def"
+	plainAsterKey := "plain-aster-key-ghi"
+
+	err := db.UpdateExchange(
+		userID,
+		"binance",
+		true,
+		plainAPIKey,
+		plainSecretKey,
+		false,
+		"",
+		"",
+		"",
+		plainAsterKey,
+	)
+	if err != nil {
+		t.Fatalf("INSERT 失败: %v", err)
+	}
+
+	// 验证数据库中存储的是加密值
+	exchanges, err := db.GetExchanges(userID)
+	if err != nil {
+		t.Fatalf("获取配置失败: %v", err)
+	}
+
+	// GetExchanges 会解密，所以我们应该看到原始值
+	if exchanges[0].APIKey != plainAPIKey {
+		t.Errorf("APIKey 解密后应该等于原始值，期望 %s，实际 %s", plainAPIKey, exchanges[0].APIKey)
+	}
+
+	// 直接查询数据库，验证存储的是加密格式
+	var storedAPIKey string
+	err = db.db.QueryRow(`SELECT api_key FROM exchanges WHERE id = ? AND user_id = ?`, "binance", userID).Scan(&storedAPIKey)
+	if err != nil {
+		t.Fatalf("查询数据库失败: %v", err)
+	}
+
+	// 🎯 关键断言：数据库中应该存储加密格式（ENC:v1:...）
+	if storedAPIKey == plainAPIKey {
+		t.Error("❌ Bug 确认：数据库中存储的是明文，应该是加密格式！")
+	}
+
+	// 如果有加密服务，验证是加密格式
+	if db.cryptoService != nil {
+		if !db.cryptoService.IsEncryptedStorageValue(storedAPIKey) {
+			t.Errorf("❌ Bug 确认：存储的值不是加密格式: %s", storedAPIKey)
+		}
+	}
+}
+
 // TestUpdateExchange_PartialUpdateShouldWork 测试部分字段更新
 func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 	db, cleanup := setupTestDB(t)
@@ -658,6 +718,18 @@ func TestDataPersistenceAcrossReopen(t *testing.T) {
 		}
 		db.SetCryptoService(cryptoService)
 
+		// 创建测试用户（因为 exchanges 表有 FK 约束）
+		user := &User{
+			ID:           userID,
+			Email:        userID + "@test.com",
+			PasswordHash: "hash",
+			OTPSecret:    "",
+			OTPVerified:  false,
+		}
+		if err := db.CreateUser(user); err != nil {
+			t.Fatalf("创建用户失败: %v", err)
+		}
+
 		// 写入交易所配置
 		err = db.UpdateExchange(
 			userID,
@@ -725,6 +797,28 @@ func TestDataPersistenceAcrossReopen(t *testing.T) {
 func TestConcurrentWritesWithWAL(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
+
+	// 创建测试用户（因为 exchanges 表有 FK 约束）
+	user1 := &User{
+		ID:           "user1",
+		Email:        "user1@test.com",
+		PasswordHash: "hash1",
+		OTPSecret:    "",
+		OTPVerified:  false,
+	}
+	user2 := &User{
+		ID:           "user2",
+		Email:        "user2@test.com",
+		PasswordHash: "hash2",
+		OTPSecret:    "",
+		OTPVerified:  false,
+	}
+	if err := db.CreateUser(user1); err != nil {
+		t.Fatalf("创建user1失败: %v", err)
+	}
+	if err := db.CreateUser(user2); err != nil {
+		t.Fatalf("创建user2失败: %v", err)
+	}
 
 	// 这个测试验证多个并发写入可以成功
 	// WAL 模式下并发性能更好,但 SQLite 仍然可能出现短暂的锁
@@ -795,5 +889,132 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 	// 我们允许最多 2 个错误
 	if errorCount > 2 {
 		t.Errorf("并发写入失败次数过多: %d", errorCount)
+	}
+}
+
+// TestUpdateAIModel_EmptyAPIKeyShouldNotOverwrite 测试 AI 模型更新时，空 API Key 不应覆盖现有值
+func TestUpdateAIModel_EmptyAPIKeyShouldNotOverwrite(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-ai"
+	// 创建用户
+	user := &User{ID: userID, Email: "ai@test.com"}
+	db.CreateUser(user)
+
+	// 1. 创建初始 AI 模型（带 Key）
+	initialKey := "sk-deepseek-key-123"
+	modelID := "deepseek-model"
+	// expectedID := userID + "_" + modelID // 旧逻辑：确定性 ID
+	// 新逻辑：动态 ID，不能预知
+
+	err := db.UpdateAIModel(userID, modelID, true, initialKey, "", "")
+	if err != nil {
+		t.Fatalf("初始化 AI 模型失败: %v", err)
+	}
+
+	// 2. 验证初始 Key 已保存，并获取实际生成的 ID
+	models, err := db.GetAIModels(userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	var targetModel *AIModelConfig
+	for _, m := range models {
+		// 通过 API Key 识别我们刚创建的模型
+		if m.APIKey == initialKey {
+			targetModel = m
+			break
+		}
+	}
+	
+	if targetModel == nil {
+		t.Fatalf("模型未找到, 初始 Key 匹配失败")
+	}
+	
+	realID := targetModel.ID
+	t.Logf("Created model ID: %s", realID)
+
+	// 3. 用空 Key 更新（模拟前端全量保存时的行为）
+	// 目标：只更新 enabled 状态，不更新 Key
+	// 注意：必须使用已生成的 realID 进行更新，否则可能会创建新记录
+	err = db.UpdateAIModel(userID, realID, false, "", "https://custom.url", "")
+	if err != nil {
+		t.Fatalf("更新 AI 模型失败: %v", err)
+	}
+
+	// 4. 验证 Key 是否被覆盖
+	updatedModels, err := db.GetAIModels(userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, m := range updatedModels {
+		if m.ID == realID {
+			found = true
+			if m.APIKey != initialKey {
+				t.Errorf("❌ Bug 确认：AI 模型 API Key 被空值覆盖了！期望 %s，实际为空", initialKey)
+			}
+			if m.CustomAPIURL != "https://custom.url" {
+				t.Error("其他字段应该正常更新")
+			}
+			if m.Enabled != false {
+				t.Error("Enabled 状态应该正常更新")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("更新后找不到模型")
+	}
+}
+
+// TestDefaultAIModels 测试默认 AI 模型配置是否正确初始化
+// 验证 Issue #78 的修复：系统应支持 deepseek, qwen, openai, gemini, groq 五种模型
+// 注意：默认 API URL 由 mcp 客户端自动处理，不存储在数据库中
+func TestDefaultAIModels(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 获取 default 用户的 AI 模型配置
+	models, err := db.GetAIModels("default")
+	if err != nil {
+		t.Fatalf("获取默认 AI 模型失败: %v", err)
+	}
+
+	// 期望的模型列表
+	expectedModels := []string{"deepseek", "qwen", "openai", "gpt-5.1", "gemini", "gemini-2.5-pro", "gemini-3-pro-preview", "grok"}
+
+	// 验证所有期望的模型都存在
+	foundModels := make(map[string]bool)
+	for _, model := range models {
+		foundModels[model.ID] = true
+	}
+
+	// 验证所有期望的模型都被找到
+	for _, modelID := range expectedModels {
+		if !foundModels[modelID] {
+			t.Errorf("期望的模型 %s 未找到", modelID)
+		}
+	}
+
+	// 验证 groq 不存在
+	if foundModels["groq"] {
+		t.Error("Groq 模型不应该存在（已移除）")
+	}
+
+	// 验证 anthropic 不存在
+	if foundModels["anthropic"] {
+		t.Error("Anthropic 模型不应该存在（已移除）")
+	}
+
+	// 验证模型数量
+	if len(models) != len(expectedModels) {
+		t.Errorf("期望 %d 个模型，实际 %d 个", len(expectedModels), len(models))
+	}
+
+	t.Logf("✅ 验证通过：找到 %d 个默认 AI 模型", len(models))
+	for _, m := range models {
+		t.Logf("   - %s (%s)", m.ID, m.Provider)
 	}
 }

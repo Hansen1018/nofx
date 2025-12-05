@@ -118,7 +118,7 @@ pm2 start ecosystem.config.js
 **需要更多帮助？**
 - 📖 [常见问题](../guides/faq.zh-CN.md)
 - 💬 [Telegram 社区](https://t.me/nofx_dev_community)
-- 🐛 [GitHub Issues](https://github.com/tinkle-community/nofx/issues)
+- 🐛 [GitHub Issues](https://github.com/nofxai/nofx/issues)
 
 ---
 

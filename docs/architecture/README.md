@@ -555,11 +555,11 @@ cd web && npm run build
 
 **Want to contribute?**
 - Read [Contributing Guide](../../CONTRIBUTING.md)
-- Check [Open Issues](https://github.com/tinkle-community/nofx/issues)
+- Check [Open Issues](https://github.com/nofxai/nofx/issues)
 - Join [Telegram Community](https://t.me/nofx_dev_community)
 
 **Need clarification?**
-- Open a [GitHub Discussion](https://github.com/tinkle-community/nofx/discussions)
+- Open a [GitHub Discussion](https://github.com/nofxai/nofx/discussions)
 - Ask in Telegram
 
 ---

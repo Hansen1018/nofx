@@ -6,10 +6,12 @@ on:
     branches:
       - dev
       - main
+      - next
   push:
     branches:
       - dev
       - main
+      - next
 
 permissions:
   contents: read
@@ -51,6 +53,9 @@ jobs:
 
       - name: Download dependencies
         run: go mod download
+
+      - name: Create dummy frontend dist for embed
+        run: mkdir -p web/dist && touch web/dist/placeholder
 
       - name: Verify Go coverage tool
         run: |

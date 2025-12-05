@@ -160,6 +160,38 @@ check_encryption() {
 }
 
 # ------------------------------------------------------------------------
+# Security: Setup Secure Permissions for Sensitive Directories
+# ------------------------------------------------------------------------
+setup_secure_permissions() {
+    print_info "🔒 设置安全权限..."
+
+    # 设置敏感目录权限 (700 - 只有所有者可访问)
+    for dir in ".secrets" "secrets" "logs" "decision_logs"; do
+        if [ -d "$dir" ]; then
+            chmod 700 "$dir" 2>/dev/null && print_success "  ✓ $dir/ (700)"
+        elif [ "$dir" = "logs" ] || [ "$dir" = "decision_logs" ]; then
+            # 自动创建日志目录
+            mkdir -p "$dir" && chmod 700 "$dir" && print_success "  ✓ 已创建 $dir/ (700)"
+        fi
+    done
+
+    # 设置敏感文件权限 (600 - 只有所有者可读写)
+    for file in ".env" "config.db" ".secrets/"* "secrets/rsa_key"; do
+        if [ -f "$file" ]; then
+            chmod 600 "$file" 2>/dev/null && print_success "  ✓ $file (600)"
+        fi
+    done
+
+    # 设置日志文件权限
+    if [ -d "logs" ]; then
+        find logs -type f -name "*.log" -exec chmod 600 {} \; 2>/dev/null
+        print_success "  ✓ logs/*.log (600)"
+    fi
+
+    print_success "🔒 安全权限设置完成"
+}
+
+# ------------------------------------------------------------------------
 # Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
 # ------------------------------------------------------------------------
 check_config() {
@@ -258,11 +290,20 @@ start() {
     read_env_vars
 
     # 确保必要的文件和目录存在（修复 Docker volume 挂载问题）
-    if [ ! -f "config.db" ]; then
+    if [[ ! -f "config.db" ]]; then
         print_info "创建数据库文件..."
         install -m 600 /dev/null config.db
     fi
-    if [ ! -d "decision_logs" ]; then
+    # 创建 SQLite WAL 和 SHM 文件（如果不存在），避免 Docker 创建为目录
+    if [[ ! -e "config.db-wal" ]]; then
+        print_info "创建 SQLite WAL 文件..."
+        install -m 600 /dev/null config.db-wal
+    fi
+    if [[ ! -e "config.db-shm" ]]; then
+        print_info "创建 SQLite SHM 文件..."
+        install -m 600 /dev/null config.db-shm
+    fi
+    if [[ ! -d "decision_logs" ]]; then
         print_info "创建日志目录..."
         install -m 700 -d decision_logs
     fi
@@ -412,6 +453,7 @@ main() {
         start)
             check_env
             check_encryption
+            setup_secure_permissions
             check_config
             check_database
             start "$2"

@@ -13,27 +13,44 @@ import (
 	"time"
 )
 
-// Provider AI提供商类型
-type Provider string
-
 const (
-	ProviderDeepSeek Provider = "deepseek"
-	ProviderQwen     Provider = "qwen"
-	ProviderCustom   Provider = "custom"
+	ProviderCustom = "custom"
+)
+
+var (
+	DefaultTimeout = 120 * time.Second
+
+	// DefaultProviderURLs 各 provider 的默认 API URL
+	// 新增 provider 时只需在此 map 中添加即可
+	DefaultProviderURLs = map[string]string{
+		"openai":    "https://api.openai.com/v1",
+		"anthropic": "https://api.anthropic.com/v1",
+		"gemini":    "https://generativelanguage.googleapis.com/v1beta/openai",
+		"grok":      "https://api.x.ai/v1",
+	}
+
+	// DefaultProviderModels 各 provider 的默认模型名称
+	DefaultProviderModels = map[string]string{
+		"openai":    "gpt-5.1",
+		"anthropic": "claude-sonnet-4-20250514",
+		"gemini":    "gemini-2.5-pro",
+		"grok":      "grok-4",
+	}
 )
 
 // Client AI API配置
 type Client struct {
-	Provider   Provider
-	APIKey     string
-	BaseURL    string
-	Model      string
-	Timeout    time.Duration
-	UseFullURL bool // 是否使用完整URL（不添加/chat/completions）
-	MaxTokens  int  // AI响应的最大token数
+	Provider    string
+	APIKey      string
+	BaseURL     string
+	Model       string
+	Timeout     time.Duration
+	UseFullURL  bool    // 是否使用完整URL（不添加/chat/completions）
+	MaxTokens   int     // AI响应的最大token数
+	Temperature float64 // AI 温度参数，控制输出随机性（0.0-1.0），默认 0.1
 }
 
-func New() *Client {
+func New() AIClient {
 	// 从环境变量读取 MaxTokens，默认 2000
 	maxTokens := 2000
 	if envMaxTokens := os.Getenv("AI_MAX_TOKENS"); envMaxTokens != "" {
@@ -47,68 +64,28 @@ func New() *Client {
 
 	// 默认配置
 	return &Client{
-		Provider:  ProviderDeepSeek,
-		BaseURL:   "https://api.deepseek.com/v1",
-		Model:     "deepseek-chat",
-		Timeout:   120 * time.Second, // 增加到120秒，因为AI需要分析大量数据
-		MaxTokens: maxTokens,
+		Provider:    ProviderDeepSeek,
+		BaseURL:     DefaultDeepSeekBaseURL,
+		Model:       DefaultDeepSeekModel,
+		Timeout:     DefaultTimeout,
+		MaxTokens:   maxTokens,
+		Temperature: 0.1, // 交易系统默认低温，保证决策一致性
 	}
 }
 
-// SetDeepSeekAPIKey 设置DeepSeek API密钥
-// customURL 为空时使用默认URL，customModel 为空时使用默认模型
-func (client *Client) SetDeepSeekAPIKey(apiKey string, customURL string, customModel string) {
-	client.Provider = ProviderDeepSeek
+// SetAPIKey 设置 API Key 和配置
+// provider: 指定 AI 提供商 (openai, gemini, groq, custom 等)
+// 如果 apiURL 为空，会根据 provider 使用默认 URL
+func (client *Client) SetAPIKey(apiKey, apiURL, customModel, provider string) {
+	client.Provider = provider
 	client.APIKey = apiKey
-	if customURL != "" {
-		client.BaseURL = customURL
-		log.Printf("🔧 [MCP] DeepSeek 使用自定义 BaseURL: %s", customURL)
-	} else {
-		client.BaseURL = "https://api.deepseek.com/v1"
-		log.Printf("🔧 [MCP] DeepSeek 使用默认 BaseURL: %s", client.BaseURL)
-	}
-	if customModel != "" {
-		client.Model = customModel
-		log.Printf("🔧 [MCP] DeepSeek 使用自定义 Model: %s", customModel)
-	} else {
-		client.Model = "deepseek-chat"
-		log.Printf("🔧 [MCP] DeepSeek 使用默认 Model: %s", client.Model)
-	}
-	// 打印 API Key 的前后各4位用于验证
-	if len(apiKey) > 8 {
-		log.Printf("🔧 [MCP] DeepSeek API Key: %s...%s", apiKey[:4], apiKey[len(apiKey)-4:])
-	}
-}
 
-// SetQwenAPIKey 设置阿里云Qwen API密钥
-// customURL 为空时使用默认URL，customModel 为空时使用默认模型
-func (client *Client) SetQwenAPIKey(apiKey string, customURL string, customModel string) {
-	client.Provider = ProviderQwen
-	client.APIKey = apiKey
-	if customURL != "" {
-		client.BaseURL = customURL
-		log.Printf("🔧 [MCP] Qwen 使用自定义 BaseURL: %s", customURL)
-	} else {
-		client.BaseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-		log.Printf("🔧 [MCP] Qwen 使用默认 BaseURL: %s", client.BaseURL)
+	// 如果 URL 为空，根据 provider 使用默认 URL
+	if apiURL == "" {
+		if defaultURL, ok := DefaultProviderURLs[provider]; ok {
+			apiURL = defaultURL
+		}
 	}
-	if customModel != "" {
-		client.Model = customModel
-		log.Printf("🔧 [MCP] Qwen 使用自定义 Model: %s", customModel)
-	} else {
-		client.Model = "qwen3-max"
-		log.Printf("🔧 [MCP] Qwen 使用默认 Model: %s", client.Model)
-	}
-	// 打印 API Key 的前后各4位用于验证
-	if len(apiKey) > 8 {
-		log.Printf("🔧 [MCP] Qwen API Key: %s...%s", apiKey[:4], apiKey[len(apiKey)-4:])
-	}
-}
-
-// SetCustomAPI 设置自定义OpenAI兼容API
-func (client *Client) SetCustomAPI(apiURL, apiKey, modelName string) {
-	client.Provider = ProviderCustom
-	client.APIKey = apiKey
 
 	// 检查URL是否以#结尾，如果是则使用完整URL（不添加/chat/completions）
 	if strings.HasSuffix(apiURL, "#") {
@@ -119,22 +96,18 @@ func (client *Client) SetCustomAPI(apiURL, apiKey, modelName string) {
 		client.UseFullURL = false
 	}
 
-	client.Model = modelName
-	client.Timeout = 120 * time.Second
-}
-
-// SetClient 设置完整的AI配置（高级用户）
-func (client *Client) SetClient(Client Client) {
-	if Client.Timeout == 0 {
-		Client.Timeout = 30 * time.Second
+	if customModel != "" {
+		client.Model = customModel
+	} else if defaultModel, ok := DefaultProviderModels[provider]; ok {
+		client.Model = defaultModel
 	}
-	client = &Client
+	client.Timeout = 120 * time.Second
 }
 
 // CallWithMessages 使用 system + user prompt 调用AI API（推荐）
 func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string, error) {
 	if client.APIKey == "" {
-		return "", fmt.Errorf("AI API密钥未设置，请先调用 SetDeepSeekAPIKey() 或 SetQwenAPIKey()")
+		return "", fmt.Errorf("AI API密钥未设置，请先调用 SetAPIKey")
 	}
 
 	// 重试配置
@@ -171,6 +144,22 @@ func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string,
 	return "", fmt.Errorf("重试%d次后仍然失败: %w", maxRetries, lastErr)
 }
 
+func (client *Client) setAuthHeader(reqHeader http.Header) {
+	if client.Provider == "anthropic" {
+		// Anthropic 使用 x-api-key 认证头
+		reqHeader.Set("x-api-key", client.APIKey)
+		reqHeader.Set("anthropic-version", "2023-06-01")
+	} else {
+		// OpenAI 兼容 API 使用 Bearer token
+		reqHeader.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
+	}
+}
+
+// SetTemperature 设置 AI 温度参数（0.0-1.0），控制输出随机性
+func (client *Client) SetTemperature(temperature float64) {
+	client.Temperature = temperature
+}
+
 // callOnce 单次调用AI API（内部使用）
 func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) {
 	// 打印当前 AI 配置
@@ -183,48 +172,68 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		log.Printf("   API Key: %s...%s", client.APIKey[:4], client.APIKey[len(client.APIKey)-4:])
 	}
 
-	// 构建 messages 数组
-	messages := []map[string]string{}
+	var requestBody map[string]interface{}
+	var url string
 
-	// 如果有 system prompt，添加 system message
-	if systemPrompt != "" {
+	if client.Provider == "anthropic" {
+		// Anthropic Claude API 格式
+		// - system prompt 作为独立字段
+		// - messages 只包含 user 消息
+		// - 端点是 /messages
+		messages := []map[string]string{
+			{"role": "user", "content": userPrompt},
+		}
+
+		requestBody = map[string]interface{}{
+			"model":       client.Model,
+			"messages":    messages,
+			"temperature": client.Temperature,
+			"max_tokens":  client.MaxTokens,
+		}
+
+		// Anthropic 的 system prompt 作为独立字段
+		if systemPrompt != "" {
+			requestBody["system"] = systemPrompt
+		}
+
+		baseURL := strings.TrimSuffix(client.BaseURL, "/")
+		url = fmt.Sprintf("%s/messages", baseURL)
+	} else {
+		// OpenAI 兼容格式（包括 DeepSeek, Qwen, Gemini, Groq 等）
+		messages := []map[string]string{}
+		if systemPrompt != "" {
+			messages = append(messages, map[string]string{
+				"role":    "system",
+				"content": systemPrompt,
+			})
+		}
 		messages = append(messages, map[string]string{
-			"role":    "system",
-			"content": systemPrompt,
+			"role":    "user",
+			"content": userPrompt,
 		})
+
+		requestBody = map[string]interface{}{
+			"model":       client.Model,
+			"messages":    messages,
+			"temperature": client.Temperature,
+			"max_tokens":  client.MaxTokens,
+		}
+
+		if client.UseFullURL {
+			url = client.BaseURL
+		} else {
+			baseURL := strings.TrimSuffix(client.BaseURL, "/")
+			url = fmt.Sprintf("%s/chat/completions", baseURL)
+		}
 	}
 
-	// 添加 user message
-	messages = append(messages, map[string]string{
-		"role":    "user",
-		"content": userPrompt,
-	})
-
-	// 构建请求体
-	requestBody := map[string]interface{}{
-		"model":       client.Model,
-		"messages":    messages,
-		"temperature": 0.5, // 降低temperature以提高JSON格式稳定性
-		"max_tokens":  client.MaxTokens,
-	}
-
-	// 注意：response_format 参数仅 OpenAI 支持，DeepSeek/Qwen 不支持
-	// 我们通过强化 prompt 和后处理来确保 JSON 格式正确
+	log.Printf("📡 [MCP] 请求参数: max_tokens=%d, temperature=%.1f", client.MaxTokens, client.Temperature)
 
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
 		return "", fmt.Errorf("序列化请求失败: %w", err)
 	}
 
-	// 创建HTTP请求
-	var url string
-	if client.UseFullURL {
-		// 使用完整URL，不添加/chat/completions
-		url = client.BaseURL
-	} else {
-		// 默认行为：添加/chat/completions
-		url = fmt.Sprintf("%s/chat/completions", client.BaseURL)
-	}
 	log.Printf("📡 [MCP] 请求 URL: %s", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
@@ -234,17 +243,7 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// 根据不同的Provider设置认证方式
-	switch client.Provider {
-	case ProviderDeepSeek:
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
-	case ProviderQwen:
-		// 阿里云Qwen使用API-Key认证
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
-		// 注意：如果使用的不是兼容模式，可能需要不同的认证方式
-	default:
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
-	}
+	client.setAuthHeader(req.Header)
 
 	// 发送请求
 	httpClient := &http.Client{Timeout: client.Timeout}
@@ -260,17 +259,71 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		return "", fmt.Errorf("读取响应失败: %w", err)
 	}
 
+	// 🔍 调试：保存完整响应（用于 Issue #103 调试 Gemini 思维链问题）
+	if client.Provider == "gemini" {
+		debugDir := "debug_logs"
+		os.MkdirAll(debugDir, 0755)
+		timestamp := time.Now().Format("20060102_150405")
+		respFile := fmt.Sprintf("%s/%s_response_%s.json", debugDir, client.Provider, timestamp)
+		os.WriteFile(respFile, body, 0644)
+		log.Printf("🔍 [DEBUG] 响应已保存到: %s (长度: %d bytes)", respFile, len(body))
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("API返回错误 (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// 解析响应
+	// 根据 provider 解析不同响应格式
+	if client.Provider == "anthropic" {
+		// Anthropic 响应格式: content[0].text
+		var anthropicResult struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+			StopReason string `json:"stop_reason"`
+			Usage      struct {
+				InputTokens  int `json:"input_tokens"`
+				OutputTokens int `json:"output_tokens"`
+			} `json:"usage"`
+		}
+
+		if err := json.Unmarshal(body, &anthropicResult); err != nil {
+			return "", fmt.Errorf("解析Anthropic响应失败: %w", err)
+		}
+
+		if len(anthropicResult.Content) == 0 {
+			return "", fmt.Errorf("Anthropic API返回空响应")
+		}
+
+		// 打印响应详情
+		log.Printf("📡 [MCP] Anthropic响应详情: stop_reason=%s, input_tokens=%d, output_tokens=%d",
+			anthropicResult.StopReason,
+			anthropicResult.Usage.InputTokens,
+			anthropicResult.Usage.OutputTokens)
+
+		// 检查是否因为长度限制而截断
+		if anthropicResult.StopReason == "max_tokens" {
+			log.Printf("⚠️  [MCP] 警告: AI响应因max_tokens限制被截断！当前max_tokens=%d, 实际使用output_tokens=%d",
+				client.MaxTokens, anthropicResult.Usage.OutputTokens)
+		}
+
+		return anthropicResult.Content[0].Text, nil
+	}
+
+	// OpenAI 兼容格式响应解析
 	var result struct {
 		Choices []struct {
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -279,6 +332,19 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 
 	if len(result.Choices) == 0 {
 		return "", fmt.Errorf("API返回空响应")
+	}
+
+	// 打印响应详情
+	log.Printf("📡 [MCP] 响应详情: finish_reason=%s, prompt_tokens=%d, completion_tokens=%d, total_tokens=%d",
+		result.Choices[0].FinishReason,
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens)
+
+	// 检查是否因为长度限制而截断
+	if result.Choices[0].FinishReason == "length" {
+		log.Printf("⚠️  [MCP] 警告: AI响应因max_tokens限制被截断！当前max_tokens=%d, 实际使用completion_tokens=%d",
+			client.MaxTokens, result.Usage.CompletionTokens)
 	}
 
 	return result.Choices[0].Message.Content, nil

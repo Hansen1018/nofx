@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +12,12 @@ import (
 
 	"github.com/adshao/go-binance/v2/futures"
 	"github.com/stretchr/testify/assert"
+)
+
+// 测试用 API 路径常量
+const (
+	binanceOrderPath        = "/fapi/v1/order"
+	binanceExchangeInfoPath = "/fapi/v1/exchangeInfo"
 )
 
 // ============================================================
@@ -120,7 +127,7 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 			}
 
 		// Mock ExchangeInfo - /fapi/v1/exchangeInfo
-		case path == "/fapi/v1/exchangeInfo":
+		case path == binanceExchangeInfoPath:
 			respBody = map[string]interface{}{
 				"symbols": []map[string]interface{}{
 					{
@@ -175,11 +182,26 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 			}
 
 		// Mock CreateOrder - /fapi/v1/order (POST)
-		case path == "/fapi/v1/order" && r.Method == "POST":
+		case path == binanceOrderPath && r.Method == "POST":
 			symbol := r.FormValue("symbol")
 			if symbol == "" {
 				symbol = "BTCUSDT"
 			}
+
+			// 模拟币安的参数验证：STOP/TAKE_PROFIT 不能使用 closePosition=true
+			orderType := r.FormValue("type")
+			closePosition := r.FormValue("closePosition")
+
+			if (orderType == "STOP" || orderType == "TAKE_PROFIT") && closePosition == "true" {
+				// 返回币安的 -4136 错误
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"code": -4136,
+					"msg":  "Target strategy invalid for orderType " + orderType + ",closePosition true",
+				})
+				return
+			}
+
 			respBody = map[string]interface{}{
 				"orderId":       123456,
 				"symbol":        symbol,
@@ -201,7 +223,7 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 			}
 
 		// Mock CancelOrder - /fapi/v1/order (DELETE)
-		case path == "/fapi/v1/order" && r.Method == "DELETE":
+		case path == binanceOrderPath && r.Method == "DELETE":
 			respBody = map[string]interface{}{
 				"orderId": 123456,
 				"symbol":  r.URL.Query().Get("symbol"),
@@ -417,4 +439,388 @@ func TestGetBrOrderID(t *testing.T) {
 		assert.False(t, ids[id], "订单ID应该唯一")
 		ids[id] = true
 	}
+}
+
+// ============================================================
+// 专项测试：Issue #94 修复验证
+// ============================================================
+
+// setupMockServerWithParamCapture 创建能捕获请求参数的 mock server (helper)
+func setupMockServerWithParamCapture(capturedParams *map[string]string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == binanceOrderPath && r.Method == "POST" {
+			r.ParseForm()
+
+			// 捕获所有表单参数
+			*capturedParams = make(map[string]string)
+			for key := range r.Form {
+				(*capturedParams)[key] = r.FormValue(key)
+			}
+
+			// 模拟币安的参数验证：STOP/TAKE_PROFIT 不能使用 closePosition=true
+			orderType := r.FormValue("type")
+			closePosition := r.FormValue("closePosition")
+
+			if (orderType == "STOP" || orderType == "TAKE_PROFIT") && closePosition == "true" {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"code": -4136,
+					"msg":  "Target strategy invalid for orderType " + orderType + ",closePosition true",
+				})
+				return
+			}
+
+			// 正常响应
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"orderId": 123456,
+				"symbol":  "BTCUSDT",
+				"status":  "FILLED",
+			})
+		} else if r.URL.Path == binanceExchangeInfoPath {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"symbols": []map[string]interface{}{
+					{
+						"symbol":             "BTCUSDT",
+						"pricePrecision":     2,
+						"quantityPrecision":  3,
+						"baseAssetPrecision": 8,
+						"quotePrecision":     8,
+						"filters": []map[string]interface{}{
+							{"filterType": "PRICE_FILTER", "tickSize": "0.01"},
+							{"filterType": "LOT_SIZE", "stepSize": "0.001"},
+						},
+					},
+				},
+			})
+		} else {
+			json.NewEncoder(w).Encode(map[string]interface{}{})
+		}
+	}))
+}
+
+// createTestTrader 创建测试用的 trader (helper)
+func createTestTrader(mockServerURL string) *FuturesTrader {
+	client := futures.NewClient("test_key", "test_secret")
+	futures.UseTestnet = true
+	client.BaseURL = mockServerURL
+
+	return &FuturesTrader{
+		client:        client,
+		cacheDuration: 15 * time.Second,
+	}
+}
+
+// TestStopLossAndTakeProfitNoClosePosition 验证修复：STOP/TAKE_PROFIT 不发送 closePosition
+// Issue #94: 币安 API 限制，STOP/TAKE_PROFIT 类型不支持 closePosition=true
+func TestStopLossAndTakeProfitNoClosePosition(t *testing.T) {
+	tests := []struct {
+		name              string
+		testFunc          func(*FuturesTrader) error
+		expectedOrderType string
+		expectedSide      string
+	}{
+		{
+			name: "SetStopLoss 不发送 closePosition",
+			testFunc: func(trader *FuturesTrader) error {
+				return trader.SetStopLoss("BTCUSDT", "LONG", 0.01, 45000.0)
+			},
+			expectedOrderType: "STOP",
+			expectedSide:      "SELL",
+		},
+		{
+			name: "SetTakeProfit 不发送 closePosition",
+			testFunc: func(trader *FuturesTrader) error {
+				return trader.SetTakeProfit("BTCUSDT", "LONG", 0.01, 55000.0)
+			},
+			expectedOrderType: "TAKE_PROFIT",
+			expectedSide:      "SELL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedParams map[string]string
+			mockServer := setupMockServerWithParamCapture(&capturedParams)
+			defer mockServer.Close()
+
+			trader := createTestTrader(mockServer.URL)
+
+			// 执行测试函数
+			err := tt.testFunc(trader)
+
+			// 验证结果
+			assert.NoError(t, err, "调用应该成功")
+			assert.NotNil(t, capturedParams, "应该捕获到请求参数")
+
+			// ✅ 关键验证：确保没有发送 closePosition=true
+			closePositionValue, hasClosePosition := capturedParams["closePosition"]
+			assert.False(t, hasClosePosition && closePositionValue == "true",
+				"不应该发送 closePosition=true 参数（Issue #94 修复）")
+
+			// ✅ STOP/TAKE_PROFIT 必须带 timeInForce，避免币安报错
+			assert.Equal(t, "GTC", capturedParams["timeInForce"], "止损止盈单必须发送 timeInForce=GTC")
+
+			// ✅ 验证必需参数
+			assert.Equal(t, tt.expectedOrderType, capturedParams["type"], "订单类型")
+			assert.Equal(t, tt.expectedSide, capturedParams["side"], "订单方向")
+			assert.Equal(t, "LONG", capturedParams["positionSide"], "持仓方向")
+			assert.NotEmpty(t, capturedParams["quantity"], "应该有 quantity")
+			assert.NotEmpty(t, capturedParams["price"], "应该有 price（限价）")
+			assert.NotEmpty(t, capturedParams["stopPrice"], "应该有 stopPrice")
+		})
+	}
+}
+
+// TestSetStopLossWithClosePositionWouldFail 验证修复前的代码会失败
+// 证明：STOP + closePosition=true 会导致 -4136 错误
+func TestSetStopLossWithClosePositionWouldFail(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == binanceOrderPath && r.Method == "POST" {
+			r.ParseForm()
+			orderType := r.FormValue("type")
+			closePosition := r.FormValue("closePosition")
+
+			if orderType == "STOP" && closePosition == "true" {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"code": -4136,
+					"msg":  "Target strategy invalid for orderType STOP,closePosition true",
+				})
+				return
+			}
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"orderId": 123456,
+				"status":  "FILLED",
+			})
+		}
+	}))
+	defer mockServer.Close()
+
+	client := futures.NewClient("test_key", "test_secret")
+	client.BaseURL = mockServer.URL
+
+	// 模拟旧版本实现（发送 closePosition=true）
+	_, err := client.NewCreateOrderService().
+		Symbol("BTCUSDT").
+		Side(futures.SideTypeSell).
+		PositionSide(futures.PositionSideTypeLong).
+		Type(futures.OrderTypeStop).
+		StopPrice("45000").
+		Quantity("0.01").
+		ClosePosition(true). // ❌ 导致 -4136 错误
+		Do(context.Background())
+
+	// 验证错误
+	assert.Error(t, err, "STOP + closePosition=true 应该失败")
+	assert.Contains(t, err.Error(), "-4136", "错误应包含 -4136 代码")
+}
+
+// TestStopLossRequiresTimeInForce 验证未发送 timeInForce 会被币安拒绝
+func TestStopLossRequiresTimeInForce(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == binanceOrderPath && r.Method == "POST" {
+			r.ParseForm()
+			if r.FormValue("timeInForce") == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"code": -1100,
+					"msg":  "Mandatory parameter 'timeInForce' was not sent, was empty/null, or malformed.",
+				})
+				return
+			}
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"orderId": 123456,
+				"status":  "NEW",
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{})
+	}))
+	defer mockServer.Close()
+
+	trader := createTestTrader(mockServer.URL)
+	err := trader.SetStopLoss("BTCUSDT", "LONG", 0.01, 45000.0)
+
+	assert.NoError(t, err, "应该发送 timeInForce 使请求通过")
+}
+
+// TestPricePrecisionFormatting 测试价格精度格式化（修复止损单挂单失败问题）
+func TestPricePrecisionFormatting(t *testing.T) {
+	tests := []struct {
+		name          string
+		tickSize      string
+		inputPrice    float64
+		expectedPrice string
+	}{
+		{
+			name:          "BTC 价格精度 2 位",
+			tickSize:      "0.01",
+			inputPrice:    45123.456789,
+			expectedPrice: "45123.46",
+		},
+		{
+			name:          "ETH 价格精度 2 位",
+			tickSize:      "0.01",
+			inputPrice:    3200.789,
+			expectedPrice: "3200.79",
+		},
+		{
+			name:          "低价币精度 4 位",
+			tickSize:      "0.0001",
+			inputPrice:    0.123456,
+			expectedPrice: "0.1235",
+		},
+		{
+			name:          "高价币精度 1 位",
+			tickSize:      "0.1",
+			inputPrice:    100000.123,
+			expectedPrice: "100000.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == binanceExchangeInfoPath {
+					json.NewEncoder(w).Encode(map[string]interface{}{
+						"symbols": []map[string]interface{}{
+							{
+								"symbol":            "TESTUSDT",
+								"pricePrecision":    2,
+								"quantityPrecision": 3,
+								"filters": []map[string]interface{}{
+									{"filterType": "PRICE_FILTER", "tickSize": tt.tickSize},
+									{"filterType": "LOT_SIZE", "stepSize": "0.001"},
+								},
+							},
+						},
+					})
+					return
+				}
+				json.NewEncoder(w).Encode(map[string]interface{}{"orderId": 123})
+			}))
+			defer mockServer.Close()
+
+			trader := createTestTrader(mockServer.URL)
+			formattedPrice, err := trader.FormatPrice("TESTUSDT", tt.inputPrice)
+
+			assert.NoError(t, err, "格式化价格不应该失败")
+			assert.Equal(t, tt.expectedPrice, formattedPrice, "价格格式化结果")
+		})
+	}
+}
+
+// TestStopLossPriceFormatting 测试止损单价格被正确格式化
+func TestStopLossPriceFormatting(t *testing.T) {
+	var capturedParams map[string]string
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == binanceExchangeInfoPath {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"symbols": []map[string]interface{}{
+					{
+						"symbol":            "BTCUSDT",
+						"pricePrecision":    2,
+						"quantityPrecision": 3,
+						"filters": []map[string]interface{}{
+							{"filterType": "PRICE_FILTER", "tickSize": "0.01"},
+							{"filterType": "LOT_SIZE", "stepSize": "0.001"},
+						},
+					},
+				},
+			})
+			return
+		}
+		if r.URL.Path == binanceOrderPath && r.Method == "POST" {
+			r.ParseForm()
+			capturedParams = make(map[string]string)
+			for key, values := range r.Form {
+				if len(values) > 0 {
+					capturedParams[key] = values[0]
+				}
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"orderId": 123456,
+				"status":  "NEW",
+			})
+			return
+		}
+	}))
+	defer mockServer.Close()
+
+	trader := createTestTrader(mockServer.URL)
+
+	// 使用一个带有很多小数位的止损价格
+	err := trader.SetStopLoss("BTCUSDT", "LONG", 0.01, 45000.123456)
+
+	assert.NoError(t, err, "设置止损不应该失败")
+	assert.NotNil(t, capturedParams, "应该捕获到请求参数")
+
+	// 验证价格被正确格式化为 2 位小数
+	assert.Equal(t, "45000.12", capturedParams["stopPrice"], "止损价格应该被格式化为 2 位小数")
+	// 限价 = 触发价 * (1 - 2%) = 45000.123456 * 0.98 = 44100.12098688
+	// 格式化后应该是 44100.12
+	assert.Equal(t, "44100.12", capturedParams["price"], "限价应该被格式化为 2 位小数")
+	assert.Equal(t, "GTC", capturedParams["timeInForce"], "止损止盈单必须发送 timeInForce=GTC")
+}
+
+// TestStopLossWithBadPrecisionWouldFail 验证：如果价格精度不正确，币安会返回 -1111 错误
+// 这个测试证明了价格精度格式化修复的必要性
+func TestStopLossWithBadPrecisionWouldFail(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == binanceOrderPath && r.Method == "POST" {
+			r.ParseForm()
+			stopPrice := r.FormValue("stopPrice")
+
+			// 模拟币安的行为：如果价格小数位数超过 2 位，返回 -1111 错误
+			// 例如 "45000.12345600" 有超过 2 位小数
+			if len(stopPrice) > 0 {
+				// 检查小数位数
+				dotIndex := -1
+				for i, c := range stopPrice {
+					if c == '.' {
+						dotIndex = i
+						break
+					}
+				}
+				if dotIndex >= 0 {
+					decimals := len(stopPrice) - dotIndex - 1
+					if decimals > 2 {
+						w.WriteHeader(http.StatusBadRequest)
+						json.NewEncoder(w).Encode(map[string]interface{}{
+							"code": -1111,
+							"msg":  "Precision is over the maximum defined for this asset.",
+						})
+						return
+					}
+				}
+			}
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"orderId": 123456,
+				"status":  "NEW",
+			})
+		}
+	}))
+	defer mockServer.Close()
+
+	client := futures.NewClient("test_key", "test_secret")
+	client.BaseURL = mockServer.URL
+
+	// 模拟修复前的代码：直接用 %.8f 格式化价格（不符合 tickSize）
+	_, err := client.NewCreateOrderService().
+		Symbol("BTCUSDT").
+		Side(futures.SideTypeSell).
+		PositionSide(futures.PositionSideTypeLong).
+		Type(futures.OrderTypeStop).
+		Price(fmt.Sprintf("%.8f", 44100.12098688)).   // ❌ 8位小数
+		StopPrice(fmt.Sprintf("%.8f", 45000.123456)). // ❌ 8位小数
+		Quantity("0.01").
+		Do(context.Background())
+
+	// 验证：精度过高会导致 -1111 错误
+	assert.Error(t, err, "精度过高的价格应该被币安拒绝")
+	assert.Contains(t, err.Error(), "-1111", "错误应包含 -1111 代码")
 }

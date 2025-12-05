@@ -42,7 +42,7 @@ func TestPromptReloadEndToEnd(t *testing.T) {
 	}
 
 	// 步骤4: 使用 buildSystemPrompt 验证模板被正确使用
-	systemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy")
+	systemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy", 12.0)
 	if !strings.Contains(systemPrompt, initialContent) {
 		t.Errorf("buildSystemPrompt 未包含模板内容\n生成的 prompt:\n%s", systemPrompt)
 	}
@@ -69,7 +69,7 @@ func TestPromptReloadEndToEnd(t *testing.T) {
 	}
 
 	// 步骤8: 验证 buildSystemPrompt 使用了新内容
-	newSystemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy")
+	newSystemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy", 12.0)
 	if !strings.Contains(newSystemPrompt, updatedContent) {
 		t.Errorf("buildSystemPrompt 未包含更新后的模板内容\n生成的 prompt:\n%s", newSystemPrompt)
 	}
@@ -108,7 +108,7 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 
 	// 测试1: 基础模板 + 自定义 prompt（不覆盖）
 	customPrompt := "个性化规则：只交易 BTC"
-	result := buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base")
+	result := buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base", 12.0)
 	if !strings.Contains(result, baseContent) {
 		t.Errorf("未包含基础模板内容")
 	}
@@ -117,7 +117,7 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 	}
 
 	// 测试2: 覆盖基础 prompt
-	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, true, "base")
+	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, true, "base", 12.0)
 	if strings.Contains(result, baseContent) {
 		t.Errorf("覆盖模式下仍包含基础模板内容")
 	}
@@ -135,7 +135,7 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 		t.Fatalf("重新加载失败: %v", err)
 	}
 
-	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base")
+	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base", 12.0)
 	if !strings.Contains(result, updatedBase) {
 		t.Errorf("重新加载后未包含更新的基础模板内容")
 	}
@@ -144,12 +144,14 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 	}
 }
 
-// TestPromptReloadFallback 测试模板不存在时的降级机制
+// TestPromptReloadFallback 测试模板不存在时的致命错误机制
 func TestPromptReloadFallback(t *testing.T) {
-	// 保存原始的 promptsDir
+	// 保存原始的 promptsDir 和 fatalFunc
 	originalDir := promptsDir
+	originalFatal := fatalFunc
 	defer func() {
 		promptsDir = originalDir
+		fatalFunc = originalFatal
 		globalPromptManager.ReloadTemplates(originalDir)
 	}()
 
@@ -167,17 +169,25 @@ func TestPromptReloadFallback(t *testing.T) {
 		t.Fatalf("加载失败: %v", err)
 	}
 
-	// 测试1: 请求不存在的模板，应该降级到 default
-	result := buildSystemPrompt(10000.0, 10, 5, "nonexistent")
-	if !strings.Contains(result, defaultContent) {
-		t.Errorf("请求不存在的模板时，未降级到 default")
+	// 测试1: 请求不存在的模板，应该触发 fatal
+	var fatalCalled bool
+	fatalFunc = func(format string, v ...interface{}) {
+		fatalCalled = true
+		panic("fatal called")
 	}
 
-	// 测试2: 空模板名，应该使用 default
-	result = buildSystemPrompt(10000.0, 10, 5, "")
-	if !strings.Contains(result, defaultContent) {
-		t.Errorf("空模板名时，未使用 default")
-	}
+	defer func() {
+		if r := recover(); r != nil {
+			if !fatalCalled {
+				t.Error("Expected fatalFunc to be called for nonexistent template")
+			}
+		} else {
+			t.Error("Expected panic from fatalFunc for nonexistent template")
+		}
+	}()
+
+	// 这将触发 fatal
+	buildSystemPrompt(10000.0, 10, 5, "nonexistent", 12.0)
 }
 
 // TestConcurrentPromptReload 测试并发场景下的 prompt 重新加载

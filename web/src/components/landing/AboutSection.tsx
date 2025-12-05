@@ -102,7 +102,7 @@ export default function AboutSection({ language }: AboutSectionProps) {
             >
               <Typewriter
                 lines={[
-                  '$ git clone https://github.com/tinkle-community/nofx.git',
+                  '$ git clone https://github.com/nofxai/nofx.git',
                   '$ cd nofx',
                   '$ chmod +x start.sh',
                   '$ ./start.sh start --build',

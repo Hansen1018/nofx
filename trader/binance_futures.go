@@ -15,6 +15,11 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 )
 
+// 日志消息常量（避免重复字符串）
+const (
+	logMsgCancelledAllOrders = "  ✓ 已取消 %s 的所有挂单"
+)
+
 // getBrOrderID 生成唯一订单ID（合约专用）
 // 格式: x-{BR_ID}{TIMESTAMP}{RANDOM}
 // 合约限制32字符，统一使用此限制以保持一致性
@@ -424,20 +429,18 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 
 // CloseLong 平多仓
 func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果数量为0，获取全部持仓数量
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
 		}
-
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
 				quantity = pos["positionAmt"].(float64)
 				break
 			}
 		}
-
 		if quantity == 0 {
 			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
 		}
@@ -465,9 +468,12 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, quantityStr)
 
-	// 平仓后取消该币种的所有挂单（止损止盈单）
+	// 取消该币种的所有挂单（包括止损止盈）
+	// 注意：部分平仓时，auto_trader.go 会负责用正确的数量重新创建 SL/TP 订单
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消挂单失败: %v", err)
+	} else {
+		log.Printf(logMsgCancelledAllOrders, symbol)
 	}
 
 	result := make(map[string]interface{})
@@ -479,20 +485,18 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 // CloseShort 平空仓
 func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果数量为0，获取全部持仓数量
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
 		}
-
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				quantity = -pos["positionAmt"].(float64) // 空仓数量是负的，取绝对值
 				break
 			}
 		}
-
 		if quantity == 0 {
 			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
 		}
@@ -520,9 +524,12 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 
 	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, quantityStr)
 
-	// 平仓后取消该币种的所有挂单（止损止盈单）
+	// 取消该币种的所有挂单（包括止损止盈）
+	// 注意：部分平仓时，auto_trader.go 会负责用正确的数量重新创建 SL/TP 订单
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消挂单失败: %v", err)
+	} else {
+		log.Printf(logMsgCancelledAllOrders, symbol)
 	}
 
 	result := make(map[string]interface{})
@@ -642,7 +649,7 @@ func (t *FuturesTrader) CancelAllOrders(symbol string) error {
 		return fmt.Errorf("取消挂单失败: %w", err)
 	}
 
-	log.Printf("  ✓ 已取消 %s 的所有挂单", symbol)
+	log.Printf(logMsgCancelledAllOrders, symbol)
 	return nil
 }
 
@@ -739,22 +746,36 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		return err
 	}
 
+	// 计算 Stop Limit Price
+	limitPrice := CalculateStopLimitPrice(positionSide, stopPrice, 0)
+
+	// 格式化价格到正确精度（符合 tickSize 要求）
+	limitPriceStr, err := t.FormatPrice(symbol, limitPrice)
+	if err != nil {
+		return fmt.Errorf("格式化限价失败: %w", err)
+	}
+	stopPriceStr, err := t.FormatPrice(symbol, stopPrice)
+	if err != nil {
+		return fmt.Errorf("格式化止损价失败: %w", err)
+	}
+
 	_, err = t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(posSide).
-		Type(futures.OrderTypeStopMarket).
-		StopPrice(fmt.Sprintf("%.8f", stopPrice)).
+		Type(futures.OrderTypeStop).
+		TimeInForce(futures.TimeInForceTypeGTC). // STOP/TAKE_PROFIT 必须提供 timeInForce
+		Price(limitPriceStr).
+		StopPrice(stopPriceStr).
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
-		ClosePosition(true).
 		Do(context.Background())
 
 	if err != nil {
 		return fmt.Errorf("设置止损失败: %w", err)
 	}
 
-	log.Printf("  止损价设置: %.4f", stopPrice)
+	log.Printf("  止损价设置: %s (限价: %s)", stopPriceStr, limitPriceStr)
 	return nil
 }
 
@@ -777,22 +798,36 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		return err
 	}
 
+	// 计算 Stop Limit Price (Take Profit 也使用相同的逻辑确保成交)
+	limitPrice := CalculateStopLimitPrice(positionSide, takeProfitPrice, 0)
+
+	// 格式化价格到正确精度（符合 tickSize 要求）
+	limitPriceStr, err := t.FormatPrice(symbol, limitPrice)
+	if err != nil {
+		return fmt.Errorf("格式化限价失败: %w", err)
+	}
+	takeProfitPriceStr, err := t.FormatPrice(symbol, takeProfitPrice)
+	if err != nil {
+		return fmt.Errorf("格式化止盈价失败: %w", err)
+	}
+
 	_, err = t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(posSide).
-		Type(futures.OrderTypeTakeProfitMarket).
-		StopPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
+		Type(futures.OrderTypeTakeProfit).
+		TimeInForce(futures.TimeInForceTypeGTC). // STOP/TAKE_PROFIT 必须提供 timeInForce
+		Price(limitPriceStr).
+		StopPrice(takeProfitPriceStr).
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
-		ClosePosition(true).
 		Do(context.Background())
 
 	if err != nil {
 		return fmt.Errorf("设置止盈失败: %w", err)
 	}
 
-	log.Printf("  止盈价设置: %.4f", takeProfitPrice)
+	log.Printf("  止盈价设置: %s (限价: %s)", takeProfitPriceStr, limitPriceStr)
 	return nil
 }
 
@@ -845,6 +880,43 @@ func (t *FuturesTrader) GetSymbolPrecision(symbol string) (int, error) {
 
 	log.Printf("  ⚠ %s 未找到精度信息，使用默认精度3", symbol)
 	return 3, nil // 默认精度为3
+}
+
+// GetPricePrecision 获取交易对的价格精度（从 PRICE_FILTER 的 tickSize）
+func (t *FuturesTrader) GetPricePrecision(symbol string) (int, error) {
+	exchangeInfo, err := t.client.NewExchangeInfoService().Do(context.Background())
+	if err != nil {
+		return 0, fmt.Errorf("获取交易规则失败: %w", err)
+	}
+
+	for _, s := range exchangeInfo.Symbols {
+		if s.Symbol == symbol {
+			// 从 PRICE_FILTER 获取价格精度
+			for _, filter := range s.Filters {
+				if filter["filterType"] == "PRICE_FILTER" {
+					tickSize := filter["tickSize"].(string)
+					precision := calculatePrecision(tickSize)
+					log.Printf("  %s 价格精度: %d (tickSize: %s)", symbol, precision, tickSize)
+					return precision, nil
+				}
+			}
+		}
+	}
+
+	log.Printf("  ⚠ %s 未找到价格精度信息，使用默认精度2", symbol)
+	return 2, nil // 默认价格精度为2
+}
+
+// FormatPrice 格式化价格到正确的精度（符合 tickSize 要求）
+func (t *FuturesTrader) FormatPrice(symbol string, price float64) (string, error) {
+	precision, err := t.GetPricePrecision(symbol)
+	if err != nil {
+		// 如果获取失败，使用默认格式
+		return fmt.Sprintf("%.2f", price), nil
+	}
+
+	format := fmt.Sprintf("%%.%df", precision)
+	return fmt.Sprintf(format, price), nil
 }
 
 // calculatePrecision 从stepSize计算精度
@@ -914,4 +986,65 @@ func stringContains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// GetRecentFills 获取最近的成交记录
+func (t *FuturesTrader) GetRecentFills(symbol string, startTime int64, endTime int64) ([]map[string]interface{}, error) {
+	// endTime = 0 表示当前时间
+	if endTime == 0 {
+		endTime = time.Now().UnixMilli()
+	}
+
+	// 调用 Binance API 获取成交记录
+	service := t.client.NewListAccountTradeService().
+		Symbol(symbol).
+		StartTime(startTime).
+		EndTime(endTime)
+
+	trades, err := service.Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("获取成交记录失败: %w", err)
+	}
+
+	// 转换为统一格式
+	var result []map[string]interface{}
+
+	for _, trade := range trades {
+		// 解析价格和数量
+		price, err := strconv.ParseFloat(trade.Price, 64)
+		if err != nil {
+			log.Printf("⚠️ 解析成交价格失败: %v", err)
+			continue
+		}
+
+		quantity, err := strconv.ParseFloat(trade.Quantity, 64)
+		if err != nil {
+			log.Printf("⚠️ 解析成交数量失败: %v", err)
+			continue
+		}
+
+		// 解析手续费
+		commission, err := strconv.ParseFloat(trade.Commission, 64)
+		if err != nil {
+			commission = 0.0
+		}
+
+		// Binance 的 Side 字段: "BUY" 或 "SELL"
+		// 转换为统一格式 "Buy" / "Sell"
+		side := "Buy"
+		if trade.Side == futures.SideTypeSell {
+			side = "Sell"
+		}
+
+		result = append(result, map[string]interface{}{
+			"symbol":    symbol,
+			"side":      side,
+			"price":     price,
+			"quantity":  quantity,
+			"timestamp": trade.Time,
+			"fee":       commission,
+		})
+	}
+
+	return result, nil
 }

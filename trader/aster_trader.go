@@ -476,46 +476,41 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	positions, err := t.GetPositions()
 	if err != nil {
 		log.Printf("⚠️  获取持仓信息失败: %v", err)
-		// fallback: 无法获取持仓时使用简单计算
+		// fallback: 无法获取持仓时使用 API 返回值
+		// 注意：crossWalletBalance = balance + crossUnPnl（已包含未实现盈亏）
+		// 为保证 totalEquity = totalWalletBalance + totalUnrealizedProfit = crossWalletBalance
+		// 需要：totalWalletBalance = crossWalletBalance - crossUnPnl
 		return map[string]interface{}{
-			"totalWalletBalance":    crossWalletBalance,
+			"totalWalletBalance":    crossWalletBalance - crossUnPnl,
 			"availableBalance":      availableBalance,
 			"totalUnrealizedProfit": crossUnPnl,
 		}, nil
 	}
 
-	// ⚠️ 关键修复：从持仓中累加真正的未实现盈亏
-	// Aster 的 crossUnPnl 字段不准确，需要从持仓数据中重新计算
-	totalMarginUsed := 0.0
+	// ⚠️ 关键修复 (Issue #95)：从持仓中累加真正的未实现盈亏
+	// Aster 的 crossUnPnl 字段可能不准确，需要从持仓数据中重新计算
 	realUnrealizedPnl := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
-		if quantity < 0 {
-			quantity = -quantity
-		}
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		realUnrealizedPnl += unrealizedPnl
-
-		leverage := 10
-		if lev, ok := pos["leverage"].(float64); ok {
-			leverage = int(lev)
-		}
-		marginUsed := (quantity * markPrice) / float64(leverage)
-		totalMarginUsed += marginUsed
 	}
 
-	// ✅ Aster 正确计算方式:
-	// 总净值 = 可用余额 + 保证金占用
-	// 钱包余额 = 总净值 - 未实现盈亏
-	// 未实现盈亏 = 从持仓累加计算（不使用API的crossUnPnl）
-	totalEquity := availableBalance + totalMarginUsed
-	totalWalletBalance := totalEquity - realUnrealizedPnl
+	// ✅ Aster 正确计算方式 (Issue #95 修复):
+	// 根据 Binance/Aster API 文档: crossWalletBalance = balance + crossUnPnl
+	// 即 crossWalletBalance 已经包含了未实现盈亏，这就是官网显示的"总净值"
+	//
+	// auto_trader.go 中计算: totalEquity = totalWalletBalance + totalUnrealizedProfit
+	// 为了让 totalEquity == crossWalletBalance（与官网一致），需要：
+	//   totalWalletBalance = crossWalletBalance - realUnrealizedPnl
+	//
+	// 这样: totalEquity = (crossWalletBalance - realUnrealizedPnl) + realUnrealizedPnl
+	//                   = crossWalletBalance（与官网一致）
+	totalWalletBalance := crossWalletBalance - realUnrealizedPnl
 
 	return map[string]interface{}{
-		"totalWalletBalance":    totalWalletBalance, // 钱包余额（不含未实现盈亏）
-		"availableBalance":      availableBalance,   // 可用余额
-		"totalUnrealizedProfit": realUnrealizedPnl,  // 未实现盈亏（从持仓累加）
+		"totalWalletBalance":    totalWalletBalance,  // 钱包余额（不含未实现盈亏）
+		"availableBalance":      availableBalance,    // 可用余额
+		"totalUnrealizedProfit": realUnrealizedPnl,   // 未实现盈亏（从持仓累加）
 	}, nil
 }
 
@@ -709,20 +704,18 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 
 // CloseLong 平多单
 func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果数量为0，获取全部持仓数量
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
 		}
-
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
 				quantity = pos["positionAmt"].(float64)
 				break
 			}
 		}
-
 		if quantity == 0 {
 			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
 		}
@@ -781,9 +774,12 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, qtyStr)
 
-	// 平仓后取消该币种的所有挂单(止损止盈单)
+	// 取消该币种的所有挂单（包括止损止盈）
+	// 注意：部分平仓时，auto_trader.go 会负责用正确的数量重新创建 SL/TP 订单
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消挂单失败: %v", err)
+	} else {
+		log.Printf("  ✓ 已取消 %s 的所有挂单", symbol)
 	}
 
 	return result, nil
@@ -791,13 +787,12 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 // CloseShort 平空单
 func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果数量为0，获取全部持仓数量
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
 		}
-
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				// Aster的GetPositions已经将空仓数量转换为正数，直接使用
@@ -805,7 +800,6 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 				break
 			}
 		}
-
 		if quantity == 0 {
 			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
 		}
@@ -864,9 +858,12 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 
 	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, qtyStr)
 
-	// 平仓后取消该币种的所有挂单(止损止盈单)
+	// 取消该币种的所有挂单（包括止损止盈）
+	// 注意：部分平仓时，auto_trader.go 会负责用正确的数量重新创建 SL/TP 订单
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消挂单失败: %v", err)
+	} else {
+		log.Printf("  ✓ 已取消 %s 的所有挂单", symbol)
 	}
 
 	return result, nil
@@ -984,12 +981,21 @@ func (t *AsterTrader) SetStopLoss(symbol string, positionSide string, quantity, 
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
+	// 计算并格式化 Stop Limit Price
+	limitPrice := CalculateStopLimitPrice(positionSide, stopPrice, 0)
+	formattedLimitPrice, err := t.formatPrice(symbol, limitPrice)
+	if err != nil {
+		return err
+	}
+	limitPriceStr := t.formatFloatWithPrecision(formattedLimitPrice, prec.PricePrecision)
+
 	params := map[string]interface{}{
 		"symbol":       symbol,
 		"positionSide": "BOTH",
-		"type":         "STOP_MARKET",
+		"type":         "STOP",
 		"side":         side,
 		"stopPrice":    priceStr,
+		"price":        limitPriceStr,
 		"quantity":     qtyStr,
 		"timeInForce":  "GTC",
 	}
@@ -1025,12 +1031,21 @@ func (t *AsterTrader) SetTakeProfit(symbol string, positionSide string, quantity
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
+	// 计算并格式化 Stop Limit Price (TP)
+	limitPrice := CalculateStopLimitPrice(positionSide, takeProfitPrice, 0)
+	formattedLimitPrice, err := t.formatPrice(symbol, limitPrice)
+	if err != nil {
+		return err
+	}
+	limitPriceStr := t.formatFloatWithPrecision(formattedLimitPrice, prec.PricePrecision)
+
 	params := map[string]interface{}{
 		"symbol":       symbol,
 		"positionSide": "BOTH",
-		"type":         "TAKE_PROFIT_MARKET",
+		"type":         "TAKE_PROFIT",
 		"side":         side,
 		"stopPrice":    priceStr,
+		"price":        limitPriceStr,
 		"quantity":     qtyStr,
 		"timeInForce":  "GTC",
 	}
@@ -1229,4 +1244,90 @@ func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, e
 		return "", err
 	}
 	return fmt.Sprintf("%v", formatted), nil
+}
+
+// GetRecentFills 获取最近的成交记录
+// Aster 使用 Binance 兼容 API: /fapi/v1/userTrades
+func (t *AsterTrader) GetRecentFills(symbol string, startTime int64, endTime int64) ([]map[string]interface{}, error) {
+	// endTime = 0 表示当前时间
+	if endTime == 0 {
+		endTime = time.Now().UnixMilli()
+	}
+
+	// 构建请求参数
+	params := map[string]interface{}{
+		"symbol":    symbol,
+		"startTime": startTime,
+		"endTime":   endTime,
+		"limit":     500, // 最多返回500条
+	}
+
+	// 调用 Aster API
+	body, err := t.request("GET", "/fapi/v1/userTrades", params)
+	if err != nil {
+		return nil, fmt.Errorf("获取成交记录失败: %w", err)
+	}
+
+	// 解析响应
+	var trades []map[string]interface{}
+	if err := json.Unmarshal(body, &trades); err != nil {
+		return nil, fmt.Errorf("解析成交记录失败: %w", err)
+	}
+
+	// 转换为统一格式
+	var result []map[string]interface{}
+
+	for _, trade := range trades {
+		// 解析价格和数量
+		var price float64
+		var quantity float64
+		var fee float64
+		var timestamp int64
+		var side string
+
+		if priceStr, ok := trade["price"].(string); ok {
+			price, _ = strconv.ParseFloat(priceStr, 64)
+		} else if priceFloat, ok := trade["price"].(float64); ok {
+			price = priceFloat
+		}
+
+		if qtyStr, ok := trade["qty"].(string); ok {
+			quantity, _ = strconv.ParseFloat(qtyStr, 64)
+		} else if qtyFloat, ok := trade["qty"].(float64); ok {
+			quantity = qtyFloat
+		}
+
+		if commissionStr, ok := trade["commission"].(string); ok {
+			fee, _ = strconv.ParseFloat(commissionStr, 64)
+		} else if commissionFloat, ok := trade["commission"].(float64); ok {
+			fee = commissionFloat
+		}
+
+		if timeInt, ok := trade["time"].(float64); ok {
+			timestamp = int64(timeInt)
+		} else if timeInt64, ok := trade["time"].(int64); ok {
+			timestamp = timeInt64
+		}
+
+		// Aster API 返回 side: "BUY" 或 "SELL"
+		// 转换为统一格式 "Buy" / "Sell"
+		if sideStr, ok := trade["side"].(string); ok {
+			if sideStr == "BUY" {
+				side = "Buy"
+			} else {
+				side = "Sell"
+			}
+		}
+
+		result = append(result, map[string]interface{}{
+			"symbol":    symbol,
+			"side":      side,
+			"price":     price,
+			"quantity":  quantity,
+			"timestamp": timestamp,
+			"fee":       fee,
+		})
+	}
+
+	return result, nil
 }

@@ -31,16 +31,7 @@ export function LandingPage() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        onPageChange={(page) => {
-          console.log('LandingPage onPageChange called with:', page)
-          if (page === 'competition') {
-            window.location.href = '/competition'
-          } else if (page === 'traders') {
-            window.location.href = '/traders'
-          } else if (page === 'trader') {
-            window.location.href = '/dashboard'
-          }
-        }}
+        // 不传 onPageChange，让 HeaderBar 使用 window.location.href fallback
       />
       <div
         className="min-h-screen px-4 sm:px-6 lg:px-8"
@@ -97,7 +88,7 @@ export function LandingPage() {
                 </motion.div>
               </motion.button>
               <motion.a
-                href="https://github.com/tinkle-community/nofx/tree/dev"
+                href="https://github.com/nofxai/nofx/tree/dev"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-10 py-4 rounded-lg font-semibold text-lg"

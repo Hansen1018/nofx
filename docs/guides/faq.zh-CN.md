@@ -80,7 +80,7 @@ AI 交易是**实验性**的，**不保证盈利**。请始终用小额资金测
 
 **原因**：NOFX 使用 `PositionSide(LONG/SHORT)`，需要双向持仓模式。
 
-参见 [Issue #202](https://github.com/tinkle-community/nofx/issues/202) 和[故障排查指南](TROUBLESHOOTING.zh-CN.md#-只开空单-issue-202)。
+参见 [Issue #202](https://github.com/nofxai/nofx/issues/202) 和[故障排查指南](TROUBLESHOOTING.zh-CN.md#-只开空单-issue-202)。
 
 ---
 
@@ -179,13 +179,13 @@ sqlite3 trading.db "SELECT * FROM trades;"
 
 ### 如何报告 Bug？
 1. 先查看[故障排查指南](TROUBLESHOOTING.zh-CN.md)
-2. 搜索[现有 Issues](https://github.com/tinkle-community/nofx/issues)
+2. 搜索[现有 Issues](https://github.com/nofxai/nofx/issues)
 3. 如果没找到，使用我们的 [Bug 报告模板](../../.github/ISSUE_TEMPLATE/bug_report.md)
 
 ### 在哪里可以获得帮助？
-- [GitHub Discussions](https://github.com/tinkle-community/nofx/discussions)
+- [GitHub Discussions](https://github.com/nofxai/nofx/discussions)
 - [Telegram 社区](https://t.me/nofx_dev_community)
-- [GitHub Issues](https://github.com/tinkle-community/nofx/issues)
+- [GitHub Issues](https://github.com/nofxai/nofx/issues)
 
 ---
 
@@ -199,7 +199,7 @@ sqlite3 trading.db "SELECT * FROM trades;"
 - 查看[贡献指南](../CONTRIBUTING.md)
 
 ### 如何建议新功能？
-提交 [Feature Request](https://github.com/tinkle-community/nofx/issues/new/choose) 说明您的想法！
+提交 [Feature Request](https://github.com/nofxai/nofx/issues/new/choose) 说明您的想法！
 
 ---
 

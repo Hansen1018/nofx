@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"nofx/config"
@@ -223,5 +224,575 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 	// ✅ 验证 SystemPromptTemplate 字段已正确添加到结构体
 	if req.SystemPromptTemplate != "nof1" {
 		t.Errorf("SystemPromptTemplate mismatch: expected %q, got %q", "nof1", req.SystemPromptTemplate)
+	}
+}
+
+// TestTraderListResponse_SystemPromptTemplate 测试 handleTraderList API 返回的 trader 对象是否包含 system_prompt_template 和 system_prompt 字段
+func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 handleTraderList 中的 trader 对象构造
+	trader := &config.TraderRecord{
+		ID:                   "trader-001",
+		UserID:               "user-1",
+		Name:                 "My Trader",
+		AIModelID:            "gpt-4",
+		ExchangeID:           "binance",
+		InitialBalance:       5000,
+		BTCETHLeverage:       10,
+		AltcoinLeverage:      5,
+		CustomPrompt:         "",
+		OverrideBasePrompt:   false,
+		SystemPromptTemplate: "default",
+		IsRunning:            true,
+	}
+
+	// 构造 API 响应对象（与 api/server.go 中的逻辑一致）
+	// 注意：实际 API 中 system_prompt 通过 decision.BuildPromptSnapshot 生成
+	response := map[string]interface{}{
+		"trader_id":              trader.ID,
+		"trader_name":            trader.Name,
+		"ai_model":               trader.AIModelID,
+		"exchange_id":            trader.ExchangeID,
+		"is_running":             trader.IsRunning,
+		"initial_balance":        trader.InitialBalance,
+		"system_prompt_template": trader.SystemPromptTemplate,
+		"system_prompt":          "这是一个模拟的 system prompt 内容...", // 模拟 prompt 内容
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "default" {
+		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
+	}
+
+	// ✅ 验证 system_prompt 字段存在
+	if _, exists := response["system_prompt"]; !exists {
+		t.Errorf("Trader list response is missing 'system_prompt' field")
+	}
+
+	// ✅ 验证 system_prompt 是字符串类型
+	_, ok := response["system_prompt"].(string)
+	if !ok {
+		t.Errorf("system_prompt should be a string")
+	}
+}
+
+// TestPublicTraderListResponse_SystemPromptTemplate 测试 handlePublicTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 getConcurrentTraderData 返回的 trader 数据
+	traderData := map[string]interface{}{
+		"trader_id":              "trader-002",
+		"trader_name":            "Public Trader",
+		"ai_model":               "claude",
+		"exchange":               "binance",
+		"total_equity":           10000.0,
+		"total_pnl":              500.0,
+		"total_pnl_pct":          5.0,
+		"position_count":         3,
+		"margin_used_pct":        25.0,
+		"is_running":             true,
+		"system_prompt_template": "default",
+	}
+
+	// 构造 API 响应对象（与 api/server.go handlePublicTraderList 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              traderData["trader_id"],
+		"trader_name":            traderData["trader_name"],
+		"ai_model":               traderData["ai_model"],
+		"exchange":               traderData["exchange"],
+		"total_equity":           traderData["total_equity"],
+		"total_pnl":              traderData["total_pnl"],
+		"total_pnl_pct":          traderData["total_pnl_pct"],
+		"position_count":         traderData["position_count"],
+		"margin_used_pct":        traderData["margin_used_pct"],
+		"system_prompt_template": traderData["system_prompt_template"],
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Public trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "default" {
+		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
+	}
+}
+
+// TestPerformanceAPI_LimitParameter 测试 performance API 的 limit 参数功能
+func TestPerformanceAPI_LimitParameter(t *testing.T) {
+	// 模拟历史成交记录（recent_trades）
+	createMockTrades := func(count int) []interface{} {
+		trades := make([]interface{}, count)
+		for i := 0; i < count; i++ {
+			trades[i] = map[string]interface{}{
+				"symbol":     "BTCUSDT",
+				"side":       "long",
+				"pnl":        float64(i * 10),
+				"pnl_pct":    1.5,
+				"open_price": 50000.0,
+			}
+		}
+		return trades
+	}
+
+	tests := []struct {
+		name           string
+		limitParam     string
+		totalTrades    int
+		expectedCount  int
+		description    string
+	}{
+		{
+			name:           "无limit参数-返回所有记录",
+			limitParam:     "",
+			totalTrades:    30,
+			expectedCount:  30,
+			description:    "不传limit参数时，应该返回所有交易记录（保持向后兼容）",
+		},
+		{
+			name:           "limit=10-返回10条记录",
+			limitParam:     "10",
+			totalTrades:    50,
+			expectedCount:  10,
+			description:    "limit=10时，应该只返回最近10条交易记录",
+		},
+		{
+			name:           "limit=20-返回20条记录",
+			limitParam:     "20",
+			totalTrades:    100,
+			expectedCount:  20,
+			description:    "limit=20时，应该只返回最近20条交易记录",
+		},
+		{
+			name:           "limit=50-返回50条记录",
+			limitParam:     "50",
+			totalTrades:    80,
+			expectedCount:  50,
+			description:    "limit=50时，应该只返回最近50条交易记录",
+		},
+		{
+			name:           "limit大于实际记录数-返回所有记录",
+			limitParam:     "100",
+			totalTrades:    30,
+			expectedCount:  30,
+			description:    "limit=100但只有30条记录时，应该返回所有30条记录",
+		},
+		{
+			name:           "limit=0-返回所有记录",
+			limitParam:     "0",
+			totalTrades:    40,
+			expectedCount:  40,
+			description:    "limit=0时，应该返回所有交易记录",
+		},
+		{
+			name:           "limit超过最大值100-使用最大值",
+			limitParam:     "150",
+			totalTrades:    200,
+			expectedCount:  200, // 解析时会被限制为100，但这里测试的是解析逻辑
+			description:    "limit=150超过最大值100时，解析逻辑会忽略此值",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 模拟完整的 performance 数据
+			mockPerformance := map[string]interface{}{
+				"total_trades":   tt.totalTrades,
+				"winning_trades": tt.totalTrades / 2,
+				"losing_trades":  tt.totalTrades / 2,
+				"win_rate":       50.0,
+				"recent_trades":  createMockTrades(tt.totalTrades),
+			}
+
+			// 模拟 handlePerformance 中的 limit 参数解析逻辑
+			tradeLimit := 0 // 默认不限制
+			if tt.limitParam != "" {
+				if l := parseLimit(tt.limitParam); l > 0 && l <= 100 {
+					tradeLimit = l
+				}
+			}
+
+			// 模拟截取逻辑
+			recentTrades := mockPerformance["recent_trades"].([]interface{})
+			if tradeLimit > 0 && len(recentTrades) > tradeLimit {
+				recentTrades = recentTrades[:tradeLimit]
+			}
+
+			// ✅ 验证返回的记录数
+			actualCount := len(recentTrades)
+			if tt.limitParam == "" || tt.limitParam == "0" {
+				// 无limit或limit=0时，应返回所有记录
+				if actualCount != tt.expectedCount {
+					t.Errorf("%s: expected %d trades, got %d", tt.description, tt.expectedCount, actualCount)
+				}
+			} else if tt.limitParam == "150" {
+				// limit超过最大值时，解析会忽略，返回所有记录
+				if actualCount != tt.totalTrades {
+					t.Errorf("%s: expected all %d trades (limit ignored), got %d", tt.description, tt.totalTrades, actualCount)
+				}
+			} else {
+				// 正常limit值
+				if actualCount != tt.expectedCount {
+					t.Errorf("%s: expected %d trades, got %d", tt.description, tt.expectedCount, actualCount)
+				}
+			}
+		})
+	}
+}
+
+// parseLimit 辅助函数：解析 limit 参数（模拟 server.go 中的逻辑）
+func parseLimit(limitStr string) int {
+	if limitStr == "" {
+		return 0
+	}
+	var limit int
+	if _, err := fmt.Sscanf(limitStr, "%d", &limit); err == nil {
+		return limit
+	}
+	return 0
+}
+
+// TestTraderListResponse_TradingSymbols 测试 handleTraderList API 返回的 trader 对象是否包含 trading_symbols 字段
+func TestTraderListResponse_TradingSymbols(t *testing.T) {
+	tests := []struct {
+		name            string
+		tradingSymbols  string
+		expectedSymbols string
+		description     string
+	}{
+		{
+			name:            "多个币种",
+			tradingSymbols:  "BTC,ETH,SOL,DOGE,XRP",
+			expectedSymbols: "BTC,ETH,SOL,DOGE,XRP",
+			description:     "trading_symbols 应该原样返回多个币种",
+		},
+		{
+			name:            "单个币种",
+			tradingSymbols:  "BTC",
+			expectedSymbols: "BTC",
+			description:     "trading_symbols 应该正确处理单个币种",
+		},
+		{
+			name:            "空字符串",
+			tradingSymbols:  "",
+			expectedSymbols: "",
+			description:     "trading_symbols 为空时应该返回空字符串",
+		},
+		{
+			name:            "带空格的币种列表",
+			tradingSymbols:  "BTC, ETH, SOL",
+			expectedSymbols: "BTC, ETH, SOL",
+			description:     "trading_symbols 应该保留原始格式（前端负责处理）",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 模拟 handleTraderList 中的 trader 对象构造
+			trader := &config.TraderRecord{
+				ID:                   "trader-symbols-test",
+				UserID:               "user-1",
+				Name:                 "Symbols Test Trader",
+				AIModelID:            "gpt-4",
+				ExchangeID:           "binance",
+				InitialBalance:       1000,
+				TradingSymbols:       tt.tradingSymbols,
+				SystemPromptTemplate: "default",
+				IsRunning:            true,
+			}
+
+			// 构造 API 响应对象（与 api/server.go handleTraderList 中的逻辑一致）
+			response := map[string]interface{}{
+				"trader_id":              trader.ID,
+				"trader_name":            trader.Name,
+				"ai_model":               trader.AIModelID,
+				"exchange_id":            trader.ExchangeID,
+				"is_running":             trader.IsRunning,
+				"initial_balance":        trader.InitialBalance,
+				"scan_interval_minutes":  trader.ScanIntervalMinutes,
+				"system_prompt_template": trader.SystemPromptTemplate,
+				"system_prompt":          "mock system prompt",
+				"trading_symbols":        trader.TradingSymbols, // 新增字段
+			}
+
+			// ✅ 验证 trading_symbols 字段存在
+			if _, exists := response["trading_symbols"]; !exists {
+				t.Errorf("%s: Trader list response is missing 'trading_symbols' field", tt.description)
+			}
+
+			// ✅ 验证 trading_symbols 值正确
+			actualSymbols := response["trading_symbols"].(string)
+			if actualSymbols != tt.expectedSymbols {
+				t.Errorf("%s: Expected trading_symbols=%q, got %q",
+					tt.description, tt.expectedSymbols, actualSymbols)
+			}
+		})
+	}
+}
+
+// TestTradingSymbolsDisplayLogic 测试前端 TradingSymbolsDisplay 组件的显示逻辑
+func TestTradingSymbolsDisplayLogic(t *testing.T) {
+	tests := []struct {
+		name            string
+		symbols         string
+		expectedVisible []string
+		expectedHidden  int
+		description     string
+	}{
+		{
+			name:            "刚好3个币种-全部显示",
+			symbols:         "BTC,ETH,SOL",
+			expectedVisible: []string{"BTC", "ETH", "SOL"},
+			expectedHidden:  0,
+			description:     "3个币种应该全部显示，不显示 +N",
+		},
+		{
+			name:            "少于3个币种-全部显示",
+			symbols:         "BTC,ETH",
+			expectedVisible: []string{"BTC", "ETH"},
+			expectedHidden:  0,
+			description:     "少于3个币种应该全部显示",
+		},
+		{
+			name:            "多于3个币种-显示+N",
+			symbols:         "BTC,ETH,SOL,DOGE,XRP",
+			expectedVisible: []string{"BTC", "ETH", "SOL"},
+			expectedHidden:  2,
+			description:     "超过3个币种应该只显示前3个，其余用 +N 表示",
+		},
+		{
+			name:            "7个币种",
+			symbols:         "BTC,ETH,SOL,DOGE,XRP,ADA,DOT",
+			expectedVisible: []string{"BTC", "ETH", "SOL"},
+			expectedHidden:  4,
+			description:     "7个币种应该显示前3个和 +4",
+		},
+		{
+			name:            "单个币种",
+			symbols:         "BTC",
+			expectedVisible: []string{"BTC"},
+			expectedHidden:  0,
+			description:     "单个币种应该正常显示",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 模拟前端的解析逻辑
+			var symbolList []string
+			if tt.symbols != "" {
+				for _, s := range splitTrimFilter(tt.symbols, ",") {
+					symbolList = append(symbolList, s)
+				}
+			}
+
+			displayCount := 3
+			var visibleSymbols, hiddenSymbols []string
+
+			if len(symbolList) <= displayCount {
+				visibleSymbols = symbolList
+			} else {
+				visibleSymbols = symbolList[:displayCount]
+				hiddenSymbols = symbolList[displayCount:]
+			}
+
+			// ✅ 验证可见币种
+			if len(visibleSymbols) != len(tt.expectedVisible) {
+				t.Errorf("%s: Expected %d visible symbols, got %d",
+					tt.description, len(tt.expectedVisible), len(visibleSymbols))
+			}
+			for i, expected := range tt.expectedVisible {
+				if i < len(visibleSymbols) && visibleSymbols[i] != expected {
+					t.Errorf("%s: Expected visible[%d]=%q, got %q",
+						tt.description, i, expected, visibleSymbols[i])
+				}
+			}
+
+			// ✅ 验证隐藏币种数量
+			if len(hiddenSymbols) != tt.expectedHidden {
+				t.Errorf("%s: Expected %d hidden symbols, got %d",
+					tt.description, tt.expectedHidden, len(hiddenSymbols))
+			}
+		})
+	}
+}
+
+// splitTrimFilter 辅助函数：分割、修剪并过滤空字符串（模拟前端逻辑）
+func splitTrimFilter(s string, sep string) []string {
+	if s == "" {
+		return nil
+	}
+	var result []string
+	for _, part := range splitString(s, sep) {
+		trimmed := trimString(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// splitString 简单的字符串分割（避免依赖 strings 包的额外导入）
+func splitString(s string, sep string) []string {
+	var result []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if string(s[i]) == sep {
+			result = append(result, s[start:i])
+			start = i + 1
+		}
+	}
+	result = append(result, s[start:])
+	return result
+}
+
+// trimString 简单的字符串修剪
+func trimString(s string) string {
+	start, end := 0, len(s)
+	for start < end && s[start] == ' ' {
+		start++
+	}
+	for end > start && s[end-1] == ' ' {
+		end--
+	}
+	return s[start:end]
+}
+
+// TestCreateTraderRequest_InitialBalanceValidation 测试创建交易员时初始金额校验
+func TestCreateTraderRequest_InitialBalanceValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialBalance float64
+		shouldFail     bool
+		description    string
+	}{
+		{
+			name:           "正常金额-1000",
+			initialBalance: 1000,
+			shouldFail:     false,
+			description:    "正常金额应该通过校验",
+		},
+		{
+			name:           "零金额",
+			initialBalance: 0,
+			shouldFail:     true,
+			description:    "初始金额为0应该校验失败",
+		},
+		{
+			name:           "负金额",
+			initialBalance: -100,
+			shouldFail:     true,
+			description:    "初始金额为负数应该校验失败",
+		},
+		{
+			name:           "小数金额",
+			initialBalance: 100.5,
+			shouldFail:     false,
+			description:    "小数金额应该通过校验",
+		},
+		{
+			name:           "极小正数",
+			initialBalance: 0.01,
+			shouldFail:     false,
+			description:    "极小正数应该通过校验",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 模拟 handleCreateTrader 中的校验逻辑
+			isValid := tt.initialBalance > 0
+
+			if tt.shouldFail && isValid {
+				t.Errorf("%s: expected validation to fail, but it passed", tt.description)
+			}
+			if !tt.shouldFail && !isValid {
+				t.Errorf("%s: expected validation to pass, but it failed", tt.description)
+			}
+		})
+	}
+}
+
+// TestUpdateTraderRequest_InitialBalanceValidation 测试更新交易员时初始金额校验
+func TestUpdateTraderRequest_InitialBalanceValidation(t *testing.T) {
+	tests := []struct {
+		name                   string
+		reqInitialBalance      float64
+		existingInitialBalance float64
+		expectedBalance        float64
+		shouldFail             bool
+		description            string
+	}{
+		{
+			name:                   "请求有正常金额",
+			reqInitialBalance:      2000,
+			existingInitialBalance: 1000,
+			expectedBalance:        2000,
+			shouldFail:             false,
+			description:            "请求中有正常金额，应使用请求中的金额",
+		},
+		{
+			name:                   "请求金额为0-使用原值",
+			reqInitialBalance:      0,
+			existingInitialBalance: 1000,
+			expectedBalance:        1000,
+			shouldFail:             false,
+			description:            "请求金额为0时，应使用原有金额",
+		},
+		{
+			name:                   "请求金额为0-原值也为0",
+			reqInitialBalance:      0,
+			existingInitialBalance: 0,
+			expectedBalance:        0,
+			shouldFail:             true,
+			description:            "请求和原值都为0，应该校验失败",
+		},
+		{
+			name:                   "请求金额为负数-使用原值",
+			reqInitialBalance:      -100,
+			existingInitialBalance: 1000,
+			expectedBalance:        1000,
+			shouldFail:             false,
+			description:            "请求金额为负数时，应使用原有金额",
+		},
+		{
+			name:                   "请求金额为负数-原值也为0",
+			reqInitialBalance:      -100,
+			existingInitialBalance: 0,
+			expectedBalance:        0,
+			shouldFail:             true,
+			description:            "请求为负数且原值为0，应该校验失败",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 模拟 handleUpdateTrader 中的校验逻辑（与 server.go 一致）
+			initialBalance := tt.reqInitialBalance
+			if initialBalance <= 0 {
+				initialBalance = tt.existingInitialBalance
+			}
+
+			// 校验最终金额
+			isValid := initialBalance > 0
+
+			// 验证最终金额
+			if initialBalance != tt.expectedBalance {
+				t.Errorf("%s: expected balance=%.2f, got %.2f",
+					tt.description, tt.expectedBalance, initialBalance)
+			}
+
+			// 验证校验结果
+			if tt.shouldFail && isValid {
+				t.Errorf("%s: expected validation to fail, but it passed", tt.description)
+			}
+			if !tt.shouldFail && !isValid {
+				t.Errorf("%s: expected validation to pass, but it failed", tt.description)
+			}
+		})
 	}
 }

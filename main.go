@@ -6,48 +6,76 @@ import (
 	"log"
 	"nofx/api"
 	"nofx/auth"
+	"nofx/backtest"
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/manager"
 	"nofx/market"
+	"nofx/mcp"
 	"nofx/pool"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
-
-	"github.com/joho/godotenv"
 )
 
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
 // TODO 现在与config.Config相同，未来会被替换， 现在为了兼容性不得不保留当前文件
 type ConfigFile struct {
-	BetaMode           bool                  `json:"beta_mode"`
-	APIServerPort      int                   `json:"api_server_port"`
-	UseDefaultCoins    bool                  `json:"use_default_coins"`
-	DefaultCoins       []string              `json:"default_coins"`
-	CoinPoolAPIURL     string                `json:"coin_pool_api_url"`
-	OITopAPIURL        string                `json:"oi_top_api_url"`
-	MaxDailyLoss       float64               `json:"max_daily_loss"`
-	MaxDrawdown        float64               `json:"max_drawdown"`
-	StopTradingMinutes int                   `json:"stop_trading_minutes"`
-	Leverage           config.LeverageConfig `json:"leverage"`
-	JWTSecret          string                `json:"jwt_secret"`
-	DataKLineTime      string                `json:"data_k_line_time"`
-	Log                *config.LogConfig     `json:"log"` // 日志配置
+	BetaMode               bool                  `json:"beta_mode"`
+	APIServerPort          int                   `json:"api_server_port"`
+	UseDefaultCoins        bool                  `json:"use_default_coins"`
+	DefaultCoins           []string              `json:"default_coins"`
+	CoinPoolAPIURL         string                `json:"coin_pool_api_url"`
+	OITopAPIURL            string                `json:"oi_top_api_url"`
+	MaxDailyLoss           float64               `json:"max_daily_loss"`
+	MaxDrawdown            float64               `json:"max_drawdown"`
+	StopTradingMinutes     int                   `json:"stop_trading_minutes"`
+	Leverage               config.LeverageConfig `json:"leverage"`
+	JWTSecret              string                `json:"jwt_secret"`
+	RegistrationEnabled    *bool                 `json:"registration_enabled"`
+	DataKLineTime          string                `json:"data_k_line_time"`
+	Log                    *config.LogConfig     `json:"log"`                      // 日志配置
+	TokenExpirationMinutes int                   `json:"token_expiration_minutes"` // Token 过期时间，单位分钟
+	AITemperature          *float64              `json:"ai_temperature"`           // AI 温度参数（0.0-1.0），默认 0.1
+	CorsAllowedOrigins     []string              `json:"cors_allowed_origins"`     // 允许的跨域 Origin
 }
 
-// loadConfigFile 读取并解析config.json文件
+// validateJWTSecret 验证 JWT 密钥安全性
+func validateJWTSecret(secret string) error {
+	const defaultSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
+	const minLength = 32
+
+	if secret == "" {
+		return fmt.Errorf("JWT 密钥为空")
+	}
+
+	if secret == defaultSecret {
+		return fmt.Errorf("使用了默认的不安全 JWT 密钥")
+	}
+
+	if len(secret) < minLength {
+		return fmt.Errorf("JWT 密钥长度不足 (当前: %d, 需至少: %d 字符)", len(secret), minLength)
+	}
+
+	return nil
+}
+
+// loadConfigFile 读取并解析config.json文件（必须存在）
 func loadConfigFile() (*ConfigFile, error) {
+	const configFileName = "config.json"
+
 	// 检查config.json是否存在
-	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
-		log.Printf("📄 config.json不存在，使用默认配置")
-		return &ConfigFile{}, nil
+	if _, err := os.Stat(configFileName); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("配置文件 %s 不存在，请先创建（可从 config.json.example 复制并按实际环境填写）", configFileName)
+		}
+		return nil, fmt.Errorf("检查配置文件 %s 失败: %w", configFileName, err)
 	}
 
 	// 读取config.json
-	data, err := os.ReadFile("config.json")
+	data, err := os.ReadFile(configFileName)
 	if err != nil {
 		return nil, fmt.Errorf("读取config.json失败: %w", err)
 	}
@@ -71,14 +99,15 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 
 	// 同步各配置项到数据库
 	configs := map[string]string{
-		"beta_mode":            fmt.Sprintf("%t", configFile.BetaMode),
-		"api_server_port":      strconv.Itoa(configFile.APIServerPort),
-		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
-		"coin_pool_api_url":    configFile.CoinPoolAPIURL,
-		"oi_top_api_url":       configFile.OITopAPIURL,
-		"max_daily_loss":       fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
-		"max_drawdown":         fmt.Sprintf("%.1f", configFile.MaxDrawdown),
-		"stop_trading_minutes": strconv.Itoa(configFile.StopTradingMinutes),
+		"beta_mode":                fmt.Sprintf("%t", configFile.BetaMode),
+		"api_server_port":          strconv.Itoa(configFile.APIServerPort),
+		"token_expiration_minutes": strconv.Itoa(configFile.TokenExpirationMinutes),
+		"use_default_coins":        fmt.Sprintf("%t", configFile.UseDefaultCoins),
+		"coin_pool_api_url":        configFile.CoinPoolAPIURL,
+		"oi_top_api_url":           configFile.OITopAPIURL,
+		"max_daily_loss":           fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
+		"max_drawdown":             fmt.Sprintf("%.1f", configFile.MaxDrawdown),
+		"stop_trading_minutes":     strconv.Itoa(configFile.StopTradingMinutes),
 	}
 
 	// 同步default_coins（转换为JSON字符串存储）
@@ -100,6 +129,23 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 	// 如果JWT密钥不为空，也同步
 	if configFile.JWTSecret != "" {
 		configs["jwt_secret"] = configFile.JWTSecret
+	}
+
+	if configFile.RegistrationEnabled != nil {
+		configs["registration_enabled"] = fmt.Sprintf("%t", *configFile.RegistrationEnabled)
+	}
+
+	// 同步 AI 温度配置
+	if configFile.AITemperature != nil {
+		configs["ai_temperature"] = fmt.Sprintf("%.2f", *configFile.AITemperature)
+	}
+
+	// 同步 CORS 配置
+	if len(configFile.CorsAllowedOrigins) > 0 {
+		corsJSON, err := json.Marshal(configFile.CorsAllowedOrigins)
+		if err == nil {
+			configs["cors_allowed_origins"] = string(corsJSON)
+		}
 	}
 
 	// 更新数据库配置
@@ -156,10 +202,6 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Load environment variables from .env file if present (for local/dev runs)
-	// In Docker Compose, variables are injected by the runtime and this is harmless.
-	_ = godotenv.Load()
-
 	// 初始化数据库配置
 	dbPath := "config.db"
 	if len(os.Args) > 1 {
@@ -178,6 +220,7 @@ func main() {
 		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
 	defer database.Close()
+	backtest.UseDatabase(database.Conn())
 
 	// 初始化加密服务
 	log.Printf("🔐 初始化加密服务...")
@@ -203,20 +246,35 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
+	// 设置 token 过期时间
+	tokenExpirationStr, _ := database.GetSystemConfig("token_expiration_minutes")
+	tokenExpire := 1440
+	if tokenExpirationStr != "" {
+		if v, err := strconv.Atoi(tokenExpirationStr); err == nil && v > 0 {
+			tokenExpire = v
+		}
+	}
+	auth.SetTokenExpireMinutes(tokenExpire)
+	log.Printf("✓ token 过期时间已设置为 %d 分钟", tokenExpire)
+
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
-		// 回退到数据库配置
+		// 回退到数据库配置 (config.json 中的值)
+		// 注意：configFile 已经同步到数据库，所以 GetSystemConfig 获取的就是 config.json 中的值
 		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
-		if jwtSecret == "" {
-			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
-			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
-		} else {
-			log.Printf("🔑 使用数据库中JWT密钥")
-		}
-	} else {
-		log.Printf("🔑 使用环境变量JWT密钥")
 	}
+
+	// 🛡️ 强制安全检查：验证 JWT 密钥安全性
+	if err := validateJWTSecret(jwtSecret); err != nil {
+		log.Printf("❌ 安全检查失败: %v", err)
+		log.Printf("💡 请在 config.json 中修改 jwt_secret，或设置环境变量 JWT_SECRET")
+		log.Printf("💡 建议使用以下命令生成安全密钥:")
+		log.Printf("   openssl rand -base64 32")
+		log.Fatalf("拒绝启动: 系统配置不安全")
+	}
+
+	log.Printf("✅ JWT 密钥安全检查通过")
 	auth.SetJWTSecret(jwtSecret)
 
 	// 管理员模式下需要管理员密码，缺失则退出
@@ -262,8 +320,18 @@ func main() {
 		log.Printf("✓ 已配置OI Top API")
 	}
 
-	// 创建TraderManager
+	// 创建TraderManager 与 BacktestManager
+	cfgForAI, cfgErr := config.LoadConfig("config.json")
+	if cfgErr != nil {
+		log.Printf("⚠️  加载config.json用于AI客户端失败: %v", cfgErr)
+	}
+
 	traderManager := manager.NewTraderManager()
+	mcpClient := newSharedMCPClient(cfgForAI)
+	backtestManager := backtest.NewManager(mcpClient)
+	if err := backtestManager.RestoreRuns(); err != nil {
+		log.Printf("⚠️  恢复历史回测失败: %v", err)
+	}
 
 	// 从数据库加载所有交易员到内存
 	err = traderManager.LoadTradersFromDatabase(database)
@@ -316,29 +384,17 @@ func main() {
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
 
-	// 获取API服务器端口（优先级：环境变量 > 数据库配置 > 默认值）
-	apiPort := 8080 // 默认端口
-
-	// 1. 优先从环境变量 NOFX_BACKEND_PORT 读取
-	if envPort := strings.TrimSpace(os.Getenv("NOFX_BACKEND_PORT")); envPort != "" {
-		if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
-			apiPort = port
-			log.Printf("🔌 使用环境变量端口: %d (NOFX_BACKEND_PORT)", apiPort)
-		} else {
-			log.Printf("⚠️  环境变量 NOFX_BACKEND_PORT 无效: %s", envPort)
-		}
-	} else if apiPortStr != "" {
-		// 2. 从数据库配置读取（config.json 同步过来的）
+	// 获取API服务器端口（从 config.json 读取，默认 3000）
+	apiPort := 3000
+	if apiPortStr != "" {   
 		if port, err := strconv.Atoi(apiPortStr); err == nil && port > 0 {
 			apiPort = port
-			log.Printf("🔌 使用数据库配置端口: %d (api_server_port)", apiPort)
 		}
-	} else {
-		log.Printf("🔌 使用默认端口: %d", apiPort)
 	}
+	log.Printf("🔌 API服务器端口: %d", apiPort)
 
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort)
+	apiServer := api.NewServer(traderManager, database, cryptoService, backtestManager, apiPort, configFile.CorsAllowedOrigins)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)
@@ -351,9 +407,6 @@ func main() {
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	// TODO: 启动数据库中配置为运行状态的交易员
-	// traderManager.StartAll()
 
 	// 等待退出信号
 	<-sigChan
@@ -384,4 +437,9 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("👋 感谢使用AI交易系统！")
+}
+
+func newSharedMCPClient(cfg *config.Config) mcp.AIClient {
+	client := mcp.New()
+	return client
 }

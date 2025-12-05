@@ -4,6 +4,9 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { EquityChart } from '../components/EquityChart'
 import AILearning from '../components/AILearning'
+import RecordLimitSelector from '../components/RecordLimitSelector'
+import FilterToggle from '../components/FilterToggle'
+import { PromptModal } from '../components/traders/PromptModal'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { t, type Language } from '../i18n/translations'
@@ -19,8 +22,12 @@ import {
   Check,
   X,
   XCircle,
+  Eye,
+  Copy,
 } from 'lucide-react'
 import { stripLeadingIcons } from '../lib/text'
+import { copyWithToast } from '../lib/clipboard'
+import { ExchangeLink } from '../components/ExchangeLink'
 import type {
   SystemStatus,
   AccountInfo,
@@ -54,6 +61,33 @@ export default function TraderDashboard() {
   )
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
 
+  // 决策记录数量选择（从 localStorage 读取，默认 5）
+  const [decisionLimit, setDecisionLimit] = useState<number>(() => {
+    const saved = localStorage.getItem('decisionLimit')
+    return saved ? parseInt(saved, 10) : 5
+  })
+
+  // 过滤器状态：只显示有操作的决策（从 localStorage 读取，默认 false）
+  const [showOnlyWithActions, setShowOnlyWithActions] = useState<boolean>(() => {
+    const saved = localStorage.getItem('showOnlyWithActions')
+    return saved ? JSON.parse(saved) : false
+  })
+
+  // Prompt Modal 状态
+  const [showPromptModal, setShowPromptModal] = useState(false)
+
+  // 当 limit 变化时保存到 localStorage
+  const handleLimitChange = (newLimit: number) => {
+    setDecisionLimit(newLimit)
+    localStorage.setItem('decisionLimit', newLimit.toString())
+  }
+
+  // 当过滤器状态变化时保存到 localStorage
+  const handleFilterChange = (enabled: boolean) => {
+    setShowOnlyWithActions(enabled)
+    localStorage.setItem('showOnlyWithActions', JSON.stringify(enabled))
+  }
+
   // 获取trader列表（仅在用户登录时）
   const { data: traders, error: tradersError } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
@@ -61,6 +95,7 @@ export default function TraderDashboard() {
     {
       refreshInterval: 10000,
       shouldRetryOnError: false,
+      revalidateOnMount: true, // 强制每次挂载时重新获取，确保 system_prompt 等新字段存在
     }
   )
 
@@ -81,7 +116,7 @@ export default function TraderDashboard() {
 
   // 如果在trader页面，获取该trader的数据
   const { data: status } = useSWR<SystemStatus>(
-    selectedTraderId ? `status-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `status-${selectedTraderId}` : null,
     () => api.getStatus(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -91,7 +126,7 @@ export default function TraderDashboard() {
   )
 
   const { data: account } = useSWR<AccountInfo>(
-    selectedTraderId ? `account-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `account-${selectedTraderId}` : null,
     () => api.getAccount(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -101,7 +136,7 @@ export default function TraderDashboard() {
   )
 
   const { data: positions } = useSWR<Position[]>(
-    selectedTraderId ? `positions-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `positions-${selectedTraderId}` : null,
     () => api.getPositions(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -111,8 +146,10 @@ export default function TraderDashboard() {
   )
 
   const { data: decisions } = useSWR<DecisionRecord[]>(
-    selectedTraderId ? `decisions/latest-${selectedTraderId}` : null,
-    () => api.getLatestDecisions(selectedTraderId),
+    user && token && selectedTraderId
+      ? `decisions/latest-${selectedTraderId}-${decisionLimit}-${showOnlyWithActions}`
+      : null,
+    () => api.getLatestDecisions(selectedTraderId, decisionLimit, showOnlyWithActions),
     {
       refreshInterval: 30000,
       revalidateOnFocus: false,
@@ -121,7 +158,7 @@ export default function TraderDashboard() {
   )
 
   const { data: stats } = useSWR<Statistics>(
-    selectedTraderId ? `statistics-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `statistics-${selectedTraderId}` : null,
     () => api.getStatistics(selectedTraderId),
     {
       refreshInterval: 30000,
@@ -268,6 +305,8 @@ export default function TraderDashboard() {
     )
   }
 
+  const highlightColor = '#60a5fa'
+
   return (
     <div>
       {/* Trader Header */}
@@ -280,25 +319,25 @@ export default function TraderDashboard() {
           boxShadow: '0 0 30px rgba(240, 185, 11, 0.15)',
         }}
       >
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
           <h2
-            className="text-2xl font-bold flex items-center gap-2"
+            className="text-2xl font-bold flex items-center gap-2 min-w-0"
             style={{ color: '#EAECEF' }}
           >
             <span
-              className="w-10 h-10 rounded-full flex items-center justify-center"
+              className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
               style={{
                 background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
               }}
             >
               <Bot className="w-5 h-5" style={{ color: '#0B0E11' }} />
             </span>
-            {selectedTrader.trader_name}
+            <span className="truncate">{selectedTrader.trader_name}</span>
           </h2>
 
           {/* Trader Selector */}
           {traders && traders.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <span className="text-sm" style={{ color: '#848E9C' }}>
                 {t('switchTrader', language)}:
               </span>
@@ -322,17 +361,17 @@ export default function TraderDashboard() {
           )}
         </div>
         <div
-          className="flex items-center gap-4 text-sm"
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
           style={{ color: '#848E9C' }}
         >
-          <span>
+          <span className="whitespace-nowrap">
             AI Model:{' '}
             <span
               className="font-semibold"
               style={{
                 color: selectedTrader.ai_model.includes('qwen')
                   ? '#c084fc'
-                  : '#60a5fa',
+                  : highlightColor,
               }}
             >
               {getModelDisplayName(
@@ -341,12 +380,35 @@ export default function TraderDashboard() {
               )}
             </span>
           </span>
+          <span className="hidden sm:inline">•</span>
+          <span className="whitespace-nowrap flex items-center gap-1">
+            Prompt: <span className="font-semibold" style={{ color: highlightColor }}>{selectedTrader.system_prompt_template || '-'}</span>
+              <button
+                onClick={() => setShowPromptModal(true)}
+                className="p-1 rounded hover:bg-gray-700 transition-colors"
+                title={t('viewPrompt', language)}
+              >
+                <Eye className="w-4 h-4" style={{ color: highlightColor }} />
+              </button>
+          </span>
           {status && (
             <>
-              <span>•</span>
-              <span>Cycles: {status.call_count}</span>
-              <span>•</span>
-              <span>Runtime: {status.runtime_minutes} min</span>
+              <span className="hidden sm:inline">•</span>
+              <span className="whitespace-nowrap">Cycles: {status.call_count}</span>
+              <span className="hidden sm:inline">•</span>
+              <span className="whitespace-nowrap">Runtime: {status.runtime_minutes} min</span>
+            </>
+          )}
+          {selectedTrader.scan_interval_minutes && (
+            <>
+              <span className="hidden sm:inline">•</span>
+              <span className="whitespace-nowrap">Interval: {selectedTrader.scan_interval_minutes} min</span>
+            </>
+          )}
+          {selectedTrader.trading_symbols && (
+            <>
+              <span className="hidden sm:inline">•</span>
+              <TradingSymbolsDisplay symbols={selectedTrader.trading_symbols} language={language} />
             </>
           )}
         </div>
@@ -370,7 +432,13 @@ export default function TraderDashboard() {
       )}
 
       {/* Account Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <StatCard
+          title={t('initialBalance', language)}
+          value={`${account?.initial_balance?.toFixed(2) || '0.00'} USDT`}
+          coloredSubtitle={`${account?.total_pnl !== undefined && account.total_pnl >= 0 ? '+' : ''}${account?.total_pnl?.toFixed(2) || '0.00'} USDT`}
+          positive={(account?.total_pnl ?? 0) >= 0}
+        />
         <StatCard
           title={t('totalEquity', language)}
           value={`${account?.total_equity?.toFixed(2) || '0.00'} USDT`}
@@ -471,7 +539,10 @@ export default function TraderDashboard() {
                         className="border-b border-gray-800 last:border-0"
                       >
                         <td className="py-3 font-mono font-semibold">
-                          {pos.symbol}
+                          <ExchangeLink
+                            exchangeId={selectedTrader.exchange_id}
+                            symbol={pos.symbol}
+                          />
                         </td>
                         <td className="py-3">
                           <span
@@ -570,27 +641,43 @@ export default function TraderDashboard() {
           style={{ animationDelay: '0.2s' }}
         >
           <div
-            className="flex items-center gap-3 mb-5 pb-4 border-b"
+            className="flex items-center justify-between mb-5 pb-4 border-b"
             style={{ borderColor: '#2B3139' }}
           >
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
-              }}
-            >
-              <Brain className="w-5 h-5" style={{ color: '#FFFFFF' }} />
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+                }}
+              >
+                <Brain className="w-5 h-5" style={{ color: '#FFFFFF' }} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+                  {t('recentDecisions', language)}
+                </h2>
+                {decisions && decisions.length > 0 && (
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {t('lastCycles', language, { count: decisions.length })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                {t('recentDecisions', language)}
-              </h2>
-              {decisions && decisions.length > 0 && (
-                <div className="text-xs" style={{ color: '#848E9C' }}>
-                  {t('lastCycles', language, { count: decisions.length })}
-                </div>
-              )}
+
+            {/* 过滤器和数量选择器 */}
+            <div className="flex items-center gap-2">
+              <FilterToggle
+                enabled={showOnlyWithActions}
+                onChange={handleFilterChange}
+                language={language}
+              />
+              <RecordLimitSelector
+                limit={decisionLimit}
+                onLimitChange={handleLimitChange}
+                language={language}
+              />
             </div>
           </div>
 
@@ -600,7 +687,12 @@ export default function TraderDashboard() {
           >
             {decisions && decisions.length > 0 ? (
               decisions.map((decision, i) => (
-                <DecisionCard key={i} decision={decision} language={language} />
+                <DecisionCard
+                  key={i}
+                  decision={decision}
+                  language={language}
+                  exchangeId={selectedTrader.exchange_id}
+                />
               ))
             ) : (
               <div className="py-16 text-center">
@@ -626,6 +718,15 @@ export default function TraderDashboard() {
       <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
         <AILearning traderId={selectedTrader.trader_id} />
       </div>
+
+      {/* Prompt Modal */}
+      {showPromptModal && selectedTrader.system_prompt && (
+        <PromptModal
+          prompt={selectedTrader.system_prompt}
+          onClose={() => setShowPromptModal(false)}
+          language={language}
+        />
+      )}
     </div>
   )
 }
@@ -637,12 +738,14 @@ function StatCard({
   change,
   positive,
   subtitle,
+  coloredSubtitle,
 }: {
   title: string
   value: string
   change?: number
   positive?: boolean
   subtitle?: string
+  coloredSubtitle?: string
 }) {
   return (
     <div className="stat-card animate-fade-in">
@@ -669,6 +772,14 @@ function StatCard({
           </div>
         </div>
       )}
+      {coloredSubtitle && (
+        <div
+          className="text-sm mt-2 mono font-bold"
+          style={{ color: positive ? '#0ECB81' : '#F6465D' }}
+        >
+          {coloredSubtitle}
+        </div>
+      )}
       {subtitle && (
         <div className="text-xs mt-2 mono" style={{ color: '#848E9C' }}>
           {subtitle}
@@ -678,13 +789,15 @@ function StatCard({
   )
 }
 
-// Decision Card Component
+// DecisionCard Component
 function DecisionCard({
   decision,
   language,
+  exchangeId,
 }: {
   decision: DecisionRecord
   language: Language
+  exchangeId?: string
 }) {
   const [showInputPrompt, setShowInputPrompt] = useState(false)
   const [showCoT, setShowCoT] = useState(false)
@@ -769,15 +882,25 @@ function DecisionCard({
             </span>
           </button>
           {showCoT && (
-            <div
-              className="mt-2 rounded p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
-              style={{
-                background: '#0B0E11',
-                border: '1px solid #2B3139',
-                color: '#EAECEF',
-              }}
-            >
-              {decision.cot_trace}
+            <div className="mt-2 relative">
+              <button
+                onClick={() => copyWithToast(decision.cot_trace, t('copied', language))}
+                className="absolute top-2 right-2 p-1.5 rounded hover:bg-gray-700 transition-colors z-10"
+                title={t('copy', language)}
+                style={{ background: 'rgba(43, 49, 57, 0.8)' }}
+              >
+                <Copy className="w-4 h-4" style={{ color: '#848E9C' }} />
+              </button>
+              <div
+                className="rounded p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                style={{
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              >
+                {decision.cot_trace}
+              </div>
             </div>
           )}
         </div>
@@ -786,66 +909,107 @@ function DecisionCard({
       {/* Decisions Actions */}
       {decision.decisions && decision.decisions.length > 0 && (
         <div className="space-y-2 mb-3">
-          {decision.decisions.map((action, j) => (
-            <div
-              key={j}
-              className="flex items-center gap-2 text-sm rounded px-3 py-2"
-              style={{ background: '#0B0E11' }}
-            >
-              <span
-                className="font-mono font-bold"
-                style={{ color: '#EAECEF' }}
+          {decision.decisions.map((action, j) => {
+            // 判断是否有止损止盈信息需要显示在第二行
+            const hasOpenSlTp = action.action.includes('open') &&
+              ((action.stop_loss && action.stop_loss > 0) || (action.take_profit && action.take_profit > 0))
+            const hasUpdateSl = action.action === 'update_stop_loss' && action.new_stop_loss
+            const hasUpdateTp = action.action === 'update_take_profit' && action.new_take_profit
+            const hasSlTpRow = hasOpenSlTp || hasUpdateSl || hasUpdateTp
+
+            return (
+              <div
+                key={j}
+                className="text-sm rounded px-3 py-2"
+                style={{ background: '#0B0E11' }}
               >
-                {action.symbol}
-              </span>
-              <span
-                className="px-2 py-0.5 rounded text-xs font-bold"
-                style={
-                  action.action.includes('open')
-                    ? {
-                        background: 'rgba(96, 165, 250, 0.1)',
-                        color: '#60a5fa',
-                      }
-                    : {
-                        background: 'rgba(240, 185, 11, 0.1)',
-                        color: '#F0B90B',
-                      }
-                }
-              >
-                {action.action}
-              </span>
-              {action.leverage > 0 && (
-                <span style={{ color: '#F0B90B' }}>{action.leverage}x</span>
-              )}
-              {action.price > 0 && (
-                <span
-                  className="font-mono text-xs"
-                  style={{ color: '#848E9C' }}
-                >
-                  @{action.price.toFixed(4)}
-                </span>
-              )}
-              <span style={{ color: action.success ? '#0ECB81' : '#F6465D' }}>
-                {action.success ? (
-                  <Check className="w-3 h-3 inline" />
-                ) : (
-                  <X className="w-3 h-3 inline" />
+                {/* 第一行：symbol + action + leverage + price + 状态 */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <ExchangeLink
+                    exchangeId={exchangeId}
+                    symbol={action.symbol}
+                    className="font-mono font-bold"
+                    style={{ color: '#EAECEF' }}
+                  />
+                  <span
+                    className="px-2 py-0.5 rounded text-xs font-bold"
+                    style={
+                      action.action.includes('open')
+                        ? {
+                            background: 'rgba(96, 165, 250, 0.1)',
+                            color: '#60a5fa',
+                          }
+                        : {
+                            background: 'rgba(240, 185, 11, 0.1)',
+                            color: '#F0B90B',
+                          }
+                    }
+                  >
+                    {action.action}
+                  </span>
+                  {action.leverage > 0 && (
+                    <span style={{ color: '#F0B90B' }}>{action.leverage}x</span>
+                  )}
+                  {action.price > 0 && (
+                    <span
+                      className="font-mono text-xs"
+                      style={{ color: '#848E9C' }}
+                    >
+                      @{action.price.toFixed(4)}
+                    </span>
+                  )}
+                  <span style={{ color: action.success ? '#0ECB81' : '#F6465D' }}>
+                    {action.success ? (
+                      <Check className="w-3 h-3 inline" />
+                    ) : (
+                      <X className="w-3 h-3 inline" />
+                    )}
+                  </span>
+                  {action.error && (
+                    <span className="text-xs" style={{ color: '#F6465D' }}>
+                      {action.error}
+                    </span>
+                  )}
+                </div>
+                {/* 第二行：止损止盈信息（如果有） */}
+                {hasSlTpRow && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs pl-1">
+                    {hasOpenSlTp && (
+                      <>
+                        {action.stop_loss && action.stop_loss > 0 && (
+                          <span style={{ color: '#F87171' }}>
+                            🛑 {action.stop_loss.toFixed(2)}
+                          </span>
+                        )}
+                        {action.take_profit && action.take_profit > 0 && (
+                          <span style={{ color: '#0ECB81' }}>
+                            🎯 {action.take_profit.toFixed(2)}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {hasUpdateSl && (
+                      <span style={{ color: '#F87171' }}>
+                        🛑 {action.stop_loss ? `${action.stop_loss.toFixed(2)} → ` : ''}{action.new_stop_loss!.toFixed(2)}
+                      </span>
+                    )}
+                    {hasUpdateTp && (
+                      <span style={{ color: '#0ECB81' }}>
+                        🎯 {action.take_profit ? `${action.take_profit.toFixed(2)} → ` : ''}{action.new_take_profit!.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
                 )}
-              </span>
-              {action.error && (
-                <span className="text-xs ml-2" style={{ color: '#F6465D' }}>
-                  {action.error}
-                </span>
-              )}
-            </div>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
 
       {/* Account State Summary */}
       {decision.account_state && (
         <div
-          className="flex gap-4 text-xs mb-3 rounded px-3 py-2"
+          className="flex gap-x-4 gap-y-1 text-xs mb-3 rounded px-3 py-2 flex-wrap"
           style={{ background: '#0B0E11', color: '#848E9C' }}
         >
           <span>
@@ -938,5 +1102,40 @@ function DecisionCard({
         </div>
       )}
     </div>
+  )
+}
+
+// TradingSymbolsDisplay Component - 显示关注币种列表，默认显示3个
+function TradingSymbolsDisplay({
+  symbols,
+  language,
+}: {
+  symbols: string
+  language: Language
+}) {
+  const symbolList = symbols.split(',').map(s => s.trim()).filter(s => s)
+  const displayCount = 3
+  const visibleSymbols = symbolList.slice(0, displayCount)
+  const hiddenSymbols = symbolList.slice(displayCount)
+  const hasMore = hiddenSymbols.length > 0
+
+  if (symbolList.length === 0) return null
+
+  return (
+    <span className="whitespace-nowrap flex items-center gap-1">
+      <span style={{ color: '#848E9C' }}>{t('coins', language)}:</span>
+      <span className="font-semibold" style={{ color: '#60a5fa' }}>
+        {visibleSymbols.join(', ')}
+      </span>
+      {hasMore && (
+        <span
+          className="cursor-help px-1.5 py-0.5 rounded text-xs"
+          style={{ background: 'rgba(96, 165, 250, 0.1)', color: '#60a5fa' }}
+          title={symbolList.join(', ')}
+        >
+          +{hiddenSymbols.length}
+        </span>
+      )}
+    </span>
   )
 }

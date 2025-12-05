@@ -9,6 +9,7 @@ export const translations = {
     details: 'Details',
     tradingPanel: 'Trading Panel',
     competition: 'Competition',
+    backtest: 'Backtest',
     running: 'RUNNING',
     stopped: 'STOPPED',
     adminMode: 'Admin Mode',
@@ -38,6 +39,7 @@ export const translations = {
     currentPositions: 'Current Positions',
     active: 'Active',
     symbol: 'Symbol',
+    coins: 'Coins',
     side: 'Side',
     entryPrice: 'Entry Price',
     markPrice: 'Mark Price',
@@ -60,9 +62,16 @@ export const translations = {
     success: 'Success',
     failed: 'Failed',
     inputPrompt: 'Input Prompt',
-    aiThinking: 'AI Chain of Thought',
+    aiThinking: '💭 AI Chain of Thought',
     collapse: 'Collapse',
     expand: 'Expand',
+    newStopLoss: 'New Stop Loss',
+    newTakeProfit: 'New Take Profit',
+    closePercentage: 'Close Percentage',
+    filterOnlyWithActions: 'Has Actions',
+    viewPrompt: 'View Prompt',
+    currentPrompt: 'Current System Prompt',
+    close: 'Close',
 
     // Equity Chart
     accountEquityCurve: 'Account Equity Curve',
@@ -81,6 +90,170 @@ export const translations = {
     dataPoints: 'Data Points',
     currentGap: 'Current Gap',
     count: '{count} pts',
+
+    // Backtest Page
+    backtestPage: {
+      title: 'Backtest Lab',
+      subtitle: 'Pick a model + time range to replay the full AI decision loop.',
+      start: 'Start Backtest',
+      starting: 'Starting...',
+      quickRanges: {
+        h24: '24h',
+        d3: '3d',
+        d7: '7d',
+      },
+      actions: {
+        pause: 'Pause',
+        resume: 'Resume',
+        stop: 'Stop',
+      },
+      states: {
+        running: 'Running',
+        paused: 'Paused',
+        completed: 'Completed',
+        failed: 'Failed',
+        liquidated: 'Liquidated',
+      },
+      form: {
+        aiModelLabel: 'AI Model',
+        selectAiModel: 'Select AI model',
+        providerLabel: 'Provider',
+        statusLabel: 'Status',
+        enabled: 'Enabled',
+        disabled: 'Disabled',
+        noModelWarning:
+          'Please add and enable an AI model on the Model Config page first.',
+        runIdLabel: 'Run ID',
+        runIdPlaceholder: 'Leave blank to auto-generate',
+        decisionTfLabel: 'Decision TF',
+        cadenceLabel: 'Decision cadence (bars)',
+        timeRangeLabel: 'Time range',
+        symbolsLabel: 'Symbols (comma-separated)',
+        customTfPlaceholder: 'Custom TFs (comma separated, e.g. 2h,6h)',
+        initialBalanceLabel: 'Initial balance (USDT)',
+        feeLabel: 'Fee (bps)',
+      slippageLabel: 'Slippage (bps)',
+      btcEthLeverageLabel: 'BTC/ETH leverage (x)',
+      altcoinLeverageLabel: 'Altcoin leverage (x)',
+      fillPolicies: {
+        nextOpen: 'Next open',
+        barVwap: 'Bar VWAP',
+        midPrice: 'Mid price',
+        },
+        promptPresets: {
+          baseline: 'Baseline',
+          aggressive: 'Aggressive',
+          conservative: 'Conservative',
+          scalping: 'Scalping',
+        },
+        cacheAiLabel: 'Reuse AI cache',
+        replayOnlyLabel: 'Replay only',
+        overridePromptLabel: 'Use only custom prompt',
+        customPromptLabel: 'Custom prompt (optional)',
+        customPromptPlaceholder:
+          'Append or fully customize the strategy prompt',
+      },
+      runList: {
+        title: 'Runs',
+        count: 'Total {count} records',
+      },
+      filters: {
+        allStates: 'All states',
+        searchPlaceholder: 'Run ID / label',
+      },
+      tableHeaders: {
+        runId: 'Run ID',
+        label: 'Label',
+        state: 'State',
+        progress: 'Progress',
+        equity: 'Equity',
+        lastError: 'Last Error',
+        updated: 'Updated',
+      },
+      emptyStates: {
+        noRuns: 'No runs yet',
+        selectRun: 'Select a run to view details',
+      },
+      detail: {
+        tfAndSymbols: 'TF: {tf} · Symbols {count}',
+        promptInfo: 'Prompt',
+        promptSnapshot: 'View Full Prompt (Snapshot)',
+        labelPlaceholder: 'Label note',
+        saveLabel: 'Save',
+        deleteLabel: 'Delete',
+        exportLabel: 'Export',
+        errorLabel: 'Error',
+      },
+      toasts: {
+        selectModel: 'Please select an AI model first.',
+        modelDisabled: 'AI model {name} is disabled.',
+        invalidRange: 'End time must be later than start time.',
+        startSuccess: 'Backtest {id} started.',
+        startFailed: 'Failed to start. Please try again later.',
+        actionSuccess: '{action} {id} succeeded.',
+        actionFailed: 'Operation failed. Please try again later.',
+        labelSaved: 'Label updated.',
+        labelFailed: 'Failed to update label.',
+        confirmDelete: 'Delete backtest {id}? This action cannot be undone.',
+        deleteSuccess: 'Backtest record deleted.',
+        deleteFailed: 'Failed to delete. Please try again later.',
+        traceFailed: 'Failed to fetch AI trace.',
+        exportSuccess: 'Exported data for {id}.',
+        exportFailed: 'Failed to export.',
+      },
+      aiTrace: {
+        title: 'AI Trace',
+        clear: 'Clear',
+        cyclePlaceholder: 'Cycle',
+        fetch: 'Fetch',
+        prompt: 'Prompt',
+        cot: 'Chain of thought',
+        output: 'Output',
+        cycleTag: 'Cycle #{cycle}',
+      },
+      decisionTrail: {
+        title: 'AI Decision Trail',
+        subtitle: 'Showing last {count} cycles',
+        empty: 'No records yet',
+        emptyHint: 'The AI thought & execution log will appear once the run starts.',
+      },
+      charts: {
+        equityTitle: 'Equity Curve',
+        equityEmpty: 'No data yet',
+      },
+      metrics: {
+        title: 'Metrics',
+        totalReturn: 'Total Return %',
+        maxDrawdown: 'Max Drawdown %',
+        sharpe: 'Sharpe',
+        profitFactor: 'Profit Factor',
+        pending: 'Calculating...',
+        realized: 'Realized PnL',
+        unrealized: 'Unrealized PnL',
+      },
+      trades: {
+        title: 'Trade Events',
+        headers: {
+          time: 'Time',
+          symbol: 'Symbol',
+          action: 'Action',
+          qty: 'Qty',
+          leverage: 'Leverage',
+          pnl: 'PnL',
+        },
+        empty: 'No trades yet',
+      },
+      metadata: {
+        title: 'Metadata',
+        created: 'Created',
+        updated: 'Updated',
+        processedBars: 'Processed Bars',
+        maxDrawdown: 'Max DD',
+        liquidated: 'Liquidated',
+        yes: 'Yes',
+        no: 'No',
+      },
+    },
 
     // Competition Page
     aiCompetition: 'AI Competition',
@@ -103,7 +276,7 @@ export const translations = {
 
     // AI Learning
     aiLearning: 'AI Learning & Reflection',
-    tradesAnalyzed: '{count} trades analyzed · Real-time evolution',
+    tradesAnalyzed: '{count} trades analyzed · Current prompt version',
     latestReflection: 'Latest Reflection',
     fullCoT: 'Full Chain of Thought',
     totalTrades: 'Total Trades',
@@ -120,6 +293,8 @@ export const translations = {
     worstPerformer: 'Worst Performer',
     symbolPerformance: 'Symbol Performance',
     tradeHistory: 'Trade History',
+    currentStrategyTrades: 'Current prompt version ({count} trades)',
+    insufficientTradesForSharpe: 'Need at least 2 trades to calculate',
     completedTrades: 'Recent {count} completed trades',
     noCompletedTrades: 'No completed trades yet',
     completedTradesWillAppear: 'Completed trades will appear here',
@@ -146,10 +321,10 @@ export const translations = {
     currentTraders: 'Current Traders',
     noTraders: 'No AI Traders',
     createFirstTrader: 'Create your first AI trader to get started',
-    dashboardEmptyTitle: 'No Traders Configured',
+    dashboardEmptyTitle: "Let's Get Started!",
     dashboardEmptyDescription:
-      "You haven't created any AI traders yet. Create your first trader to start automated trading.",
-    goToTradersPage: 'Go to Traders Page',
+      'Create your first AI trader to automate your trading strategy. Connect an exchange, choose an AI model, and start trading in minutes!',
+    goToTradersPage: 'Create Your First Trader',
     configureModelsFirst: 'Please configure AI models first',
     configureExchangesFirst: 'Please configure exchanges first',
     configureModelsAndExchangesFirst:
@@ -169,13 +344,19 @@ export const translations = {
     create: 'Create',
     configureAIModels: 'Configure AI Models',
     configureExchanges: 'Configure Exchanges',
-    aiScanInterval: 'AI Scan Decision Interval (minutes)',
-    scanIntervalRecommend: 'Recommended: 3-10 minutes',
+    aiScanInterval: 'AI Scan Interval',
+    minutes: 'min',
+    scanIntervalRecommend: 'Aligned with 5-minute K-line cycle',
+    scanIntervalCostWarning: 'Minimum 5 minutes to align with K-line data cycle.',
+    scanIntervalLongWarning: 'Longer intervals may miss trading opportunities but reduce API costs.',
     useTestnet: 'Use Testnet',
     enabled: 'Enabled',
     save: 'Save',
 
     // AI Model Configuration
+    modelNameOptional: 'Model Name (Optional)',
+    modelNamePlaceholder: 'e.g., deepseek-chat, qwen3-max, gpt-5.1',
+    modelNameHelp: 'Leave blank to use default. Defaults: openai → gpt-5.1, gemini → gemini-2.5-pro, grok → grok-4. Other options: gpt-5.1-chat-latest, gemini-3-pro-preview, grok-4-1-fast-reasoning',
     officialAPI: 'Official API',
     customAPI: 'Custom API',
     apiKey: 'API Key',
@@ -202,6 +383,18 @@ export const translations = {
       'Hyperliquid uses private key for trading authentication',
     hyperliquidWalletAddressDesc:
       'Wallet address corresponding to the private key',
+    // Hyperliquid Agent Wallet (New Security Model)
+    hyperliquidAgentWalletTitle: 'Hyperliquid Agent Wallet Configuration',
+    hyperliquidAgentWalletDesc:
+      'Use Agent Wallet for secure trading: Agent wallet signs transactions (balance ~0), Main wallet holds funds (never expose private key)',
+    hyperliquidAgentPrivateKey: 'Agent Private Key',
+    enterHyperliquidAgentPrivateKey: 'Enter Agent wallet private key',
+    hyperliquidAgentPrivateKeyDesc:
+      'Agent wallet private key for signing transactions (keep balance near 0 for security)',
+    hyperliquidMainWalletAddress: 'Main Wallet Address',
+    enterHyperliquidMainWalletAddress: 'Enter Main wallet address',
+    hyperliquidMainWalletAddressDesc:
+      'Main wallet address that holds your trading funds (never expose its private key)',
     asterUserDesc:
       'Main wallet address - The EVM wallet address you use to log in to Aster (Note: Only EVM wallets are supported, Solana wallets are not supported)',
     asterSignerDesc:
@@ -454,13 +647,16 @@ export const translations = {
     authStep3Desc: 'After setup, continue to enter the 6-digit code',
     setupCompleteContinue: 'I have completed setup, continue',
     copy: 'Copy',
+    copied: 'Copied',
     completeRegistration: 'Complete Registration',
     completeRegistrationSubtitle: 'to complete registration',
     loginSuccess: 'Login successful',
     registrationSuccess: 'Registration successful',
-    loginFailed: 'Login failed',
-    registrationFailed: 'Registration failed',
-    verificationFailed: 'OTP verification failed',
+    loginFailed: 'Login failed. Please check your email and password.',
+    registrationFailed: 'Registration failed. Please try again.',
+    verificationFailed:
+      'OTP verification failed. Please check the code and try again.',
+    sessionExpired: 'Session expired, please login again',
     invalidCredentials: 'Invalid email or password',
     weak: 'Weak',
     medium: 'Medium',
@@ -483,6 +679,9 @@ export const translations = {
     exitLogin: 'Sign Out',
     signIn: 'Sign In',
     signUp: 'Sign Up',
+    registrationClosed: 'Registration Closed',
+    registrationClosedMessage:
+      'User registration is currently disabled. Please contact the administrator for access.',
 
     // Hero Section
     githubStarsInDays: '2.5K+ GitHub Stars in 3 days',
@@ -554,7 +753,7 @@ export const translations = {
       'Four simple steps to start your AI automated trading journey',
     step1Title: 'Clone GitHub Repository',
     step1Desc:
-      'git clone https://github.com/tinkle-community/nofx and switch to dev branch to test new features.',
+      'git clone https://github.com/nofxai/nofx and switch to dev branch to test new features.',
     step2Title: 'Configure Environment',
     step2Desc:
       'Frontend setup for exchange APIs (like Binance, Hyperliquid), AI models and custom prompts.',
@@ -696,7 +895,7 @@ export const translations = {
 
     faqHighFees: 'Trading fees are too high',
     faqHighFeesAnswer:
-      'NOFX default 3-minute scan interval can cause frequent trading. Solutions: Increase decision interval to 5-10 minutes; Optimize system prompt to reduce overtrading; Adjust leverage to reduce position sizes.',
+      'Frequent trading can increase fees. Solutions: Increase decision interval to 10+ minutes; Optimize system prompt to reduce overtrading; Adjust leverage to reduce position sizes.',
 
     faqNoTakeProfit: "AI doesn't close profitable positions",
     faqNoTakeProfitAnswer:
@@ -734,7 +933,7 @@ export const translations = {
     // AI & Model Questions
     faqWhichModels: 'Which AI models are supported?',
     faqWhichModelsAnswer:
-      'DeepSeek (recommended for cost/performance), Qwen (Alibaba Cloud), and Custom OpenAI-compatible APIs (can be used for OpenAI, Claude via proxy, or other providers).',
+      'DeepSeek (recommended for cost/performance), Qwen (Alibaba Cloud), and Custom OpenAI-compatible APIs. Supported models include:\n\n• **OpenAI**: gpt-5.1, gpt-5.1-chat-latest\n• **Gemini**: gemini-2.5-pro, gemini-3-pro-preview, gemini-2.5-flash\n• **Grok (xAI)**: grok-4, grok-4-1-fast-reasoning',
 
     faqApiCosts: 'How much do API calls cost?',
     faqApiCostsAnswer:
@@ -773,6 +972,36 @@ export const translations = {
     faqGetHelpAnswer:
       'Check GitHub Discussions, join our Telegram Community, or open an issue on GitHub.',
 
+    // Web Crypto Environment Check
+    environmentCheck: {
+      button: 'Check Secure Environment',
+      checking: 'Checking...',
+      description:
+        'Automatically verifying whether this browser context allows Web Crypto before entering sensitive keys.',
+      secureTitle: 'Secure context detected',
+      secureDesc:
+        'Web Crypto API is available. You can continue entering secrets with encryption enabled.',
+      insecureTitle: 'Insecure context detected',
+      insecureDesc:
+        'This page is not running over HTTPS or a trusted localhost origin, so browsers block Web Crypto calls.',
+      tipsTitle: 'How to fix:',
+      tipHTTPS:
+        'Serve the dashboard over HTTPS with a valid certificate (IP origins also need TLS).',
+      tipLocalhost:
+        'During development, open the app via http://localhost or 127.0.0.1.',
+      tipIframe:
+        'Avoid embedding the app in insecure HTTP iframes or reverse proxies that strip HTTPS.',
+      unsupportedTitle: 'Browser does not expose Web Crypto',
+      unsupportedDesc:
+        'Open NOFX over HTTPS (or http://localhost during development) and avoid insecure iframes/reverse proxies so the browser can enable Web Crypto.',
+      summary: 'Current origin: {origin} • Protocol: {protocol}',
+    },
+
+    environmentSteps: {
+      checkTitle: '1. Environment check',
+      selectTitle: '2. Select exchange',
+    },
+
     // Two-Stage Key Modal
     twoStageKey: {
       title: 'Two-Stage Private Key Input',
@@ -810,6 +1039,7 @@ export const translations = {
     details: '详情',
     tradingPanel: '交易面板',
     competition: '竞赛',
+    backtest: '回测',
     running: '运行中',
     stopped: '已停止',
     adminMode: '管理员模式',
@@ -839,6 +1069,7 @@ export const translations = {
     currentPositions: '当前持仓',
     active: '活跃',
     symbol: '币种',
+    coins: '关注',
     side: '方向',
     entryPrice: '入场价',
     markPrice: '标记价',
@@ -863,7 +1094,14 @@ export const translations = {
     inputPrompt: '输入提示',
     aiThinking: '💭 AI思维链分析',
     collapse: '▼ 收起',
+    newStopLoss: '新止损价',
+    newTakeProfit: '新止盈价',
+    closePercentage: '平仓比例',
     expand: '▶ 展开',
+    filterOnlyWithActions: '有操作',
+    viewPrompt: '查看 Prompt',
+    currentPrompt: '当前 System Prompt',
+    close: '关闭',
 
     // Equity Chart
     accountEquityCurve: '账户净值曲线',
@@ -882,6 +1120,168 @@ export const translations = {
     dataPoints: '数据点数',
     currentGap: '当前差距',
     count: '{count} 个',
+
+    // Backtest Page
+    backtestPage: {
+      title: '回测实验室',
+      subtitle: '选择模型与时间范围，快速复盘 AI 决策链路。',
+      start: '启动回测',
+      starting: '启动中...',
+      quickRanges: {
+        h24: '24小时',
+        d3: '3天',
+        d7: '7天',
+      },
+      actions: {
+        pause: '暂停',
+        resume: '恢复',
+        stop: '停止',
+      },
+      states: {
+        running: '运行中',
+        paused: '已暂停',
+        completed: '已完成',
+        failed: '失败',
+        liquidated: '已爆仓',
+      },
+      form: {
+        aiModelLabel: 'AI 模型',
+        selectAiModel: '选择AI模型',
+        providerLabel: 'Provider',
+        statusLabel: '状态',
+        enabled: '已启用',
+        disabled: '未启用',
+        noModelWarning: '请先在「模型配置」页面添加并启用AI模型。',
+        runIdLabel: 'Run ID',
+        runIdPlaceholder: '留空则自动生成',
+        decisionTfLabel: '决策周期',
+        cadenceLabel: '决策节奏（根数）',
+        timeRangeLabel: '时间范围',
+        symbolsLabel: '交易标的（逗号分隔）',
+        customTfPlaceholder: '自定义周期（逗号分隔，例如 2h,6h）',
+        initialBalanceLabel: '初始资金 (USDT)',
+        feeLabel: '手续费 (bps)',
+      slippageLabel: '滑点 (bps)',
+      btcEthLeverageLabel: 'BTC/ETH 杠杆 (倍)',
+      altcoinLeverageLabel: '山寨币杠杆 (倍)',
+      fillPolicies: {
+        nextOpen: '下一根开盘价',
+        barVwap: 'K线 VWAP',
+        midPrice: '中间价',
+        },
+        promptPresets: {
+          baseline: '基础版',
+          aggressive: '激进版',
+          conservative: '稳健版',
+          scalping: '剥头皮',
+        },
+        cacheAiLabel: '复用AI缓存',
+        replayOnlyLabel: '仅回放记录',
+        overridePromptLabel: '仅使用自定义提示词',
+        customPromptLabel: '自定义提示词（可选）',
+        customPromptPlaceholder: '追加或完全自定义策略提示词',
+      },
+      runList: {
+        title: '运行列表',
+        count: '共 {count} 条记录',
+      },
+      filters: {
+        allStates: '全部状态',
+        searchPlaceholder: 'Run ID / 标签',
+      },
+      tableHeaders: {
+        runId: 'Run ID',
+        label: '标签',
+        state: '状态',
+        progress: '进度',
+        equity: '净值',
+        lastError: '最后错误',
+        updated: '更新时间',
+      },
+      emptyStates: {
+        noRuns: '暂无记录',
+        selectRun: '请选择一个运行查看详情',
+      },
+      detail: {
+        tfAndSymbols: '周期: {tf} · 币种 {count}',
+        promptInfo: '提示词',
+        promptSnapshot: '查看完整提示词（快照）',
+        labelPlaceholder: '备注标签',
+        saveLabel: '保存',
+        deleteLabel: '删除',
+        exportLabel: '导出',
+        errorLabel: '错误',
+      },
+      toasts: {
+        selectModel: '请先选择一个AI模型。',
+        modelDisabled: 'AI模型 {name} 尚未启用。',
+        invalidRange: '结束时间必须晚于开始时间。',
+        startSuccess: '回测 {id} 已启动。',
+        startFailed: '启动失败，请稍后再试。',
+        actionSuccess: '{action} {id} 成功。',
+        actionFailed: '操作失败，请稍后再试。',
+        labelSaved: '标签已更新。',
+        labelFailed: '更新标签失败。',
+        confirmDelete: '确认删除回测 {id} 吗？该操作不可恢复。',
+        deleteSuccess: '回测记录已删除。',
+        deleteFailed: '删除失败，请稍后再试。',
+        traceFailed: '获取AI思维链失败。',
+        exportSuccess: '已导出 {id} 的数据。',
+        exportFailed: '导出失败。',
+      },
+      aiTrace: {
+        title: 'AI 思维链',
+        clear: '清除',
+        cyclePlaceholder: '循环编号',
+        fetch: '获取',
+        prompt: '提示词',
+        cot: '思考链',
+        output: '输出',
+        cycleTag: '周期 #{cycle}',
+      },
+      decisionTrail: {
+        title: 'AI 决策轨迹',
+        subtitle: '展示最近 {count} 次循环',
+        empty: '暂无记录',
+        emptyHint: '回测运行后将自动记录每次 AI 思考与执行',
+      },
+      charts: {
+        equityTitle: '净值曲线',
+        equityEmpty: '暂无数据',
+      },
+      metrics: {
+        title: '指标',
+        totalReturn: '总收益率 %',
+        maxDrawdown: '最大回撤 %',
+        sharpe: '夏普比率',
+        profitFactor: '盈亏因子',
+        pending: '计算中...',
+        realized: '已实现盈亏',
+        unrealized: '未实现盈亏',
+      },
+      trades: {
+        title: '交易事件',
+        headers: {
+          time: '时间',
+          symbol: '币种',
+          action: '操作',
+          qty: '数量',
+          leverage: '杠杆',
+          pnl: '盈亏',
+        },
+        empty: '暂无交易',
+      },
+      metadata: {
+        title: '元信息',
+        created: '创建时间',
+        updated: '更新时间',
+        processedBars: '已处理K线',
+        maxDrawdown: '最大回撤',
+        liquidated: '是否爆仓',
+        yes: '是',
+        no: '否',
+      },
+    },
 
     // Competition Page
     aiCompetition: 'AI竞赛',
@@ -904,7 +1304,7 @@ export const translations = {
 
     // AI Learning
     aiLearning: 'AI学习与反思',
-    tradesAnalyzed: '已分析 {count} 笔交易 · 实时演化',
+    tradesAnalyzed: '已分析 {count} 笔交易 · 当前 Prompt 版本',
     latestReflection: '最新反思',
     fullCoT: '📋 完整思维链',
     totalTrades: '总交易数',
@@ -921,6 +1321,8 @@ export const translations = {
     worstPerformer: '最差表现',
     symbolPerformance: '📊 币种表现',
     tradeHistory: '历史成交',
+    currentStrategyTrades: '当前 Prompt 版本（{count} 笔交易）',
+    insufficientTradesForSharpe: '至少需要 2 笔交易才能计算',
     completedTrades: '最近 {count} 笔已完成交易',
     noCompletedTrades: '暂无完成的交易',
     completedTradesWillAppear: '已完成的交易将显示在这里',
@@ -947,10 +1349,10 @@ export const translations = {
     currentTraders: '当前交易员',
     noTraders: '暂无AI交易员',
     createFirstTrader: '创建您的第一个AI交易员开始使用',
-    dashboardEmptyTitle: '暂无交易员',
+    dashboardEmptyTitle: '开始使用吧！',
     dashboardEmptyDescription:
-      '您还未创建任何AI交易员，创建您的第一个交易员以开始自动化交易。',
-    goToTradersPage: '前往交易员页面',
+      '创建您的第一个 AI 交易员，自动化您的交易策略。连接交易所、选择 AI 模型，几分钟内即可开始交易！',
+    goToTradersPage: '创建您的第一个交易员',
     configureModelsFirst: '请先配置AI模型',
     configureExchangesFirst: '请先配置交易所',
     configureModelsAndExchangesFirst: '请先配置AI模型和交易所',
@@ -969,13 +1371,19 @@ export const translations = {
     create: '创建',
     configureAIModels: '配置AI模型',
     configureExchanges: '配置交易所',
-    aiScanInterval: 'AI 扫描决策间隔 (分钟)',
-    scanIntervalRecommend: '建议: 3-10分钟',
+    aiScanInterval: 'AI 扫描间隔',
+    minutes: '分钟',
+    scanIntervalRecommend: '与 5 分钟 K 线周期对齐',
+    scanIntervalCostWarning: '最小 5 分钟，与 K 线数据周期对齐。',
+    scanIntervalLongWarning: '较长间隔可能错过交易机会，但可降低 API 成本。',
     useTestnet: '使用测试网',
     enabled: '启用',
     save: '保存',
 
     // AI Model Configuration
+    modelNameOptional: '模型名称 (可选)',
+    modelNamePlaceholder: '例如: deepseek-chat, qwen3-max, gpt-5.1',
+    modelNameHelp: '留空使用默认。默认模型：openai → gpt-5.1, gemini → gemini-2.5-pro, grok → grok-4。其他可选：gpt-5.1-chat-latest, gemini-3-pro-preview, grok-4-1-fast-reasoning',
     officialAPI: '官方API',
     customAPI: '自定义API',
     apiKey: 'API密钥',
@@ -1000,6 +1408,18 @@ export const translations = {
     enterPassphrase: '输入Passphrase (OKX必填)',
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
+    // Hyperliquid 代理钱包 (新安全模型)
+    hyperliquidAgentWalletTitle: 'Hyperliquid 代理钱包配置',
+    hyperliquidAgentWalletDesc:
+      '使用代理钱包安全交易：代理钱包用于签名（餘額~0），主钱包持有资金（永不暴露私钥）',
+    hyperliquidAgentPrivateKey: '代理私钥',
+    enterHyperliquidAgentPrivateKey: '输入代理钱包私钥',
+    hyperliquidAgentPrivateKeyDesc:
+      '代理钱包私钥，用于签名交易（为了安全应保持余额接近0）',
+    hyperliquidMainWalletAddress: '主钱包地址',
+    enterHyperliquidMainWalletAddress: '输入主钱包地址',
+    hyperliquidMainWalletAddressDesc:
+      '持有交易资金的主钱包地址（永不暴露其私钥）',
     asterUserDesc:
       '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址（注意：仅支持 EVM 钱包，不支持 Solana 钱包）',
     asterSignerDesc:
@@ -1080,9 +1500,11 @@ export const translations = {
     promptTemplateNof1: 'NoF1 英文框架',
     promptTemplateTaroLong: 'Taro 长仓',
     promptDescDefault: '📊 默认稳健策略',
-    promptDescDefaultContent: '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
+    promptDescDefaultContent:
+      '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
     promptDescAdaptive: '🛡️ 保守策略 (v6.0.0)',
-    promptDescAdaptiveContent: '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
+    promptDescAdaptiveContent:
+      '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
     promptDescAdaptiveRelaxed: '⚡ 激进策略 (v6.0.0)',
     promptDescAdaptiveRelaxedContent:
       '高频交易，BTC 可选确认，追求交易机会，适合波动市场',
@@ -1092,7 +1514,8 @@ export const translations = {
     promptDescNof1Content:
       'Hyperliquid 交易所专用，英文提示词，风险调整回报最大化',
     promptDescTaroLong: '📈 Taro 长仓策略',
-    promptDescTaroLongContent: '数据驱动决策，多维度验证，持续学习进化，长仓专用',
+    promptDescTaroLongContent:
+      '数据驱动决策，多维度验证，持续学习进化，长仓专用',
 
     // Loading & Error
     loading: '加载中...',
@@ -1219,13 +1642,15 @@ export const translations = {
     authStep3Desc: '设置完成后，点击下方按钮输入6位验证码',
     setupCompleteContinue: '我已完成设置，继续',
     copy: '复制',
+    copied: '已复制',
     completeRegistration: '完成注册',
     completeRegistrationSubtitle: '以完成注册',
     loginSuccess: '登录成功',
     registrationSuccess: '注册成功',
-    loginFailed: '登录失败',
-    registrationFailed: '注册失败',
-    verificationFailed: 'OTP验证失败',
+    loginFailed: '登录失败，请检查您的邮箱和密码。',
+    registrationFailed: '注册失败，请重试。',
+    verificationFailed: 'OTP 验证失败，请检查验证码后重试。',
+    sessionExpired: '登录已过期，请重新登录',
     invalidCredentials: '邮箱或密码错误',
     weak: '弱',
     medium: '中',
@@ -1247,6 +1672,8 @@ export const translations = {
     exitLogin: '退出登录',
     signIn: '登录',
     signUp: '注册',
+    registrationClosed: '注册已关闭',
+    registrationClosedMessage: '平台当前不开放新用户注册，如需访问请联系管理员获取账号。',
 
     // Hero Section
     githubStarsInDays: '3 天内 2.5K+ GitHub Stars',
@@ -1308,7 +1735,7 @@ export const translations = {
     fourSimpleSteps: '四个简单步骤，开启 AI 自动交易之旅',
     step1Title: '拉取 GitHub 仓库',
     step1Desc:
-      'git clone https://github.com/tinkle-community/nofx 并切换到 dev 分支测试新功能。',
+      'git clone https://github.com/nofxai/nofx 并切换到 dev 分支测试新功能。',
     step2Title: '配置环境',
     step2Desc:
       '前端设置交易所 API（如 Binance、Hyperliquid）、AI 模型和自定义提示词。',
@@ -1483,7 +1910,7 @@ export const translations = {
     // AI & Model Questions
     faqWhichModels: '支持哪些 AI 模型？',
     faqWhichModelsAnswer:
-      'DeepSeek（推荐性价比）、Qwen（阿里云通义千问）、自定义 OpenAI 兼容 API（可用于 OpenAI、通过代理的 Claude 或其他提供商）。',
+      'DeepSeek（推荐性价比）、Qwen（阿里云通义千问）、自定义 OpenAI 兼容 API。支持的模型包括：\n\n• **OpenAI**: gpt-5.1, gpt-5.1-chat-latest\n• **Gemini**: gemini-2.5-pro, gemini-3-pro-preview, gemini-2.5-flash\n• **Grok (xAI)**: grok-4, grok-4-1-fast-reasoning',
 
     faqApiCosts: 'API 调用成本是多少？',
     faqApiCostsAnswer:
@@ -1521,6 +1948,33 @@ export const translations = {
     faqGetHelp: '在哪里可以获得帮助？',
     faqGetHelpAnswer:
       '查看 GitHub Discussions、加入 Telegram 社区或在 GitHub 上提出 issue。',
+
+    // Web Crypto Environment Check
+    environmentCheck: {
+      button: '一键检测环境',
+      checking: '正在检测...',
+      description: '系统将自动检测当前浏览器是否允许使用 Web Crypto。',
+      secureTitle: '环境安全，已启用 Web Crypto',
+      secureDesc: '页面处于安全上下文，可继续输入敏感信息并使用加密传输。',
+      insecureTitle: '检测到非安全环境',
+      insecureDesc:
+        '当前访问未通过 HTTPS 或可信 localhost，浏览器会阻止 Web Crypto 调用。',
+      tipsTitle: '修改建议：',
+      tipHTTPS:
+        '通过 HTTPS 访问（即使是 IP 也需证书），或部署到支持 TLS 的域名。',
+      tipLocalhost: '开发阶段请使用 http://localhost 或 127.0.0.1。',
+      tipIframe:
+        '避免把应用嵌入在不安全的 HTTP iframe 或会降级协议的反向代理中。',
+      unsupportedTitle: '浏览器未提供 Web Crypto',
+      unsupportedDesc:
+        '请通过 HTTPS 或本机 localhost 访问 NOFX，并避免嵌入不安全 iframe/反向代理，以符合浏览器的 Web Crypto 规则。',
+      summary: '当前来源：{origin} · 协议：{protocol}',
+    },
+
+    environmentSteps: {
+      checkTitle: '1. 环境检测',
+      selectTitle: '2. 选择交易所',
+    },
 
     // Two-Stage Key Modal
     twoStageKey: {

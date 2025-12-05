@@ -25,17 +25,37 @@ var (
 	// globalPromptManager 全局提示词管理器
 	globalPromptManager *PromptManager
 	// promptsDir 提示词文件夹路径
-	promptsDir = "prompts"
+	promptsDir string
 )
 
 // init 包初始化时加载所有提示词模板
 func init() {
+	promptsDir = getPromptsDir()
+
 	globalPromptManager = NewPromptManager()
 	if err := globalPromptManager.LoadTemplates(promptsDir); err != nil {
 		log.Printf("⚠️  加载提示词模板失败: %v", err)
 	} else {
-		log.Printf("✓ 已加载 %d 个系统提示词模板", len(globalPromptManager.templates))
+		log.Printf("✓ 已加载 %d 个系统提示词模板 (from %s)", len(globalPromptManager.templates), promptsDir)
 	}
+}
+
+// getPromptsDir 获取提示词目录路径
+// 优先级: PROMPTS_DIR 环境变量 > ./prompts (如果存在) > /app/prompts (Docker默认)
+func getPromptsDir() string {
+	// 1. 检查环境变量
+	if envDir := os.Getenv("PROMPTS_DIR"); envDir != "" {
+		return envDir
+	}
+
+	// 2. 检查当前目录下的 prompts 文件夹 (本地开发)
+	localPrompts := "prompts" // 相对路径
+	if _, err := os.Stat(localPrompts); err == nil {
+		return localPrompts
+	}
+
+	// 3. Docker 环境默认路径
+	return "/app/prompts"
 }
 
 // NewPromptManager 创建提示词管理器
@@ -95,6 +115,12 @@ func (pm *PromptManager) LoadTemplates(dir string) error {
 func (pm *PromptManager) GetTemplate(name string) (*PromptTemplate, error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
+
+	// 🔒 安全验证：防止路径遍历攻击
+	// 模板名称不应包含路径分隔符或父目录引用
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
+		return nil, fmt.Errorf("非法的模板名称: %s（不允许包含路径分隔符）", name)
+	}
 
 	template, exists := pm.templates[name]
 	if !exists {
