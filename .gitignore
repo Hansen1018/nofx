@@ -16,6 +16,8 @@ nofx_test
 # Go 相关
 *.test
 *.out
+test_output.txt
+coverage.txt
 
 # 操作系统
 .DS_Store
@@ -33,6 +35,9 @@ config.json
 config.db*
 nofx.db
 configbak.json
+
+# Logger 配置（包含敏感信息）
+logger/config.telegram.json
 
 # 决策日志
 decision_logs/
@@ -53,17 +58,23 @@ eslint-*.json
 
 # 密钥和敏感文件
 # 注意：crypto目录包含加密服务代码，应该被提交
-# 只忽略密钥文件本身
+# 只忽略密钥文件本身（包括测试密钥）
 secrets/
+.secrets/
 *.key
 *.pem
+*.pub
 *.p12
 *.pfx
 rsa_key*
+test_rsa_key*
+DATA_ENCRYPTION_KEY.txt
+master.key
 
 # 加密相关
 DATA_ENCRYPTION_KEY=*
 *.enc
+NOFX_MASTER_KEY.txt
 
 # Python
 __pycache__/
@@ -122,3 +133,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+trading.db
+*.db
+PR_DESCRIPTION.md

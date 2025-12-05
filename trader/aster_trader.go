@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"nofx/decision"
 	"nofx/hook"
 	"sort"
 	"strconv"
@@ -489,12 +490,27 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	realUnrealizedPnl := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// 安全地提取浮点数值，避免 panic
+		markPrice, err := SafeFloat64(pos, "markPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 markPrice: %v", err)
+			continue
+		}
+
+		quantity, err := SafeFloat64(pos, "positionAmt")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
+
+		unrealizedPnl, err := SafeFloat64(pos, "unRealizedProfit")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 unRealizedProfit: %v", err)
+			continue
+		}
 		realUnrealizedPnl += unrealizedPnl
 
 		leverage := 10
@@ -544,11 +560,21 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 			continue // 跳过空仓位
 		}
 
-		entryPrice, _ := strconv.ParseFloat(pos["entryPrice"].(string), 64)
-		markPrice, _ := strconv.ParseFloat(pos["markPrice"].(string), 64)
-		unRealizedProfit, _ := strconv.ParseFloat(pos["unRealizedProfit"].(string), 64)
-		leverageVal, _ := strconv.ParseFloat(pos["leverage"].(string), 64)
-		liquidationPrice, _ := strconv.ParseFloat(pos["liquidationPrice"].(string), 64)
+		// 安全地提取并解析价格数据
+		entryPriceStr, _ := SafeString(pos, "entryPrice")
+		entryPrice, _ := strconv.ParseFloat(entryPriceStr, 64)
+
+		markPriceStr, _ := SafeString(pos, "markPrice")
+		markPrice, _ := strconv.ParseFloat(markPriceStr, 64)
+
+		unRealizedProfitStr, _ := SafeString(pos, "unRealizedProfit")
+		unRealizedProfit, _ := strconv.ParseFloat(unRealizedProfitStr, 64)
+
+		leverageStr, _ := SafeString(pos, "leverage")
+		leverageVal, _ := strconv.ParseFloat(leverageStr, 64)
+
+		liquidationPriceStr, _ := SafeString(pos, "liquidationPrice")
+		liquidationPrice, _ := strconv.ParseFloat(liquidationPriceStr, 64)
 
 		// 判断方向（与Binance一致）
 		side := "long"
@@ -718,7 +744,12 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}
@@ -781,9 +812,14 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, qtyStr)
 
-	// 平仓后取消该币种的所有挂单(止损止盈单)
-	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败: %v", err)
+	// 平仓后取消该币种的所有挂单(止损止盈单) - 使用重試機制
+	if err := t.CancelAllOrdersWithRetry(symbol, 3); err != nil {
+		// 重試失敗後記錄強警告（已在 WithRetry 中記錄詳細信息）
+		log.Printf("  ❌❌❌ 警告：平倉成功但掛單取消失敗 ❌❌❌")
+		log.Printf("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Printf("  幣種: %s", symbol)
+		log.Printf("  建議：立即手動檢查 %s 的掛單！", symbol)
+		log.Printf("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	}
 
 	return result, nil
@@ -801,7 +837,12 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				// Aster的GetPositions已经将空仓数量转换为正数，直接使用
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}
@@ -864,9 +905,14 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 
 	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, qtyStr)
 
-	// 平仓后取消该币种的所有挂单(止损止盈单)
-	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败: %v", err)
+	// 平仓后取消该币种的所有挂单(止损止盈单) - 使用重試機制
+	if err := t.CancelAllOrdersWithRetry(symbol, 3); err != nil {
+		// 重試失敗後記錄強警告（已在 WithRetry 中記錄詳細信息）
+		log.Printf("  ❌❌❌ 警告：平倉成功但掛單取消失敗 ❌❌❌")
+		log.Printf("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Printf("  幣種: %s", symbol)
+		log.Printf("  建議：立即手動檢查 %s 的掛單！", symbol)
+		log.Printf("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	}
 
 	return result, nil
@@ -1167,6 +1213,33 @@ func (t *AsterTrader) CancelAllOrders(symbol string) error {
 	return err
 }
 
+// CancelAllOrdersWithRetry 取消所有掛單（帶重試機制）
+func (t *AsterTrader) CancelAllOrdersWithRetry(symbol string, maxRetries int) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err := t.CancelAllOrders(symbol)
+		if err == nil {
+			if attempt > 1 {
+				log.Printf("  ✓ 第 %d 次重試成功取消 %s 的掛單", attempt, symbol)
+			}
+			return nil
+		}
+
+		lastErr = err
+		if attempt < maxRetries {
+			// 遞增延遲：1秒, 2秒, 3秒...
+			waitTime := time.Duration(attempt) * time.Second
+			log.Printf("  🔄 取消掛單失敗，%v 後重試 (%d/%d): %v", waitTime, attempt, maxRetries, err)
+			time.Sleep(waitTime)
+		}
+	}
+
+	// 所有重試都失敗
+	log.Printf("  ❌ 緊急：%s 掛單取消失敗（已重試 %d 次），請手動檢查！", symbol, maxRetries)
+	return fmt.Errorf("重試 %d 次後仍失敗: %w", maxRetries, lastErr)
+}
+
 // CancelStopOrders 取消该币种的止盈/止损单（用于调整止盈止损位置）
 func (t *AsterTrader) CancelStopOrders(symbol string) error {
 	// 获取该币种的所有未完成订单
@@ -1229,4 +1302,65 @@ func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, e
 		return "", err
 	}
 	return fmt.Sprintf("%v", formatted), nil
+}
+
+// GetOpenOrders retrieves open orders for AI decision context
+// Returns all orders if symbol is empty, otherwise returns orders for the specified symbol
+func (t *AsterTrader) GetOpenOrders(symbol string) ([]decision.OpenOrderInfo, error) {
+	params := map[string]interface{}{}
+	if symbol != "" {
+		params["symbol"] = symbol
+	}
+
+	body, err := t.request("GET", "/fapi/v3/openOrders", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch open orders: %w", err)
+	}
+
+	var orders []map[string]interface{}
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, fmt.Errorf("failed to parse order data: %w", err)
+	}
+
+	// Convert to decision.OpenOrderInfo structure
+	result := []decision.OpenOrderInfo{}
+	for _, order := range orders {
+		orderInfo := decision.OpenOrderInfo{}
+
+		// Parse basic fields
+		if sym, ok := order["symbol"].(string); ok {
+			orderInfo.Symbol = sym
+		}
+		if orderID, ok := order["orderId"].(float64); ok {
+			orderInfo.OrderID = int64(orderID)
+		}
+		if orderType, ok := order["type"].(string); ok {
+			orderInfo.Type = orderType
+		}
+		if side, ok := order["side"].(string); ok {
+			orderInfo.Side = side
+		}
+		if posSide, ok := order["positionSide"].(string); ok {
+			orderInfo.PositionSide = posSide
+		}
+
+		// Parse quantity
+		if qtyStr, ok := order["origQty"].(string); ok {
+			orderInfo.Quantity, _ = strconv.ParseFloat(qtyStr, 64)
+		}
+
+		// Parse price (for limit orders)
+		if priceStr, ok := order["price"].(string); ok {
+			orderInfo.Price, _ = strconv.ParseFloat(priceStr, 64)
+		}
+
+		// Parse stop-loss/take-profit price
+		if stopPriceStr, ok := order["stopPrice"].(string); ok {
+			orderInfo.StopPrice, _ = strconv.ParseFloat(stopPriceStr, 64)
+		}
+
+		result = append(result, orderInfo)
+	}
+
+	return result, nil
 }
