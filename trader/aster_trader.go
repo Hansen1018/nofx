@@ -489,12 +489,27 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	realUnrealizedPnl := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// 安全地提取浮点数值，避免 panic
+		markPrice, err := SafeFloat64(pos, "markPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 markPrice: %v", err)
+			continue
+		}
+
+		quantity, err := SafeFloat64(pos, "positionAmt")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
+
+		unrealizedPnl, err := SafeFloat64(pos, "unRealizedProfit")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 unRealizedProfit: %v", err)
+			continue
+		}
 		realUnrealizedPnl += unrealizedPnl
 
 		leverage := 10
@@ -544,11 +559,21 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 			continue // 跳过空仓位
 		}
 
-		entryPrice, _ := strconv.ParseFloat(pos["entryPrice"].(string), 64)
-		markPrice, _ := strconv.ParseFloat(pos["markPrice"].(string), 64)
-		unRealizedProfit, _ := strconv.ParseFloat(pos["unRealizedProfit"].(string), 64)
-		leverageVal, _ := strconv.ParseFloat(pos["leverage"].(string), 64)
-		liquidationPrice, _ := strconv.ParseFloat(pos["liquidationPrice"].(string), 64)
+		// 安全地提取并解析价格数据
+		entryPriceStr, _ := SafeString(pos, "entryPrice")
+		entryPrice, _ := strconv.ParseFloat(entryPriceStr, 64)
+
+		markPriceStr, _ := SafeString(pos, "markPrice")
+		markPrice, _ := strconv.ParseFloat(markPriceStr, 64)
+
+		unRealizedProfitStr, _ := SafeString(pos, "unRealizedProfit")
+		unRealizedProfit, _ := strconv.ParseFloat(unRealizedProfitStr, 64)
+
+		leverageStr, _ := SafeString(pos, "leverage")
+		leverageVal, _ := strconv.ParseFloat(leverageStr, 64)
+
+		liquidationPriceStr, _ := SafeString(pos, "liquidationPrice")
+		liquidationPrice, _ := strconv.ParseFloat(liquidationPriceStr, 64)
 
 		// 判断方向（与Binance一致）
 		side := "long"
@@ -718,7 +743,12 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}
@@ -801,7 +831,12 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				// Aster的GetPositions已经将空仓数量转换为正数，直接使用
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}
@@ -984,12 +1019,21 @@ func (t *AsterTrader) SetStopLoss(symbol string, positionSide string, quantity, 
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
+	// 计算并格式化 Stop Limit Price
+	limitPrice := CalculateStopLimitPrice(positionSide, stopPrice, 0)
+	formattedLimitPrice, err := t.formatPrice(symbol, limitPrice)
+	if err != nil {
+		return err
+	}
+	limitPriceStr := t.formatFloatWithPrecision(formattedLimitPrice, prec.PricePrecision)
+
 	params := map[string]interface{}{
 		"symbol":       symbol,
 		"positionSide": "BOTH",
-		"type":         "STOP_MARKET",
+		"type":         "STOP",
 		"side":         side,
 		"stopPrice":    priceStr,
+		"price":        limitPriceStr,
 		"quantity":     qtyStr,
 		"timeInForce":  "GTC",
 	}
@@ -1025,12 +1069,21 @@ func (t *AsterTrader) SetTakeProfit(symbol string, positionSide string, quantity
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
+	// 计算并格式化 Stop Limit Price (TP)
+	limitPrice := CalculateStopLimitPrice(positionSide, takeProfitPrice, 0)
+	formattedLimitPrice, err := t.formatPrice(symbol, limitPrice)
+	if err != nil {
+		return err
+	}
+	limitPriceStr := t.formatFloatWithPrecision(formattedLimitPrice, prec.PricePrecision)
+
 	params := map[string]interface{}{
 		"symbol":       symbol,
 		"positionSide": "BOTH",
-		"type":         "TAKE_PROFIT_MARKET",
+		"type":         "TAKE_PROFIT",
 		"side":         side,
 		"stopPrice":    priceStr,
+		"price":        limitPriceStr,
 		"quantity":     qtyStr,
 		"timeInForce":  "GTC",
 	}

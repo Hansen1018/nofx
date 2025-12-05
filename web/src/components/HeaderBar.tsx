@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { t, type Language } from '../i18n/translations'
 import { Container } from './Container'
+import { useSystemConfig } from '../hooks/useSystemConfig'
 
 interface HeaderBarProps {
   onLoginClick?: () => void
@@ -33,6 +34,8 @@ export default function HeaderBar({
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const userDropdownRef = useRef<HTMLDivElement>(null)
+  const { config: systemConfig } = useSystemConfig()
+  const registrationEnabled = systemConfig?.registration_enabled !== false
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -71,12 +74,6 @@ export default function HeaderBar({
             style={{ color: 'var(--brand-yellow)' }}
           >
             NOFX
-          </span>
-          <span
-            className="text-sm hidden sm:block"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            Agentic Trading OS
           </span>
         </Link>
 
@@ -245,6 +242,50 @@ export default function HeaderBar({
                   )}
 
                   {t('faqNav', language)}
+                </button>
+
+                {/* Prompts Navigation Button */}
+                <button
+                  onClick={() => {
+                    if (onPageChange) {
+                      onPageChange('prompts')
+                    } else {
+                      navigate('/prompts')
+                    }
+                  }}
+                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  style={{
+                    color:
+                      currentPage === 'prompts'
+                        ? 'var(--brand-yellow)'
+                        : 'var(--brand-light-gray)',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentPage !== 'prompts') {
+                      e.currentTarget.style.color = 'var(--brand-yellow)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentPage !== 'prompts') {
+                      e.currentTarget.style.color = 'var(--brand-light-gray)'
+                    }
+                  }}
+                >
+                  {/* Background for selected state */}
+                  {currentPage === 'prompts' && (
+                    <span
+                      className="absolute inset-0 rounded-lg"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.15)',
+                        zIndex: -1,
+                      }}
+                    />
+                  )}
+
+                  {t('promptsNav', language)}
                 </button>
               </>
             ) : (
@@ -464,19 +505,42 @@ export default function HeaderBar({
                   >
                     {t('signIn', language)}
                   </a>
-                  <a
-                    href="/register"
-                    className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
-                    style={{
-                      background: 'var(--brand-yellow)',
-                      color: 'var(--brand-black)',
-                    }}
-                  >
-                    {t('signUp', language)}
-                  </a>
+                  {registrationEnabled && (
+                    <a
+                      href="/register"
+                      className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
+                      style={{
+                        background: 'var(--brand-yellow)',
+                        color: 'var(--brand-black)',
+                      }}
+                    >
+                      {t('signUp', language)}
+                    </a>
+                  )}
                 </div>
               )
             )}
+
+            {/* Git Branch Badge - Before Language Toggle */}
+            {typeof __GIT_BRANCH__ !== 'undefined' &&
+              __GIT_BRANCH__ !== 'unknown' &&
+              __GIT_BRANCH__ !== 'main' &&
+              __GIT_BRANCH__ !== 'master' && (
+                <a
+                  href="https://github.com/the-dev-z/nofx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors hover:opacity-80"
+                  style={{
+                    background: 'rgba(240, 185, 11, 0.1)',
+                    color: 'var(--brand-yellow)',
+                    border: '1px solid rgba(240, 185, 11, 0.2)',
+                  }}
+                  title={`Fork maintained by the-dev-z • Branch: ${__GIT_BRANCH__}`}
+                >
+                  <span className="text-xs font-medium">{__GIT_BRANCH__}</span>
+                </a>
+              )}
 
             {/* Language Toggle - Always at the rightmost */}
             <div className="relative" ref={dropdownRef}>
@@ -754,6 +818,42 @@ export default function HeaderBar({
 
                 {t('faqNav', language)}
               </button>
+
+              {/* Prompts Navigation Button - Mobile */}
+              <button
+                onClick={() => {
+                  if (onPageChange) {
+                    onPageChange('prompts')
+                  } else {
+                    navigate('/prompts')
+                  }
+                  setMobileMenuOpen(false)
+                }}
+                className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                style={{
+                  color:
+                    currentPage === 'prompts'
+                      ? 'var(--brand-yellow)'
+                      : 'var(--brand-light-gray)',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  position: 'relative',
+                  textAlign: 'left',
+                }}
+              >
+                {/* Background for selected state */}
+                {currentPage === 'prompts' && (
+                  <span
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.15)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+
+                {t('promptsNav', language)}
+              </button>
             </>
           )}
 
@@ -901,17 +1001,19 @@ export default function HeaderBar({
                 >
                   {t('signIn', language)}
                 </a>
-                <a
-                  href="/register"
-                  className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
-                  style={{
-                    background: 'var(--brand-yellow)',
-                    color: 'var(--brand-black)',
-                  }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('signUp', language)}
-                </a>
+                {registrationEnabled && (
+                  <a
+                    href="/register"
+                    className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
+                    style={{
+                      background: 'var(--brand-yellow)',
+                      color: 'var(--brand-black)',
+                    }}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t('signUp', language)}
+                  </a>
+                )}
               </div>
             )}
         </div>

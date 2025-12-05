@@ -31,6 +31,8 @@ func TestUpdateExchange_EmptyValuesShouldNotOverwrite(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -63,6 +65,8 @@ func TestUpdateExchange_EmptyValuesShouldNotOverwrite(t *testing.T) {
 		"",
 		"",
 		"", // 空 aster_private_key - 不应该覆盖
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -112,6 +116,8 @@ func TestUpdateExchange_AsterEmptyValuesShouldNotOverwrite(t *testing.T) {
 		"0xAsterUser",
 		"0xAsterSigner",
 		initialAsterKey,
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化 Aster 失败: %v", err)
@@ -129,6 +135,8 @@ func TestUpdateExchange_AsterEmptyValuesShouldNotOverwrite(t *testing.T) {
 		"0xAsterUser",
 		"0xAsterSigner",
 		"", // 空 aster_private_key
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -164,6 +172,8 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -184,6 +194,8 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -225,6 +237,8 @@ func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -242,6 +256,8 @@ func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("部分更新失败: %v", err)
@@ -304,7 +320,9 @@ func TestUpdateExchange_MultipleExchangeTypes(t *testing.T) {
 				"",
 				"",
 				"",
-			)
+					"", // lighterWalletAddr
+		"", // lighterPrivateKey
+	)
 			if err != nil {
 				t.Fatalf("创建 %s 失败: %v", tc.exchangeID, err)
 			}
@@ -358,6 +376,8 @@ func TestUpdateExchange_MixedSensitiveFields(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -375,6 +395,8 @@ func TestUpdateExchange_MixedSensitiveFields(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新1失败: %v", err)
@@ -400,6 +422,8 @@ func TestUpdateExchange_MixedSensitiveFields(t *testing.T) {
 		"",
 		"",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新2失败: %v", err)
@@ -439,6 +463,8 @@ func TestUpdateExchange_OnlyNonSensitiveFields(t *testing.T) {
 		"0xUser1",
 		"0xSigner1",
 		"aster-private-key-1",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -456,6 +482,8 @@ func TestUpdateExchange_OnlyNonSensitiveFields(t *testing.T) {
 		"0xUser2",
 		"0xSigner2",
 		"",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -507,6 +535,8 @@ func TestUpdateExchange_AllSensitiveFieldsUpdate(t *testing.T) {
 		"",
 		"",
 		"old-aster-key",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -524,6 +554,8 @@ func TestUpdateExchange_AllSensitiveFieldsUpdate(t *testing.T) {
 		"0xUser",
 		"0xSigner",
 		"new-aster-key",
+			"", // lighterWalletAddr
+		"", // lighterPrivateKey
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -670,7 +702,9 @@ func TestDataPersistenceAcrossReopen(t *testing.T) {
 			"",
 			"",
 			"",
-		)
+				"", // lighterWalletAddr
+		"", // lighterPrivateKey
+	)
 		if err != nil {
 			t.Fatalf("写入数据失败: %v", err)
 		}
@@ -745,7 +779,9 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 				"",
 				"",
 				"",
-			)
+					"", // lighterWalletAddr
+		"", // lighterPrivateKey
+	)
 			if err != nil {
 				errors <- err
 			}
@@ -769,7 +805,9 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 				"",
 				"",
 				"",
-			)
+					"", // lighterWalletAddr
+		"", // lighterPrivateKey
+	)
 			if err != nil {
 				errors <- err
 			}
@@ -795,5 +833,72 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 	// 我们允许最多 2 个错误
 	if errorCount > 2 {
 		t.Errorf("并发写入失败次数过多: %d", errorCount)
+	}
+}
+
+// TestUpdateAIModel_EmptyAPIKeyShouldNotOverwrite 测试 AI 模型更新时，空 API Key 不应覆盖现有值
+func TestUpdateAIModel_EmptyAPIKeyShouldNotOverwrite(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-ai"
+	// 创建用户
+	user := &User{ID: userID, Email: "ai@test.com"}
+	db.CreateUser(user)
+
+	// 1. 创建初始 AI 模型（带 Key）
+	initialKey := "sk-deepseek-key-123"
+	modelID := "deepseek-model"
+	expectedID := userID + "_" + modelID
+
+	err := db.UpdateAIModel(userID, modelID, true, initialKey, "", "")
+	if err != nil {
+		t.Fatalf("初始化 AI 模型失败: %v", err)
+	}
+
+	// 2. 验证初始 Key 已保存
+	models, err := db.GetAIModels(userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range models {
+		if m.ID == expectedID {
+			found = true
+			if m.APIKey != initialKey {
+				t.Errorf("初始 Key 保存失败。期望 %s, 实际 %s", initialKey, m.APIKey)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("模型未找到, 期望 ID: %s", expectedID)
+	}
+
+	// 3. 用空 Key 更新（模拟前端全量保存时的行为）
+	// 目标：只更新 enabled 状态，不更新 Key
+	// 注意：必须使用已生成的 expectedID 进行更新，否则可能会创建新记录
+	err = db.UpdateAIModel(userID, expectedID, false, "", "https://custom.url", "")
+	if err != nil {
+		t.Fatalf("更新 AI 模型失败: %v", err)
+	}
+
+	// 4. 验证 Key 是否被覆盖
+	models, err = db.GetAIModels(userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, m := range models {
+		if m.ID == expectedID {
+			if m.APIKey != initialKey {
+				t.Errorf("❌ Bug 确认：AI 模型 API Key 被空值覆盖了！期望 %s，实际为空", initialKey)
+			}
+			if m.CustomAPIURL != "https://custom.url" {
+				t.Error("其他字段应该正常更新")
+			}
+			if m.Enabled != false {
+				t.Error("Enabled 状态应该正常更新")
+			}
+		}
 	}
 }
