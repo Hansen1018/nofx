@@ -4,13 +4,24 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
 **Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md)
 
-**Official Twitter:** [@nofx_ai](https://x.com/nofx_ai)
-
 **📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Prompt Writing Guide](docs/prompt-guide.md) ([中文](docs/prompt-guide.zh-CN.md)) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
+
+---
+
+> ## ⚠️ Experimental Community Fork (Unofficial)
+>
+> **🔬 This is an experimental, independently maintained fork by individual developers.**
+>
+> - 🚨 **Not Official**: This is NOT the official NOFX version
+> - 🧪 **Experimental Features**: Contains experimental fixes and features under testing
+> - 👤 **Independent Maintenance**: Maintained by [the-dev-z](https://github.com/the-dev-z)
+> - 🔗 **Upstream**: Based on [tinkle-community/nofx](https://github.com/tinkle-community/nofx)
+> - 💬 **Feedback**: Report issues at [Issues](https://github.com/the-dev-z/nofx/issues)
+>
+> **Use at your own risk. For production use, consider the official upstream version.**
 
 ---
 
@@ -24,12 +35,13 @@
 - [🔮 Roadmap](#-roadmap---universal-market-expansion)
 - [🏗️ Technical Architecture](#️-technical-architecture)
 - [💰 Register Binance Account](#-register-binance-account-save-on-fees)
+- [🔷 Register Hyperliquid Account](#-using-hyperliquid-exchange)
+- [🔶 Register Aster DEX Account](#-using-aster-dex-exchange)
 - [🚀 Quick Start](#-quick-start)
 - [📖 AI Decision Flow](#-ai-decision-flow)
 - [🧠 AI Self-Learning](#-ai-self-learning-example)
 - [📊 Web Interface Features](#-web-interface-features)
 - [🎛️ API Endpoints](#️-api-endpoints)
-- [🔐 Admin Mode (Single-User)](#-admin-mode-single-user) 
 - [⚠️ Important Risk Warnings](#️-important-risk-warnings)
 - [🛠️ Common Issues](#️-common-issues)
 - [📈 Performance Tips](#-performance-optimization-tips)
@@ -48,21 +60,6 @@
 - **Universal Data & Backtesting Layer**: Cross-market, cross-timeframe, cross-exchange unified representation and factor library, accumulating transferable "strategy memory"
 - **Multi-Agent Self-Play & Self-Evolution**: Strategies automatically compete and select the best, continuously iterating based on account-level PnL and risk constraints
 - **Integrated Execution & Risk Control**: Low-latency routing, slippage/risk control sandbox, account-level limits, one-click market switching
-
-### 🏢 Backed by [Amber.ac](https://amber.ac)
-
-### 👥 Core Team
-
-- **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Zack** - [@0x_ZackH](https://x.com/0x_ZackH)
-
-### 💼 Seed Funding Round Open
-
-We are currently raising our **seed round**. 
-
-**For investment inquiries**, please DM **Tinkle** or **Zack** via Twitter.
-
-**For partnerships and collaborations**, please DM our official Twitter [@nofx_ai](https://x.com/nofx_ai).
 
 ---
 
@@ -125,7 +122,7 @@ A Binance-compatible decentralized perpetual futures exchange!
 - 🌐 **Multi-chain support** - trade on your preferred EVM chain
 
 **Quick Start:**
-1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/fdfc0e) (get fee discounts!)
+1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/3E58dc) (get fee discounts!)
 2. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
 3. Connect your main wallet and create an API wallet
 4. Copy the API Signer address and Private Key
@@ -243,53 +240,11 @@ NOFX is built with a modern, modular architecture:
 
 ---
 
-## 🔐 Admin Mode (Single-User)
-
-For self-hosted or single-tenant setups, NOFX supports a strict admin-only mode that disables public features and requires an admin password for all access.
-
-### How it works
-- All API endpoints require a valid JWT when `admin_mode=true`, except:
-  - `GET /api/health`
-  - `GET /api/config`
-  - `POST /api/admin-login`
-- Logout invalidates the current token via an in-memory blacklist (sufficient for single instance; use Redis for multi-instance – see Notes).
-
-### Quick setup
-1) Set flags in `config.json`:
-```jsonc
-{
-  // ... other config
-  "admin_mode": true,
-  "jwt_secret": "YOUR_JWT_SCR" 
-}
-```
-
-2) Provide required environment variables:
-- `NOFX_ADMIN_PASSWORD` — plaintext admin password (only used at startup to derive a bcrypt hash)
-
-Docker Compose example (already wired):
-```yaml
-services:
-  nofx:
-    environment:
-      - NOFX_ADMIN_PASSWORD=${NOFX_ADMIN_PASSWORD}
-```
-
-1) Login flow (admin mode):
-- Open the web UI → you’ll be redirected to the login page
-- Enter admin password → the server returns a JWT
-- The UI stores the token and authenticates subsequent API calls
-
-### Notes
-- Token lifetime: 24h. On logout, tokens are blacklisted in-memory until expiry. For multi-instance deployments, use a shared store (e.g., Redis) to sync the blacklist.
-
----
-
 ## 💰 Register Binance Account (Save on Fees!)
 
 Before using this system, you need a Binance Futures account. **Use our referral link to save on trading fees:**
 
-**🎁 [Register Binance - Get Fee Discount](https://www.binance.com/join?ref=TINKLEVIP)**
+**🎁 [Register Binance - Get Fee Discount](https://www.binance.com/join?ref=SA020XCM)**
 
 ### Registration Steps:
 
@@ -323,14 +278,36 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 
 #### Step 1: Prepare Configuration
 ```bash
-# Copy configuration template
-cp config.json.example config.json
+# 1. Copy environment variables template
+cp .env.example .env
 
-# Edit and fill in your API keys
-nano config.json  # or use any editor
+# 2. Generate security keys (REQUIRED!)
+# Option A: Use the setup script (Recommended)
+chmod +x scripts/setup-env.sh
+./scripts/setup-env.sh
+
+# Option B: Generate manually
+# Generate DATA_ENCRYPTION_KEY (Required - protects your API keys in database)
+openssl rand -base64 32
+# Edit .env and set: DATA_ENCRYPTION_KEY=<your-generated-key>
+
+# Generate JWT_SECRET (Required for user authentication)
+openssl rand -base64 64
+# Edit .env and set: JWT_SECRET=<your-generated-key>
+
+nano .env  # Edit and paste your generated keys
+
+# 3. Copy configuration template
+cp config.json.example config.json
 ```
 
-⚠️ **Note**: Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
+⚠️ **Security Notes**:
+- **DATA_ENCRYPTION_KEY** is **REQUIRED** - encrypts API keys stored in database
+- **JWT_SECRET** is required for user authentication
+- ❌ **Do NOT use the example key** `PLEASE_GENERATE_YOUR_OWN_KEY_HERE`
+- Set **ENVIRONMENT=production** in .env for production deployment
+- Set **TRUST_PROXY=true** if deploying behind Nginx/Caddy reverse proxy
+- Configure **CORS_ALLOWED_ORIGINS** if deploying to a custom domain
 
 #### Step 2: One-Click Start
 ```bash
@@ -380,7 +357,7 @@ Open your browser and visit: **http://localhost:3000**
 ### 1. Environment Requirements
 
 - **Go 1.21+**
-- **Node.js 18+**
+- **Node.js 20+** (see `.nvmrc` for the exact tested version)
 - **TA-Lib** library (technical indicator calculation)
 
 #### Installing TA-Lib
@@ -400,7 +377,7 @@ sudo apt-get install libta-lib0-dev
 ### 2. Clone the Project
 
 ```bash
-git clone https://github.com/tinkle-community/nofx.git
+git clone https://github.com/the-dev-z/nofx.git
 cd nofx
 ```
 
@@ -417,6 +394,8 @@ cd web
 npm install
 cd ..
 ```
+
+> Git hooks (husky) are disabled by default during `npm install` to keep Docker builds fast. If you want the web repo hooks locally, run `HUSKY_INSTALL=1 npm install` inside `web/`.
 
 ### 4. Get AI API Keys
 
@@ -532,18 +511,93 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-#### 🔷 Alternative: Using Hyperliquid Exchange
+#### 🔷 Using Hyperliquid Exchange
 
-**NOFX also supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid instead of Binance:
+**NOFX supports Hyperliquid** - a high-performance decentralized perpetual futures exchange!
 
-**Step 1**: Get your Ethereum private key (for Hyperliquid authentication)
+**Why Choose Hyperliquid?**
+- 🚀 **High Performance**: Lightning-fast execution on L1 blockchain
+- 💰 **Low Fees**: Competitive maker/taker fees
+- 🔐 **Non-Custodial**: Your keys, your coins
+- 🌐 **No KYC**: Anonymous trading
+- 💎 **Deep Liquidity**: Institutional-grade order book
 
-1. Open **MetaMask** (or any Ethereum wallet)
-2. Export your private key
-3. **Remove the `0x` prefix** from the key
-4. Fund your wallet on [Hyperliquid](https://hyperliquid.xyz)
+---
 
-**Step 2**: ~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
+### 📝 Registration & Setup Guide
+
+**Step 1: Register Hyperliquid Account**
+
+1. **Visit Hyperliquid with Referral Link** (get benefits!):
+
+   **🎁 [Register Hyperliquid - Join NOFXAI](https://app.hyperliquid.xyz/join/NOFXAI)**
+
+2. **Connect Your Wallet**:
+   - Click "Connect Wallet" on the top right
+   - Choose MetaMask, WalletConnect, or other Web3 wallets
+   - Approve the connection
+
+3. **Enable Trading**:
+   - First connection will prompt you to sign a message
+   - This authorizes your wallet for trading (no gas fees)
+   - You'll see your wallet address displayed
+
+**Step 2: Fund Your Wallet**
+
+1. **Bridge Assets to Arbitrum**:
+   - Hyperliquid runs on Arbitrum L2
+   - Bridge USDC from Ethereum mainnet or other chains
+   - Or directly withdraw USDC from exchanges to Arbitrum
+
+2. **Deposit to Hyperliquid**:
+   - Click "Deposit" on Hyperliquid interface
+   - Select USDC amount to deposit
+   - Confirm the transaction (small gas fee on Arbitrum)
+   - Funds appear in your Hyperliquid account within seconds
+
+**Step 3: Set Up Agent Wallet (Recommended)**
+
+Hyperliquid supports **Agent Wallets** - secure sub-wallets specifically for trading automation!
+
+⚠️ **Why Use Agent Wallet:**
+- ✅ **More Secure**: Never expose your main wallet private key
+- ✅ **Limited Access**: Agent only has trading permissions
+- ✅ **Revocable**: Can be disabled anytime from Hyperliquid interface
+- ✅ **Separate Funds**: Keep main holdings safe
+
+**How to Create Agent Wallet:**
+
+1. **Log in to Hyperliquid** using your main wallet
+   - Visit [https://app.hyperliquid.xyz](https://app.hyperliquid.xyz)
+   - Connect with the wallet you registered (from referral link)
+
+2. **Navigate to Agent Settings**:
+   - Click on your wallet address (top right)
+   - Go to "Settings" → "API & Agents"
+   - Or visit: [https://app.hyperliquid.xyz/agents](https://app.hyperliquid.xyz/agents)
+
+3. **Create New Agent**:
+   - Click "Create Agent" or "Add Agent"
+   - System will generate a new agent wallet automatically
+   - **Save the agent wallet address** (starts with `0x`)
+   - **Save the agent private key** (shown only once!)
+
+4. **Agent Wallet Details**:
+   - Main Wallet: Your connected wallet (holds funds)
+   - Agent Wallet: The sub-wallet for trading (NOFX will use this)
+   - Private Key: Only needed for NOFX configuration
+
+5. **Fund Your Agent** (Optional):
+   - Transfer USDC from main wallet to agent wallet
+   - Or keep funds in main wallet (agent can trade from it)
+
+6. **Save Credentials for NOFX**:
+   - Main Wallet Address: `0xYourMainWalletAddress` (with `0x`)
+   - Agent Private Key: `YourAgentPrivateKeyWithout0x` (remove `0x` prefix)
+
+---
+
+~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
 
 ```json
 {
@@ -576,9 +630,9 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-#### 🔶 Alternative: Using Aster DEX Exchange
+#### 🔶 Using Aster DEX Exchange
 
-**NOFX also supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
+**NOFX supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
 
 **Why Choose Aster?**
 - 🎯 Binance-compatible API (easy migration)
@@ -589,7 +643,7 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 **Step 1**: Register and Create Aster API Wallet
 
-1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/fdfc0e) (get fee discounts!)
+1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/3E58dc) (get fee discounts!)
 2. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
 3. Connect your main wallet (MetaMask, WalletConnect, etc.)
 4. Click "Create API Wallet"
@@ -1317,7 +1371,7 @@ We welcome contributions from the community! See our comprehensive guides:
 
 
 ### 🐛 Technical Support
-- **GitHub Issues**: [Submit an Issue](https://github.com/tinkle-community/nofx/issues)
+- **GitHub Issues**: [Submit an Issue](https://github.com/the-dev-z/nofx/issues)
 - **Developer Community**: [Telegram Group](https://t.me/nofx_dev_community)
 
 ---
@@ -1335,9 +1389,3 @@ We welcome contributions from the community! See our comprehensive guides:
 **Last Updated**: 2025-10-30 (v3.0.0)
 
 **⚡ Explore the possibilities of quantitative trading with the power of AI!**
-
----
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=tinkle-community/nofx&type=Date)](https://star-history.com/#tinkle-community/nofx&Date)

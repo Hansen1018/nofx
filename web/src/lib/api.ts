@@ -5,6 +5,7 @@ import type {
   DecisionRecord,
   Statistics,
   TraderInfo,
+  TraderConfigData,
   AIModel,
   Exchange,
   CreateTraderRequest,
@@ -94,7 +95,7 @@ export const api = {
     if (!res.ok) throw new Error('更新自定义策略失败')
   },
 
-  async getTraderConfig(traderId: string): Promise<any> {
+  async getTraderConfig(traderId: string): Promise<TraderConfigData> {
     const res = await httpClient.get(
       `${API_BASE}/traders/${traderId}/config`,
       getAuthHeaders()
@@ -131,32 +132,50 @@ export const api = {
   },
 
   async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
-    // 获取RSA公钥
-    const publicKey = await CryptoService.fetchPublicKey()
+    try {
+      // 获取RSA公钥
+      const publicKey = await CryptoService.fetchPublicKey()
 
-    // 初始化加密服务
-    await CryptoService.initialize(publicKey)
+      // 初始化加密服务
+      await CryptoService.initialize(publicKey)
 
-    // 获取用户信息（从localStorage或其他地方）
-    const userId = localStorage.getItem('user_id') || ''
-    const sessionId = sessionStorage.getItem('session_id') || ''
+      // 获取用户信息（从localStorage或其他地方）
+      const userId = localStorage.getItem('user_id') || ''
+      const sessionId = sessionStorage.getItem('session_id') || ''
 
-    // 加密敏感数据
-    const encryptedPayload = await CryptoService.encryptSensitiveData(
-      JSON.stringify(request),
-      userId,
-      sessionId
-    )
+      // 加密敏感数据
+      const encryptedPayload = await CryptoService.encryptSensitiveData(
+        JSON.stringify(request),
+        userId,
+        sessionId
+      )
 
-    // 发送加密数据
-    const res = await httpClient.put(
-      `${API_BASE}/models`,
-      encryptedPayload,
-      getAuthHeaders()
-    )
-    if (!res.ok) throw new Error('更新模型配置失败')
+      // 发送加密数据
+      const res = await httpClient.put(
+        `${API_BASE}/models`,
+        encryptedPayload,
+        getAuthHeaders()
+      )
+      if (!res.ok) {
+        // 尝试获取服务器返回的具体错误信息
+        try {
+          const errorData = await res.json()
+          throw new Error(errorData.error || '更新模型配置失败')
+        } catch {
+          throw new Error('更新模型配置失败')
+        }
+      }
+    } catch (error) {
+      // 区分加密错误和服务器错误
+      if (error instanceof Error) {
+        if (error.message.includes('Crypto') || error.message.includes('encrypt')) {
+          throw new Error('加密失败：请确保使用 HTTPS 或 localhost 访问')
+        }
+        throw error
+      }
+      throw new Error('更新模型配置失败')
+    }
   },
-
 
   // 交易所配置接口
   async getExchangeConfigs(): Promise<Exchange[]> {
@@ -187,30 +206,49 @@ export const api = {
   async updateExchangeConfigsEncrypted(
     request: UpdateExchangeConfigRequest
   ): Promise<void> {
-    // 获取RSA公钥
-    const publicKey = await CryptoService.fetchPublicKey()
+    try {
+      // 获取RSA公钥
+      const publicKey = await CryptoService.fetchPublicKey()
 
-    // 初始化加密服务
-    await CryptoService.initialize(publicKey)
+      // 初始化加密服务
+      await CryptoService.initialize(publicKey)
 
-    // 获取用户信息（从localStorage或其他地方）
-    const userId = localStorage.getItem('user_id') || ''
-    const sessionId = sessionStorage.getItem('session_id') || ''
+      // 获取用户信息（从localStorage或其他地方）
+      const userId = localStorage.getItem('user_id') || ''
+      const sessionId = sessionStorage.getItem('session_id') || ''
 
-    // 加密敏感数据
-    const encryptedPayload = await CryptoService.encryptSensitiveData(
-      JSON.stringify(request),
-      userId,
-      sessionId
-    )
+      // 加密敏感数据
+      const encryptedPayload = await CryptoService.encryptSensitiveData(
+        JSON.stringify(request),
+        userId,
+        sessionId
+      )
 
-    // 发送加密数据
-    const res = await httpClient.put(
-      `${API_BASE}/exchanges`,
-      encryptedPayload,
-      getAuthHeaders()
-    )
-    if (!res.ok) throw new Error('更新交易所配置失败')
+      // 发送加密数据
+      const res = await httpClient.put(
+        `${API_BASE}/exchanges`,
+        encryptedPayload,
+        getAuthHeaders()
+      )
+      if (!res.ok) {
+        // 尝试获取服务器返回的具体错误信息
+        try {
+          const errorData = await res.json()
+          throw new Error(errorData.error || '更新交易所配置失败')
+        } catch {
+          throw new Error('更新交易所配置失败')
+        }
+      }
+    } catch (error) {
+      // 区分加密错误和服务器错误
+      if (error instanceof Error) {
+        if (error.message.includes('Crypto') || error.message.includes('encrypt')) {
+          throw new Error('加密失败：请确保使用 HTTPS 或 localhost 访问')
+        }
+        throw error
+      }
+      throw new Error('更新交易所配置失败')
+    }
   },
 
   // 获取系统状态（支持trader_id）
@@ -261,12 +299,21 @@ export const api = {
     return res.json()
   },
 
-  // 获取最新决策（支持trader_id）
-  async getLatestDecisions(traderId?: string): Promise<DecisionRecord[]> {
-    const url = traderId
-      ? `${API_BASE}/decisions/latest?trader_id=${traderId}`
-      : `${API_BASE}/decisions/latest`
-    const res = await httpClient.get(url, getAuthHeaders())
+  // 获取最新决策（支持trader_id和limit参数）
+  async getLatestDecisions(
+    traderId?: string,
+    limit: number = 5
+  ): Promise<DecisionRecord[]> {
+    const params = new URLSearchParams()
+    if (traderId) {
+      params.append('trader_id', traderId)
+    }
+    params.append('limit', limit.toString())
+
+    const res = await httpClient.get(
+      `${API_BASE}/decisions/latest?${params}`,
+      getAuthHeaders()
+    )
     if (!res.ok) throw new Error('获取最新决策失败')
     return res.json()
   },

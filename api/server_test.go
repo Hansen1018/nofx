@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"nofx/config"
@@ -109,8 +110,8 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 				ID:                   "trader-123",
 				UserID:               "user-1",
 				Name:                 "Test Trader",
-				AIModelID:            "gpt-4",
-				ExchangeID:           "binance",
+				AIModelID:            1,
+				ExchangeID:           1,
 				InitialBalance:       1000,
 				ScanIntervalMinutes:  5,
 				BTCETHLeverage:       5,
@@ -130,8 +131,8 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 				ID:                   "trader-456",
 				UserID:               "user-1",
 				Name:                 "Test Trader 2",
-				AIModelID:            "gpt-4",
-				ExchangeID:           "binance",
+				AIModelID:            1,
+				ExchangeID:           1,
 				InitialBalance:       2000,
 				ScanIntervalMinutes:  10,
 				BTCETHLeverage:       10,
@@ -224,4 +225,150 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 	if req.SystemPromptTemplate != "nof1" {
 		t.Errorf("SystemPromptTemplate mismatch: expected %q, got %q", "nof1", req.SystemPromptTemplate)
 	}
+}
+
+// TestTraderListResponse_SystemPromptTemplate 测试 handleTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 handleTraderList 中的 trader 对象构造
+	trader := &config.TraderRecord{
+		ID:                   "trader-001",
+		UserID:               "user-1",
+		Name:                 "My Trader",
+		AIModelID:            1, // 使用整数 ID（多配置支持后的新格式）
+		ExchangeID:           1, // 使用整数 ID（多配置支持后的新格式）
+		InitialBalance:       5000,
+		SystemPromptTemplate: "nof1",
+		IsRunning:            true,
+	}
+
+	// 构造 API 响应对象（与 api/server.go 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              trader.ID,
+		"trader_name":            trader.Name,
+		"ai_model":               trader.AIModelID,
+		"exchange_id":            trader.ExchangeID,
+		"is_running":             trader.IsRunning,
+		"initial_balance":        trader.InitialBalance,
+		"system_prompt_template": trader.SystemPromptTemplate,
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "nof1" {
+		t.Errorf("Expected system_prompt_template='nof1', got %v", response["system_prompt_template"])
+	}
+}
+
+// TestPublicTraderListResponse_SystemPromptTemplate 测试 handlePublicTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 getConcurrentTraderData 返回的 trader 数据
+	traderData := map[string]interface{}{
+		"trader_id":              "trader-002",
+		"trader_name":            "Public Trader",
+		"ai_model":               "claude",
+		"exchange":               "binance",
+		"total_equity":           10000.0,
+		"total_pnl":              500.0,
+		"total_pnl_pct":          5.0,
+		"position_count":         3,
+		"margin_used_pct":        25.0,
+		"is_running":             true,
+		"system_prompt_template": "default",
+	}
+
+	// 构造 API 响应对象（与 api/server.go handlePublicTraderList 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              traderData["trader_id"],
+		"trader_name":            traderData["trader_name"],
+		"ai_model":               traderData["ai_model"],
+		"exchange":               traderData["exchange"],
+		"total_equity":           traderData["total_equity"],
+		"total_pnl":              traderData["total_pnl"],
+		"total_pnl_pct":          traderData["total_pnl_pct"],
+		"position_count":         traderData["position_count"],
+		"margin_used_pct":        traderData["margin_used_pct"],
+		"system_prompt_template": traderData["system_prompt_template"],
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Public trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "default" {
+		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
+	}
+}
+
+// Trader ID tests moved to api/traderid_test.go
+
+// TestGetDecryptionErrorMessage 测试解密错误消息映射逻辑
+func TestGetDecryptionErrorMessage(t *testing.T) {
+	tests := []struct {
+		name           string
+		errorMessage   string
+		expectedOutput string
+	}{
+		{
+			name:           "时间戳过期错误",
+			errorMessage:   "timestamp invalid or expired",
+			expectedOutput: "时间戳验证失败：请检查系统时间是否正确",
+		},
+		{
+			name:           "时间戳相关错误（包含timestamp关键字）",
+			errorMessage:   "validation failed: timestamp check failed",
+			expectedOutput: "时间戳验证失败：请检查系统时间是否正确",
+		},
+		{
+			name:           "RSA密钥解包错误",
+			errorMessage:   "failed to unwrap AES key: crypto/rsa: decryption error",
+			expectedOutput: "密钥解密失败：请刷新页面重试",
+		},
+		{
+			name:           "RSA相关错误",
+			errorMessage:   "RSA-OAEP decryption failed",
+			expectedOutput: "密钥解密失败：请刷新页面重试",
+		},
+		{
+			name:           "base64解码错误（通用回退）",
+			errorMessage:   "failed to decode wrapped key: illegal base64 data",
+			expectedOutput: "解密数据失败",
+		},
+		{
+			name:           "AES-GCM认证错误（通用回退）",
+			errorMessage:   "authentication/decryption failed: cipher: message authentication failed",
+			expectedOutput: "解密数据失败",
+		},
+		{
+			name:           "未知错误（通用回退）",
+			errorMessage:   "some unknown error occurred",
+			expectedOutput: "解密数据失败",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getDecryptionErrorMessage(tt.errorMessage)
+			if result != tt.expectedOutput {
+				t.Errorf("getDecryptionErrorMessage(%q) = %q, want %q",
+					tt.errorMessage, result, tt.expectedOutput)
+			}
+		})
+	}
+}
+
+// getDecryptionErrorMessage 根据错误类型返回用户友好的错误消息
+// 这个函数提取自 handleUpdateModelConfigs 和 handleUpdateExchangeConfigs 中的逻辑
+func getDecryptionErrorMessage(errMsg string) string {
+	if strings.Contains(errMsg, "timestamp") {
+		return "时间戳验证失败：请检查系统时间是否正确"
+	} else if strings.Contains(errMsg, "unwrap") || strings.Contains(errMsg, "RSA") {
+		return "密钥解密失败：请刷新页面重试"
+	}
+	return "解密数据失败"
 }

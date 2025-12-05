@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
+	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
+	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -40,13 +44,28 @@ type PositionInfo struct {
 	PeakPnLPct       float64 `json:"peak_pnl_pct"` // 历史最高收益率（百分比）
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
-	UpdateTime       int64   `json:"update_time"` // 持仓更新时间戳（毫秒）
+	UpdateTime       int64   `json:"update_time"`           // 持仓更新时间戳（毫秒）
+	StopLoss         float64 `json:"stop_loss,omitempty"`   // 止损价格（用于推断平仓原因）
+	TakeProfit       float64 `json:"take_profit,omitempty"` // 止盈价格（用于推断平仓原因）
+}
+
+// OpenOrderInfo represents an open order for AI decision context
+type OpenOrderInfo struct {
+	Symbol       string  `json:"symbol"`        // Trading pair
+	OrderID      int64   `json:"order_id"`      // Order ID
+	Type         string  `json:"type"`          // Order type: STOP_MARKET, TAKE_PROFIT_MARKET, LIMIT, MARKET
+	Side         string  `json:"side"`          // Order side: BUY, SELL
+	PositionSide string  `json:"position_side"` // Position side: LONG, SHORT, BOTH
+	Quantity     float64 `json:"quantity"`      // Order quantity
+	Price        float64 `json:"price"`         // Limit order price (for limit orders)
+	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop-loss/take-profit orders)
 }
 
 // AccountInfo 账户信息
 type AccountInfo struct {
 	TotalEquity      float64 `json:"total_equity"`      // 账户净值
 	AvailableBalance float64 `json:"available_balance"` // 可用余额
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // 未实现盈亏
 	TotalPnL         float64 `json:"total_pnl"`         // 总盈亏
 	TotalPnLPct      float64 `json:"total_pnl_pct"`     // 总盈亏百分比
 	MarginUsed       float64 `json:"margin_used"`       // 已用保证金
@@ -77,12 +96,19 @@ type Context struct {
 	CallCount       int                     `json:"call_count"`
 	Account         AccountInfo             `json:"account"`
 	Positions       []PositionInfo          `json:"positions"`
+	OpenOrders      []OpenOrderInfo         `json:"open_orders"` // List of open orders for AI context
 	CandidateCoins  []CandidateCoin         `json:"candidate_coins"`
 	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
 	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis，包含 RecentTrades）
 	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	TakerFeeRate    float64                 `json:"-"` // Taker fee rate (from config, default 0.0004)
+	MakerFeeRate    float64                 `json:"-"` // Maker fee rate (from config, default 0.0002)
+	Timeframes      []string                `json:"-"` // K线时间线配置（从trader配置读取）
+
+	// ⚡ 新增：全局市場情緒數據（VIX 恐慌指數 + 美股狀態）
+	GlobalSentiment *market.MarketSentiment `json:"-"` // 全局風險情緒（免費來源：Yahoo Finance + Alpha Vantage）
 }
 
 // Decision AI的交易决策
@@ -119,15 +145,28 @@ type FullDecision struct {
 }
 
 // GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
-func GetFullDecision(ctx *Context, mcpClient *mcp.Client) (*FullDecision, error) {
+func GetFullDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error) {
 	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
 }
 
 // GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
-func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
+func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
 	// 1. 为所有币种获取市场数据
+	fetchStart := time.Now()
 	if err := fetchMarketDataForContext(ctx); err != nil {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)
+	}
+	fetchDuration := time.Since(fetchStart).Seconds()
+	log.Printf("⏱️  市場數據獲取耗時: %.2fs（%d 個幣種）", fetchDuration, len(ctx.MarketDataMap))
+
+	// 1.5. ⚡ 獲取全局市場情緒（VIX + 美股，免費來源）
+	alphaVantageKey := os.Getenv("ALPHA_VANTAGE_API_KEY") // 可選，用於美股數據（免費 500 calls/day）
+	sentiment, err := market.FetchMarketSentiment(alphaVantageKey)
+	if err != nil {
+		// 非關鍵數據，失敗不阻塞主流程
+		log.Printf("⚠️  獲取全局市場情緒失敗（不影響交易）: %v", err)
+	} else {
+		ctx.GlobalSentiment = sentiment
 	}
 
 	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
@@ -185,39 +224,83 @@ func fetchMarketDataForContext(ctx *Context) error {
 		symbolSet[coin.Symbol] = true
 	}
 
-	// 并发获取市场数据
+	// ✅ 优化：并发获取市场数据（提升性能 5-10x）
 	// 持仓币种集合（用于判断是否跳过OI检查）
 	positionSymbols := make(map[string]bool)
 	for _, pos := range ctx.Positions {
 		positionSymbols[pos.Symbol] = true
 	}
 
+	// 并发获取市场数据
+	type marketDataResult struct {
+		symbol string
+		data   *market.Data
+		err    error
+	}
+
+	resultChan := make(chan marketDataResult, len(symbolSet))
+	var wg sync.WaitGroup
+
 	for symbol := range symbolSet {
-		data, err := market.Get(symbol)
-		if err != nil {
-			// 单个币种失败不影响整体，只记录错误
+		wg.Add(1)
+		go func(sym string) {
+			defer wg.Done()
+			data, err := market.Get(sym, ctx.Timeframes)
+			resultChan <- marketDataResult{symbol: sym, data: data, err: err}
+		}(symbol)
+	}
+
+	// 等待所有 goroutine 完成
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// 收集结果并应用过滤
+	const minOIThresholdMillions = 15.0 // 可調整：15M(保守) / 10M(平衡) / 8M(寬鬆) / 5M(激進)
+
+	// ✅ 錯誤統計
+	failedSymbols := []string{}
+	filteredSymbols := []string{}
+
+	for result := range resultChan {
+		if result.err != nil {
+			// 收集失敗的幣種（稍後統一報告）
+			failedSymbols = append(failedSymbols, result.symbol)
 			continue
 		}
+
+		data := result.data
+		symbol := result.symbol
 
 		// ⚠️ 流动性过滤：持仓价值低于阈值的币种不做（多空都不做）
 		// 持仓价值 = 持仓量 × 当前价格
 		// 但现有持仓必须保留（需要决策是否平仓）
-		// 💡 OI 門檻配置：用戶可根據風險偏好調整
-		const minOIThresholdMillions = 15.0 // 可調整：15M(保守) / 10M(平衡) / 8M(寬鬆) / 5M(激進)
-
 		isExistingPosition := positionSymbols[symbol]
 		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
 			// 计算持仓价值（USD）= 持仓量 × 当前价格
 			oiValue := data.OpenInterest.Latest * data.CurrentPrice
 			oiValueInMillions := oiValue / 1_000_000 // 转换为百万美元单位
 			if oiValueInMillions < minOIThresholdMillions {
-				log.Printf("⚠️  %s 持仓价值过低(%.2fM USD < %.1fM)，跳过此币种 [持仓量:%.0f × 价格:%.4f]",
-					symbol, oiValueInMillions, minOIThresholdMillions, data.OpenInterest.Latest, data.CurrentPrice)
+				filteredSymbols = append(filteredSymbols, symbol)
 				continue
 			}
 		}
 
 		ctx.MarketDataMap[symbol] = data
+	}
+
+	// ✅ 統一報告結果
+	totalSymbols := len(symbolSet)
+	successCount := len(ctx.MarketDataMap)
+	log.Printf("📊 市場數據獲取完成：成功 %d/%d", successCount, totalSymbols)
+
+	if len(failedSymbols) > 0 {
+		log.Printf("⚠️  數據獲取失敗 (%d): %v", len(failedSymbols), failedSymbols)
+	}
+
+	if len(filteredSymbols) > 0 {
+		log.Printf("🔍 流動性過濾 (%d): %v", len(filteredSymbols), filteredSymbols)
 	}
 
 	// 加载OI Top数据（不影响主流程）
@@ -328,10 +411,37 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("1. 风险回报比: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")
 	sb.WriteString("2. 最多持仓: 3个币种（质量>数量）\n")
 	sb.WriteString(fmt.Sprintf("3. 单币仓位: 山寨%.0f-%.0f U | BTC/ETH %.0f-%.0f U\n",
-		accountEquity*0.8, accountEquity*1.5, accountEquity*5, accountEquity*10))
+		accountEquity*2.5, accountEquity*5, accountEquity*5, accountEquity*10))
 	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆** (⚠️ 严格执行，不可超过)\n", altcoinLeverage, btcEthLeverage))
 	sb.WriteString("5. 保证金: 总使用率 ≤ 90%\n")
-	sb.WriteString("6. 开仓金额: 建议 **≥12 USDT** (交易所最小名义价值 10 USDT + 安全边际)\n\n")
+
+	// 6. 开仓金额：根据账户规模动态提示（使用统一的配置规则）
+	minBTCETH := calculateMinPositionSize("BTCUSDT", accountEquity)
+
+	// 根据账户规模生成不同的提示语
+	var btcEthHint string
+	if accountEquity < btcEthSizeRules[1].MinEquity {
+		// 小账户模式（< 20U）
+		btcEthHint = fmt.Sprintf(" | BTC/ETH≥%.0f USDT (⚠️ 小账户模式，降低门槛)", minBTCETH)
+	} else if accountEquity < btcEthSizeRules[2].MinEquity {
+		// 中型账户（20-100U）
+		btcEthHint = fmt.Sprintf(" | BTC/ETH≥%.0f USDT (根据账户规模动态调整)", minBTCETH)
+	} else {
+		// 大账户（≥100U）
+		btcEthHint = fmt.Sprintf(" | BTC/ETH≥%.0f USDT", minBTCETH)
+	}
+
+	sb.WriteString("6. 开仓金额: 山寨币≥12 USDT")
+	sb.WriteString(btcEthHint)
+	sb.WriteString("\n\n")
+
+	// ⚠️ 重要提醒：防止 AI 误读市场数据中的数字
+	sb.WriteString("⚠️ **重要提醒：计算 position_size_usd 的正确方法**\n\n")
+	sb.WriteString(fmt.Sprintf("- 当前账户净值：**%.2f USDT**\n", accountEquity))
+	sb.WriteString(fmt.Sprintf("- 山寨币开仓范围：**%.0f - %.0f USDT** (净值的 2.5-5 倍)\n", accountEquity*2.5, accountEquity*5))
+	sb.WriteString(fmt.Sprintf("- BTC/ETH开仓范围：**%.0f - %.0f USDT** (净值的 5-10 倍)\n", accountEquity*5, accountEquity*10))
+	sb.WriteString("- ❌ **不要使用市场数据中的任何数字**（如 Open Interest 合约数、Volume、价格等）作为 position_size_usd\n")
+	sb.WriteString("- ✅ **position_size_usd 必须根据账户净值和上述范围计算**\n\n")
 
 	// 3. 输出格式 - 动态生成
 	sb.WriteString("# 输出格式 (严格遵守)\n\n")
@@ -344,13 +454,27 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("<decision>\n")
 	sb.WriteString("```json\n[\n")
 	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300, \"reasoning\": \"下跌趋势+MACD死叉\"},\n", btcEthLeverage, accountEquity*5))
+	sb.WriteString("  {\"symbol\": \"SOLUSDT\", \"action\": \"update_stop_loss\", \"new_stop_loss\": 155, \"reasoning\": \"移动止损至保本位\"},\n")
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\", \"reasoning\": \"止盈离场\"}\n")
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## 字段说明\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | update_stop_loss | update_take_profit | partial_close | hold | wait\n")
 	sb.WriteString("- `confidence`: 0-100（开仓建议≥75）\n")
-	sb.WriteString("- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, reasoning\n\n")
+	sb.WriteString("- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, reasoning\n")
+	sb.WriteString("- update_stop_loss 时必填: new_stop_loss (注意是 new_stop_loss，不是 stop_loss)\n")
+	sb.WriteString("- update_take_profit 时必填: new_take_profit (注意是 new_take_profit，不是 take_profit)\n")
+	sb.WriteString("- partial_close 时必填: close_percentage (0-100)\n\n")
+	sb.WriteString("## 🛡️ 未成交挂单提醒\n\n")
+	sb.WriteString("在「当前持仓」部分，你会看到每个持仓的挂单状态：\n\n")
+	sb.WriteString("- 🛡️ **止损单**: 表示该持仓已有止损保护\n")
+	sb.WriteString("- 🎯 **止盈单**: 表示该持仓已设置止盈目标\n")
+	sb.WriteString("- ⚠️ **该持仓没有止损保护！**: 表示该持仓缺少止损单，需要立即设置\n\n")
+	sb.WriteString("**重要**: \n")
+	sb.WriteString("- ✅ 如果看到 🛡️ 止损单已存在，且你想调整止损价格，仍可使用 `update_stop_loss` 动作（系统会自动取消旧单并设置新单）\n")
+	sb.WriteString("- ⚠️ 如果看到 🛡️ 止损单已存在，且当前止损价格合理，**不要重复发送相同的 update_stop_loss 指令**\n")
+	sb.WriteString("- 🚨 如果看到 ⚠️ **该持仓没有止损保护！**，必须立即使用 `update_stop_loss` 设置止损，否则风险极高\n")
+	sb.WriteString("- 同样规则适用于 `update_take_profit` 和 🎯 止盈单\n\n")
 
 	return sb.String()
 }
@@ -368,6 +492,41 @@ func buildUserPrompt(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
 			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
 			btcData.CurrentMACD, btcData.CurrentRSI7))
+	}
+
+	// ⚡ 全局市場情緒（VIX 恐慌指數 + 美股狀態）
+	if ctx.GlobalSentiment != nil {
+		sb.WriteString("## 📊 全局市場風險情緒\n\n")
+
+		// VIX 恐慌指數
+		if ctx.GlobalSentiment.VIX > 0 {
+			sb.WriteString(fmt.Sprintf("VIX 恐慌指數: %.2f (%s)\n",
+				ctx.GlobalSentiment.VIX, ctx.GlobalSentiment.FearLevel))
+
+			// 根據建議給出風控提示
+			switch ctx.GlobalSentiment.Recommendation {
+			case "normal":
+				sb.WriteString("  → 市場平穩，正常交易\n")
+			case "cautious":
+				sb.WriteString("  → ⚠️  市場輕度恐慌，建議降低槓桿至 5-10x\n")
+			case "defensive":
+				sb.WriteString("  → ⚠️  市場恐慌，建議收緊止損，避免激進操作\n")
+			case "avoid_new_positions":
+				sb.WriteString("  → 🚨 極度恐慌，強烈建議觀望，不要新開倉\n")
+			}
+		}
+
+		// 美股狀態（僅在交易時段顯示）
+		if ctx.GlobalSentiment.USMarket != nil && ctx.GlobalSentiment.USMarket.IsOpen {
+			sb.WriteString(fmt.Sprintf("美股狀態: %s (S&P 500 過去 1h: %+.2f%%)\n",
+				ctx.GlobalSentiment.USMarket.SPXTrend, ctx.GlobalSentiment.USMarket.SPXChange1h))
+
+			if ctx.GlobalSentiment.USMarket.Warning != "" {
+				sb.WriteString(fmt.Sprintf("  %s\n", ctx.GlobalSentiment.USMarket.Warning))
+			}
+		}
+
+		sb.WriteString("\n")
 	}
 
 	// 账户
@@ -397,10 +556,35 @@ func buildUserPrompt(ctx *Context) string {
 				}
 			}
 
-			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 盈亏%+.2f%% | 盈亏金额%+.2f USDT | 最高收益率%.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f%s\n\n",
+			// 计算仓位价值（用于 partial_close 检查）
+			positionValue := math.Abs(pos.Quantity) * pos.MarkPrice
+
+			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 数量%.4f | 仓位价值%.2f USDT | 盈亏%+.2f%% | 盈亏金额%+.2f USDT | 最高收益率%.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f%s\n",
 				i+1, pos.Symbol, strings.ToUpper(pos.Side),
-				pos.EntryPrice, pos.MarkPrice, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
+				pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
 				pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
+
+			// Display stop-loss/take-profit orders for this position to prevent duplicate orders
+			hasStopLoss := false
+
+			for _, order := range ctx.OpenOrders {
+				if order.Symbol != pos.Symbol {
+					continue
+				}
+
+				if order.Type == "STOP_MARKET" || order.Type == "STOP" {
+					sb.WriteString(fmt.Sprintf("   🛡️ 止损单: %.4f (%s)\n", order.StopPrice, order.Side))
+					hasStopLoss = true
+				} else if order.Type == "TAKE_PROFIT_MARKET" || order.Type == "TAKE_PROFIT" {
+					sb.WriteString(fmt.Sprintf("   🎯 止盈单: %.4f (%s)\n", order.StopPrice, order.Side))
+				}
+			}
+
+			if !hasStopLoss {
+				sb.WriteString("   ⚠️ **该持仓没有止损保护！**\n")
+			}
+
+			sb.WriteString("\n")
 
 			// 使用FormatMarketData输出完整市场数据
 			if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
@@ -446,6 +630,60 @@ func buildUserPrompt(ctx *Context) string {
 		if jsonData, err := json.Marshal(ctx.Performance); err == nil {
 			if err := json.Unmarshal(jsonData, &perfData); err == nil {
 				sb.WriteString(fmt.Sprintf("## 📊 夏普比率: %.2f\n\n", perfData.SharpeRatio))
+			}
+		}
+	}
+
+	// 历史交易记录（用于 AI 学习）- 使用 Performance.RecentTrades 以显示完整的盈亏数据
+	if ctx.Performance != nil {
+		// 提取 RecentTrades
+		type PerformanceData struct {
+			RecentTrades []logger.TradeOutcome `json:"recent_trades"`
+		}
+		var perfData PerformanceData
+		if jsonData, err := json.Marshal(ctx.Performance); err == nil {
+			if err := json.Unmarshal(jsonData, &perfData); err == nil && len(perfData.RecentTrades) > 0 {
+				sb.WriteString("## 📜 近期交易记录（最近10笔）\n\n")
+
+				for i, trade := range perfData.RecentTrades {
+					// 判断盈亏（成功/失败）
+					resultIcon := "✅"
+					if trade.PnL < 0 {
+						resultIcon = "❌"
+					}
+
+					// 格式化时间范围
+					openTimeStr := trade.OpenTime.Format("01-02 15:04")
+					closeTimeStr := trade.CloseTime.Format("15:04")
+
+					// 方向大写
+					direction := strings.ToUpper(trade.Side)
+
+					// 止损标记
+					stopLossTag := ""
+					if trade.WasStopLoss {
+						stopLossTag = " 🛡️ 止损"
+					}
+
+					// 格式化盈亏百分比（添加符号）
+					pnlPctStr := fmt.Sprintf("%+.2f%%", trade.PnLPct)
+
+					// 格式化盈亏金额（添加符号）
+					pnlStr := fmt.Sprintf("%+.2f", trade.PnL)
+
+					// 第一行：时间、币种、方向、杠杆
+					sb.WriteString(fmt.Sprintf("%s %d. [%s→%s] %s %s (%dx杠杆)%s\n",
+						resultIcon, i+1, openTimeStr, closeTimeStr,
+						trade.Symbol, direction, trade.Leverage, stopLossTag))
+
+					// 第二行：开倉价 → 平倉价 (盈亏百分比)
+					sb.WriteString(fmt.Sprintf("   开仓: @ %.2f → 平仓: @ %.2f (%s)\n",
+						trade.OpenPrice, trade.ClosePrice, pnlPctStr))
+
+					// 第三行：盈亏金额 | 持仓时长
+					sb.WriteString(fmt.Sprintf("   盈亏: %s USDT | 持仓: %s\n\n",
+						pnlStr, trade.Duration))
+				}
 			}
 		}
 	}
@@ -618,33 +856,58 @@ func fixMissingQuotes(jsonStr string) string {
 	return jsonStr
 }
 
-// validateJSONFormat 验证 JSON 格式，检测常见错误
+// validateJSONFormat validates JSON format and detects common errors
 func validateJSONFormat(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
 
-	// 允许 [ 和 { 之间存在任意空白（含零宽）
+	// Allow any whitespace (including zero-width) between [ and {
 	if !reArrayHead.MatchString(trimmed) {
-		// 检查是否是纯数字/范围数组（常见错误）
+		// Check if it's a pure number/range array (common error)
 		if strings.HasPrefix(trimmed, "[") && !strings.Contains(trimmed[:min(20, len(trimmed))], "{") {
-			return fmt.Errorf("不是有效的决策数组（必须包含对象 {}），实际内容: %s", trimmed[:min(50, len(trimmed))])
+			return fmt.Errorf("not a valid decision array (must contain objects {}), actual content: %s", trimmed[:min(50, len(trimmed))])
 		}
-		return fmt.Errorf("JSON 必须以 [{ 开头（允许空白），实际: %s", trimmed[:min(20, len(trimmed))])
+		return fmt.Errorf("JSON must start with [{ (whitespace allowed), actual: %s", trimmed[:min(20, len(trimmed))])
 	}
 
-	// 检查是否包含范围符号 ~（LLM 常见错误）
+	// Check for range symbol ~ (common LLM error)
 	if strings.Contains(jsonStr, "~") {
-		return fmt.Errorf("JSON 中不可包含范围符号 ~，所有数字必须是精确的单一值")
+		return fmt.Errorf("JSON cannot contain range symbol ~, all numbers must be precise single values")
 	}
 
-	// 检查是否包含千位分隔符（如 98,000）
-	// 使用简单的模式匹配：数字+逗号+3位数字
+	// Check for thousands separators (like 98,000) but skip string values
+	// Parse through JSON and only check numeric contexts
+	if err := checkThousandsSeparatorsOutsideStrings(jsonStr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkThousandsSeparatorsOutsideStrings checks for thousands separators in JSON numbers
+// but ignores commas inside string values
+func checkThousandsSeparatorsOutsideStrings(jsonStr string) error {
+	inString := false
+	escaped := false
+
 	for i := 0; i < len(jsonStr)-4; i++ {
+		// Track string boundaries
+		if jsonStr[i] == '"' && !escaped {
+			inString = !inString
+		}
+		escaped = (jsonStr[i] == '\\' && !escaped)
+
+		// Skip if we're inside a string value
+		if inString {
+			continue
+		}
+
+		// Check for pattern: digit, comma, 3 digits
 		if jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
 			jsonStr[i+1] == ',' &&
 			jsonStr[i+2] >= '0' && jsonStr[i+2] <= '9' &&
 			jsonStr[i+3] >= '0' && jsonStr[i+3] <= '9' &&
 			jsonStr[i+4] >= '0' && jsonStr[i+4] <= '9' {
-			return fmt.Errorf("JSON 数字不可包含千位分隔符逗号，发现: %s", jsonStr[i:min(i+10, len(jsonStr))])
+			return fmt.Errorf("JSON numbers cannot contain thousands separator commas, found: %s", jsonStr[i:min(i+10, len(jsonStr))])
 		}
 	}
 
@@ -701,6 +964,69 @@ func findMatchingBracket(s string, start int) int {
 	return -1
 }
 
+// positionSizeConfig 定义账户规模分层配置
+type positionSizeConfig struct {
+	MinEquity float64 // 账户最小净值阈值
+	MinSize   float64 // 最小开仓金额（0 表示使用线性插值）
+	MaxSize   float64 // 最大开仓金额（用于线性插值）
+}
+
+var (
+	// 配置常量
+	absoluteMinimum = 12.0 // 交易所绝对最小值 (10 USDT + 20% 安全边际)
+	standardBTCETH  = 60.0 // 标准 BTC/ETH 最小值 (因价格高和精度限制)
+
+	// BTC/ETH 动态调整规则（按账户规模分层）
+	btcEthSizeRules = []positionSizeConfig{
+		{MinEquity: 0, MinSize: absoluteMinimum, MaxSize: absoluteMinimum}, // 小账户(<20U): 12 USDT
+		{MinEquity: 20, MinSize: absoluteMinimum, MaxSize: standardBTCETH}, // 中型账户(20-100U): 线性插值
+		{MinEquity: 100, MinSize: standardBTCETH, MaxSize: standardBTCETH}, // 大账户(≥100U): 60 USDT
+	}
+
+	// 山寨币规则（始终使用绝对最小值）
+	altcoinSizeRules = []positionSizeConfig{
+		{MinEquity: 0, MinSize: absoluteMinimum, MaxSize: absoluteMinimum},
+	}
+
+	// 币种规则映射表（易于扩展，添加新币种只需在此添加一行）
+	symbolSizeRules = map[string][]positionSizeConfig{
+		"BTCUSDT": btcEthSizeRules,
+		"ETHUSDT": btcEthSizeRules,
+		// 未来可添加更多币种的特殊规则，例如:
+		// "BNBUSDT": bnbSizeRules,
+		// "SOLUSDT": solSizeRules,
+	}
+)
+
+// calculateMinPositionSize 根据账户净值和币种动态计算最小开仓金额
+func calculateMinPositionSize(symbol string, accountEquity float64) float64 {
+	// 从配置映射表中获取币种规则
+	rules, exists := symbolSizeRules[symbol]
+	if !exists {
+		// 未配置的币种使用山寨币规则（默认绝对最小值）
+		rules = altcoinSizeRules
+	}
+
+	// 根据规则表动态计算
+	for i, rule := range rules {
+		// 找到账户所属的规模区间
+		if i == len(rules)-1 || accountEquity < rules[i+1].MinEquity {
+			// 如果 MinSize == MaxSize，直接返回固定值
+			if rule.MinSize == rule.MaxSize {
+				return rule.MinSize
+			}
+			// 否则使用线性插值
+			nextRule := rules[i+1]
+			equityRange := nextRule.MinEquity - rule.MinEquity
+			sizeRange := rule.MaxSize - rule.MinSize
+			return rule.MinSize + sizeRange*(accountEquity-rule.MinEquity)/equityRange
+		}
+	}
+
+	// 默认返回绝对最小值（理论上不会执行到这里）
+	return absoluteMinimum
+}
+
 // validateDecision 验证单个决策的有效性
 func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	// 验证action
@@ -723,8 +1049,8 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	// 开仓操作必须提供完整参数
 	if d.Action == "open_long" || d.Action == "open_short" {
 		// 根据币种使用配置的杠杆上限
-		maxLeverage := altcoinLeverage          // 山寨币使用配置的杠杆
-		maxPositionValue := accountEquity * 1.5 // 山寨币最多1.5倍账户净值
+		maxLeverage := altcoinLeverage        // 山寨币使用配置的杠杆
+		maxPositionValue := accountEquity * 5 // 山寨币最多5倍账户净值
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 			maxLeverage = btcEthLeverage          // BTC和ETH使用配置的杠杆
 			maxPositionValue = accountEquity * 10 // BTC/ETH最多10倍账户净值
@@ -744,18 +1070,17 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		}
 
 		// ✅ 验证最小开仓金额（防止数量格式化为 0 的错误）
-		// Binance 最小名义价值 10 USDT + 安全边际
-		const minPositionSizeGeneral = 12.0 // 10 + 20% 安全边际
-		const minPositionSizeBTCETH = 60.0  // BTC/ETH 因价格高和精度限制需要更大金额（更灵活）
-
-		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			if d.PositionSizeUSD < minPositionSizeBTCETH {
-				return fmt.Errorf("%s 开仓金额过小(%.2f USDT)，必须≥%.2f USDT（因价格高且精度限制，避免数量四舍五入为0）", d.Symbol, d.PositionSizeUSD, minPositionSizeBTCETH)
+		// 使用动态计算函数，根据账户规模自适应调整
+		minPositionSize := calculateMinPositionSize(d.Symbol, accountEquity)
+		if d.PositionSizeUSD < minPositionSize {
+			// 小账户特殊提示：引导用户理解动态门槛
+			if accountEquity < 20.0 && (d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT") {
+				return fmt.Errorf("%s 开仓金额过小(%.2f USDT)，当前账户规模(%.2f USDT)要求≥%.2f USDT（小账户动态调整）",
+					d.Symbol, d.PositionSizeUSD, accountEquity, minPositionSize)
 			}
-		} else {
-			if d.PositionSizeUSD < minPositionSizeGeneral {
-				return fmt.Errorf("开仓金额过小(%.2f USDT)，必须≥%.2f USDT（Binance 最小名义价值要求）", d.PositionSizeUSD, minPositionSizeGeneral)
-			}
+			// 通用错误提示
+			return fmt.Errorf("开仓金额过小(%.2f USDT)，必须≥%.2f USDT（交易所最小名义价值要求）",
+				d.PositionSizeUSD, minPositionSize)
 		}
 
 		// 验证仓位价值上限（加1%容差以避免浮点数精度问题）
@@ -764,7 +1089,7 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 				return fmt.Errorf("BTC/ETH单币种仓位价值不能超过%.0f USDT（10倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
 			} else {
-				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USDT（1.5倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USDT（5倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
 			}
 		}
 		if d.StopLoss <= 0 || d.TakeProfit <= 0 {

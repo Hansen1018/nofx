@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -43,7 +46,7 @@ func loadConfigFile() (*ConfigFile, error) {
 	// 检查config.json是否存在
 	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
 		log.Printf("📄 config.json不存在，使用默认配置")
-		return &ConfigFile{}, nil
+		return nil, nil
 	}
 
 	// 读取config.json
@@ -150,6 +153,28 @@ func loadBetaCodesToDatabase(database *config.Database) error {
 	return nil
 }
 
+// validateSecurityConfig 验证安全配置
+func validateSecurityConfig() error {
+	// 检查 DATA_ENCRYPTION_KEY 环境变量
+	dataKey := strings.TrimSpace(os.Getenv("DATA_ENCRYPTION_KEY"))
+	if dataKey == "" {
+		return fmt.Errorf("DATA_ENCRYPTION_KEY 环境变量未设置")
+	}
+
+	// 检查密钥长度（base64 编码的 32 字节至少需要 44 个字符）
+	if len(dataKey) < 32 {
+		return fmt.Errorf("DATA_ENCRYPTION_KEY 长度不足 (当前: %d, 最少: 32)", len(dataKey))
+	}
+
+	// 检查是否使用了示例密钥
+	if strings.Contains(dataKey, "PLEASE_GENERATE") || strings.Contains(dataKey, "EXAMPLE") {
+		return fmt.Errorf("检测到示例密钥，请生成真实密钥")
+	}
+
+	log.Printf("✅ 安全配置检查通过")
+	return nil
+}
+
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
@@ -159,6 +184,11 @@ func main() {
 	// Load environment variables from .env file if present (for local/dev runs)
 	// In Docker Compose, variables are injected by the runtime and this is harmless.
 	_ = godotenv.Load()
+
+	// 🔐 安全检查：验证必需的环境变量
+	if err := validateSecurityConfig(); err != nil {
+		log.Fatalf("❌ 安全配置检查失败: %v\n\n💡 请运行以下命令修复:\n   ./scripts/setup-env.sh\n", err)
+	}
 
 	// 初始化数据库配置
 	dbPath := "config.db"
@@ -203,23 +233,56 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
-	// 设置JWT密钥（优先使用环境变量）
+	// 设置JWT密钥（优先级：环境变量 > 数据库自动生成）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
-		// 回退到数据库配置
+		// 尝试从数据库获取（可能是之前自动生成的）
 		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
 		if jwtSecret == "" {
-			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
-			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
+			// 首次运行：自动生成随机密钥并保存到数据库
+			randomBytes := make([]byte, 32)
+			_, err := rand.Read(randomBytes)
+			if err != nil {
+				log.Fatal("❌ 生成随机 JWT 密钥失败:", err)
+			}
+			jwtSecret = base64.StdEncoding.EncodeToString(randomBytes)
+
+			// 保存到数据库（持久化）
+			err = database.SetSystemConfig("jwt_secret", jwtSecret)
+			if err != nil {
+				log.Fatal("❌ 保存 JWT 密钥到数据库失败:", err)
+			}
+
+			log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			log.Println("🔐 首次启动：已自动生成 JWT 密钥")
+			log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			log.Println("")
+			log.Println("✓ 密钥已安全保存到数据库 (config.db)")
+			log.Println("✓ 重启服务后密钥仍然有效，用户无需重新登录")
+			log.Println("")
+			log.Println("📝 生产环境建议（可选）：")
+			log.Println("  使用自定义密钥：export JWT_SECRET='your-secret'")
+			log.Println("")
+			log.Println("⚠️  备份提示：config.db 包含敏感数据，请妥善保管")
+			log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		} else {
-			log.Printf("🔑 使用数据库中JWT密钥")
+			log.Printf("🔑 使用数据库中的 JWT 密钥")
 		}
 	} else {
-		log.Printf("🔑 使用环境变量JWT密钥")
+		log.Printf("🔑 使用环境变量 JWT 密钥（优先级最高）")
 	}
 	auth.SetJWTSecret(jwtSecret)
 
-	// 管理员模式下需要管理员密码，缺失则退出
+	// 获取管理员模式配置（用於自動啟動功能）
+	// 默認為 true，除非顯式設置為 "false"
+	adminModeStr, _ := database.GetSystemConfig("admin_mode")
+	adminMode := adminModeStr != "false"
+
+	if adminMode {
+		log.Printf("ℹ️  Admin mode: enabled (服務重啟時自動恢復運行中的 traders)")
+	} else {
+		log.Printf("ℹ️  Admin mode: disabled (手動啟動模式)")
+	}
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()
@@ -288,8 +351,8 @@ func main() {
 			if trader.IsRunning {
 				status = "运行中"
 			}
-			fmt.Printf("  • %s (%s + %s) - 初始资金: %.0f USDT [%s]\n",
-				trader.Name, strings.ToUpper(trader.AIModelID), strings.ToUpper(trader.ExchangeID),
+			fmt.Printf("  • %s (Model#%d + Exchange#%d) - 初始资金: %.0f USDT [%s]\n",
+				trader.Name, trader.AIModelID, trader.ExchangeID,
 				trader.InitialBalance, status)
 		}
 	}
@@ -345,15 +408,37 @@ func main() {
 		}
 	}()
 
+	// 初始化多数据源管理器（健康检查间隔: 60秒）
+	log.Println("🌐 初始化多数据源管理器...")
+	dataSourceManager := market.NewDataSourceManager(60 * time.Second)
+
+	// 添加 Binance 数据源
+	binanceSource := market.NewBinanceDataSource()
+	dataSourceManager.AddSource(binanceSource)
+
+	// 添加 Hyperliquid 数据源（主网）
+	hyperliquidSource := market.NewHyperliquidDataSource(false)
+	dataSourceManager.AddSource(hyperliquidSource)
+
+	// 启动健康检查
+	dataSourceManager.Start()
+	log.Printf("✅ 数据源管理器已启动，包含 %d 个数据源", 2)
+
 	// 启动流行情数据 - 默认使用所有交易员设置的币种 如果没有设置币种 则优先使用系统默认
-	go market.NewWSMonitor(150).Start(database.GetCustomCoins())
-	//go market.NewWSMonitor(150).Start([]string{}) //这里是一个使用方式 传入空的话 则使用market市场的所有币种
+	// 获取所有活跃 trader 的时间线配置（合并后的并集）
+	timeframes := database.GetAllTimeframes()
+	go market.NewWSMonitor(150, timeframes, dataSourceManager).Start(database.GetCustomCoins())
+	//go market.NewWSMonitor(150, timeframes).Start([]string{}) //这里是一个使用方式 传入空的话 则使用market市场的所有币种
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// TODO: 启动数据库中配置为运行状态的交易员
-	// traderManager.StartAll()
+	// Admin模式下自动启动标记为运行状态的交易员
+	if adminMode {
+		if err := traderManager.StartRunningTraders(database); err != nil {
+			log.Printf("⚠️  自动启动交易员失败: %v", err)
+		}
+	}
 
 	// 等待退出信号
 	<-sigChan
@@ -373,6 +458,11 @@ func main() {
 	} else {
 		log.Println("✅ API 服务器已安全关闭")
 	}
+
+	// 步骤 2.5: 停止数据源管理器
+	log.Println("🌐 停止数据源管理器...")
+	dataSourceManager.Stop()
+	log.Println("✅ 数据源管理器已停止")
 
 	// 步骤 3: 关闭数据库连接 (确保所有写入完成)
 	log.Println("💾 关闭数据库连接...")

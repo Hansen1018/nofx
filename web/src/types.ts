@@ -16,11 +16,10 @@ export interface SystemStatus {
 export interface AccountInfo {
   total_equity: number
   wallet_balance: number
-  unrealized_profit: number
+  unrealized_profit: number // 未实现盈亏（交易所API官方值）
   available_balance: number
   total_pnl: number
   total_pnl_pct: number
-  total_unrealized_pnl: number
   initial_balance: number
   daily_pnl: number
   position_count: number
@@ -91,9 +90,23 @@ export interface TraderInfo {
   ai_model: string
   exchange_id?: string
   is_running?: boolean
+  initial_balance?: number
+  system_prompt_template?: string
+  scan_interval_minutes?: number
+  btc_eth_leverage?: number
+  altcoin_leverage?: number
+  trading_symbols?: string
   custom_prompt?: string
+  override_base_prompt?: boolean
+  is_cross_margin?: boolean
   use_coin_pool?: boolean
   use_oi_top?: boolean
+  taker_fee_rate?: number
+  maker_fee_rate?: number
+  order_strategy?: string
+  limit_price_offset?: number
+  limit_timeout_seconds?: number
+  timeframes?: string
 }
 
 export interface AIModel {
@@ -126,7 +139,7 @@ export interface CreateTraderRequest {
   name: string
   ai_model_id: string
   exchange_id: string
-  initial_balance: number
+  initial_balance?: number // 可选：创建时由后端自动获取，编辑时可手动更新
   scan_interval_minutes?: number
   btc_eth_leverage?: number
   altcoin_leverage?: number
@@ -137,6 +150,12 @@ export interface CreateTraderRequest {
   is_cross_margin?: boolean
   use_coin_pool?: boolean
   use_oi_top?: boolean
+  taker_fee_rate?: number // Taker 费率 (默认 0.0004 = 0.04%)
+  maker_fee_rate?: number // Maker 费率 (默认 0.0002 = 0.02%)
+  timeframes?: string // 时间线选择 (逗号分隔，例如: "1m,4h,1d")
+  order_strategy?: string // 订单策略 (market, limit, conservative_hybrid 等)
+  limit_price_offset?: number // 限价单价格偏移 (默认 0.0005 = 0.05%)
+  limit_timeout_seconds?: number // 限价单超时时间 (默认 300 = 5分钟)
 }
 
 export interface UpdateModelConfigRequest {
@@ -197,10 +216,17 @@ export interface TraderConfigData {
   trading_symbols: string
   custom_prompt: string
   override_base_prompt: boolean
+  system_prompt_template: string
   is_cross_margin: boolean
   use_coin_pool: boolean
   use_oi_top: boolean
   initial_balance: number
   scan_interval_minutes: number
+  taker_fee_rate: number // Taker 费率
+  maker_fee_rate: number // Maker 费率
+  timeframes: string // 时间线选择 (逗号分隔，例如: "1m,4h,1d")
+  order_strategy: string // Order strategy: "market_only", "conservative_hybrid", "limit_only"
+  limit_price_offset: number // Limit order price offset percentage (e.g., -0.03 for -0.03%)
+  limit_timeout_seconds: number // Timeout in seconds before converting to market order
   is_running: boolean
 }
