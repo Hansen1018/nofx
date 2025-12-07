@@ -392,6 +392,8 @@ func fetchMarketDataForContext(ctx *Context) error {
 	}
 
 	for symbol := range symbolSet {
+		// NOTE: Using market.Get() here only for OI and price filtering (not for AI decision indicators)
+		// AI decision making uses GetWithTimeframes() with user-configured timeframes
 		data, err := market.Get(symbol)
 		if err != nil {
 			// Single coin failure doesn't affect overall, just log error
