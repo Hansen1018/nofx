@@ -209,6 +209,40 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           language={language}
         />
       )}
+
+      {/* Fork attribution - Experimental version warning */}
+      <div className="mt-8 pt-4 text-center text-xs" style={{ borderTop: '1px solid var(--panel-border)', color: 'var(--text-tertiary)' }}>
+        <p style={{ fontWeight: '500' }}>
+          {language === 'zh'
+            ? '實驗性社區版本（非官方）'
+            : 'Experimental Community Fork (Unofficial)'}
+        </p>
+        <p className="mt-1" style={{ fontSize: '0.7rem' }}>
+          {language === 'zh' ? '維護者：' : 'Maintainer: '}
+          <a
+            href="https://github.com/the-dev-z/nofx/tree/z-dev-v4"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#F0B90B] transition-colors"
+            style={{ color: 'var(--brand-yellow)' }}
+          >
+            the-dev-z/nofx
+          </a>
+          {' ('}
+          <span style={{ color: '#848E9C' }}>z-dev-v4</span>
+          {') | '}
+          {language === 'zh' ? '上游：' : 'Upstream: '}
+          <a
+            href="https://github.com/nofxaios/nofx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#F0B90B] transition-colors"
+            style={{ color: '#848E9C' }}
+          >
+            nofxaios/nofx
+          </a>
+        </p>
+      </div>
     </div>
   )
 }
