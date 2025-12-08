@@ -119,6 +119,9 @@ func main() {
 		}
 	}
 
+	// Auto-start traders that were running before system shutdown
+	traderManager.AutoStartRunningTraders(st)
+
 	// Start WebSocket market monitor (get market data for all USDT perpetual contracts)
 	go market.NewWSMonitor(150).Start(nil)
 	logger.Info("📊 WebSocket market monitor started")

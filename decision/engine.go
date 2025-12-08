@@ -392,6 +392,8 @@ func fetchMarketDataForContext(ctx *Context) error {
 	}
 
 	for symbol := range symbolSet {
+		// NOTE: Using market.Get() here only for OI and price filtering (not for AI decision indicators)
+		// AI decision making uses GetWithTimeframes() with user-configured timeframes
 		data, err := market.Get(symbol)
 		if err != nil {
 			// Single coin failure doesn't affect overall, just log error
@@ -532,7 +534,17 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		sb.WriteString("## Mode: Scalping\n- Focus on short-term momentum, target smaller profits but require swift action\n- If price doesn't move as expected within two bars, immediately reduce position or stop loss\n\n")
 	}
 
-	// 3. Hard constraints (risk control)
+	// 3. CRITICAL: Data constraints (prevent AI hallucination)
+	sb.WriteString("# ⚠️ CRITICAL: DATA CONSTRAINTS\n\n")
+	sb.WriteString("**You MUST follow these data rules strictly:**\n\n")
+	sb.WriteString("1. **ONLY use the exact data provided in the User Prompt below** - do not reference any historical patterns, support/resistance levels, or trends from your training data\n")
+	sb.WriteString("2. **DO NOT fabricate, estimate, or hallucinate any indicator values** - every number you mention (RSI, MACD, EMA, price, etc.) must match exactly with the provided data\n")
+	sb.WriteString("3. **If a symbol's data is missing or incomplete, output \"wait\" action** for that symbol - do not make assumptions or guesses\n")
+	sb.WriteString("4. **Do not invent historical context** - only analyze the current data points provided\n")
+	sb.WriteString("5. **If you're unsure about any data point, state 'INSUFFICIENT DATA' in reasoning** instead of making up values\n\n")
+	sb.WriteString("**Violation of these rules will result in incorrect trading decisions.**\n\n")
+
+	// 4. Hard constraints (risk control)
 	sb.WriteString("# Hard Constraints (Risk Control)\n\n")
 	sb.WriteString("1. Risk/reward ratio: Must be ≥ 1:3 (risk 1% to earn 3%+ profit)\n")
 	sb.WriteString("2. Max positions: 3 coins (quality > quantity)\n")

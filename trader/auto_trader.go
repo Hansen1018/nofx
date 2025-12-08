@@ -747,7 +747,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 		}
 	}
 
-	// Get current price
+	// Get current price (NOTE: Using market.Get() only to fetch current price for order quantity calculation)
 	marketData, err := market.Get(decision.Symbol)
 	if err != nil {
 		return err
@@ -830,7 +830,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 		}
 	}
 
-	// Get current price
+	// Get current price (NOTE: Using market.Get() only to fetch current price for order quantity calculation)
 	marketData, err := market.Get(decision.Symbol)
 	if err != nil {
 		return err
@@ -903,7 +903,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  🔄 Close long: %s", decision.Symbol)
 
-	// Get current price
+	// Get current price (NOTE: Using market.Get() only to fetch current price for recording)
 	marketData, err := market.Get(decision.Symbol)
 	if err != nil {
 		return err
@@ -942,7 +942,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  🔄 Close short: %s", decision.Symbol)
 
-	// Get current price
+	// Get current price (NOTE: Using market.Get() only to fetch current price for recording)
 	marketData, err := market.Get(decision.Symbol)
 	if err != nil {
 		return err
