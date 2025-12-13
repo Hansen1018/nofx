@@ -8,7 +8,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
-	"nofx/pool"
+	"nofx/provider"
 	"nofx/store"
 	"regexp"
 	"strings"
@@ -76,8 +76,6 @@ type OITopData struct {
 	OIDeltaPercent    float64 // Open interest change percentage (1 hour)
 	OIDeltaValue      float64 // Open interest change value
 	PriceDeltaPercent float64 // Price change percentage
-	NetLong           float64 // Net long positions
-	NetShort          float64 // Net short positions
 }
 
 // TradingStats trading statistics (for AI input)
@@ -120,7 +118,7 @@ type Context struct {
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"`
 	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData   *pool.OIRankingData                `json:"-"` // Market-wide OI ranking data
+	OIRankingData   *provider.OIRankingData                `json:"-"` // Market-wide OI ranking data
 	BTCETHLeverage  int                                `json:"-"`
 	AltcoinLeverage int                                `json:"-"`
 	Timeframes      []string                           `json:"-"`
@@ -175,8 +173,6 @@ type FlowTypeData struct {
 
 type OIData struct {
 	CurrentOI float64                 `json:"current_oi"`
-	NetLong   float64                 `json:"net_long"`
-	NetShort  float64                 `json:"net_short"`
 	Delta     map[string]*OIDeltaData `json:"delta,omitempty"`
 }
 
@@ -242,7 +238,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	// Ensure OITopDataMap is initialized
 	if ctx.OITopDataMap == nil {
 		ctx.OITopDataMap = make(map[string]*OITopData)
-		oiPositions, err := pool.GetOITopPositions()
+		oiPositions, err := provider.GetOITopPositions()
 		if err == nil {
 			for _, pos := range oiPositions {
 				ctx.OITopDataMap[pos.Symbol] = &OITopData{
@@ -250,8 +246,6 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 					OIDeltaPercent:    pos.OIDeltaPercent,
 					OIDeltaValue:      pos.OIDeltaValue,
 					PriceDeltaPercent: pos.PriceDeltaPercent,
-					NetLong:           pos.NetLong,
-					NetShort:          pos.NetShort,
 				}
 			}
 		}
@@ -278,6 +272,8 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		ctx.Account.TotalEquity,
 		riskConfig.BTCETHMaxLeverage,
 		riskConfig.AltcoinMaxLeverage,
+		riskConfig.BTCETHMaxPositionValueRatio,
+		riskConfig.AltcoinMaxPositionValueRatio,
 	)
 
 	if decision != nil {
@@ -388,10 +384,10 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 	coinSource := e.config.CoinSource
 
 	if coinSource.CoinPoolAPIURL != "" {
-		pool.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
+		provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
 	}
 	if coinSource.OITopAPIURL != "" {
-		pool.SetOITopAPI(coinSource.OITopAPIURL)
+		provider.SetOITopAPI(coinSource.OITopAPIURL)
 	}
 
 	switch coinSource.SourceType {
@@ -461,7 +457,7 @@ func (e *StrategyEngine) getCoinPoolCoins(limit int) ([]CandidateCoin, error) {
 		limit = 30
 	}
 
-	symbols, err := pool.GetTopRatedCoins(limit)
+	symbols, err := provider.GetTopRatedCoins(limit)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +477,7 @@ func (e *StrategyEngine) getOITopCoins(limit int) ([]CandidateCoin, error) {
 		limit = 20
 	}
 
-	positions, err := pool.GetOITopPositions()
+	positions, err := provider.GetOITopPositions()
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +640,7 @@ func (e *StrategyEngine) FetchQuantDataBatch(symbols []string) map[string]*Quant
 }
 
 // FetchOIRankingData fetches market-wide OI ranking data
-func (e *StrategyEngine) FetchOIRankingData() *pool.OIRankingData {
+func (e *StrategyEngine) FetchOIRankingData() *provider.OIRankingData {
 	indicators := e.config.Indicators
 	if !indicators.EnableOIRanking {
 		return nil
@@ -678,7 +674,7 @@ func (e *StrategyEngine) FetchOIRankingData() *pool.OIRankingData {
 
 	logger.Infof("📊 Fetching OI ranking data (duration: %s, limit: %d)", duration, limit)
 
-	data, err := pool.GetOIRankingData(baseURL, authKey, duration, limit)
+	data, err := provider.GetOIRankingData(baseURL, authKey, duration, limit)
 	if err != nil {
 		logger.Warnf("⚠️  Failed to fetch OI ranking data: %v", err)
 		return nil
@@ -954,7 +950,7 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 
 	// OI Ranking data (market-wide open interest changes)
 	if ctx.OIRankingData != nil {
-		sb.WriteString(pool.FormatOIRankingForAI(ctx.OIRankingData))
+		sb.WriteString(provider.FormatOIRankingForAI(ctx.OIRankingData))
 	}
 
 	sb.WriteString("---\n\n")
@@ -1297,7 +1293,7 @@ func formatFloatSlice(values []float64) string {
 // AI Response Parsing
 // ============================================================================
 
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) (*FullDecision, error) {
 	cotTrace := extractCoTTrace(aiResponse)
 
 	decisions, err := extractDecisions(aiResponse)
@@ -1308,7 +1304,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
@@ -1474,16 +1470,16 @@ func compactArrayOpen(s string) string {
 // Decision Validation
 // ============================================================================
 
-func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
 	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
 			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
 		}
 	}
 	return nil
 }
 
-func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
 	validActions := map[string]bool{
 		"open_long":   true,
 		"open_short":  true,
@@ -1499,10 +1495,12 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 	if d.Action == "open_long" || d.Action == "open_short" {
 		maxLeverage := altcoinLeverage
-		maxPositionValue := accountEquity * 1.5
+		posRatio := altcoinPosRatio
+		maxPositionValue := accountEquity * posRatio
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 			maxLeverage = btcEthLeverage
-			maxPositionValue = accountEquity * 10
+			posRatio = btcEthPosRatio
+			maxPositionValue = accountEquity * posRatio
 		}
 
 		if d.Leverage <= 0 {
@@ -1533,9 +1531,9 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		tolerance := maxPositionValue * 0.01
 		if d.PositionSizeUSD > maxPositionValue+tolerance {
 			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (10x account equity), actual: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
 			} else {
-				return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (1.5x account equity), actual: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
 			}
 		}
 		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
