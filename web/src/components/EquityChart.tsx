@@ -214,8 +214,8 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   return (
     <div className={embedded ? 'p-3 sm:p-5' : 'binance-card p-3 sm:p-5 animate-fade-in'}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-        <div className="flex-1 min-w-0 w-full sm:w-auto">
+      <div className="flex flex-row items-start justify-between gap-2 sm:gap-3 mb-4">
+        <div className="flex-1 min-w-0">
           {!embedded && (
             <h3
               className="text-base sm:text-lg font-bold mb-2"
@@ -224,14 +224,14 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
               {t('accountEquityCurve', language)}
             </h3>
           )}
-          <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
+          <div className="flex flex-row items-baseline gap-2 sm:gap-4 flex-wrap">
             <span
-              className="text-xl sm:text-2xl lg:text-3xl font-bold mono"
+              className="text-lg sm:text-2xl lg:text-3xl font-bold mono"
               style={{ color: '#EAECEF' }}
             >
               {account?.total_equity.toFixed(2) || '0.00'}
               <span
-                className="text-sm sm:text-base lg:text-lg ml-1"
+                className="text-xs sm:text-base lg:text-lg ml-1"
                 style={{ color: '#848E9C' }}
               >
                 USDT
@@ -273,7 +273,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
 
         {/* Display Mode Toggle */}
         <div
-          className="flex gap-0.5 sm:gap-1 rounded p-0.5 sm:p-1 flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start"
+          className="flex gap-0.5 sm:gap-1 rounded p-0.5 sm:p-1 flex-shrink-0"
           style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
         >
           <button

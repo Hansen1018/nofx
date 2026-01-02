@@ -162,8 +162,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
             }`}
           >
             <BarChart3 className="w-3 h-3" />
-            <span className="hidden xs:inline">{t('accountEquityCurve', language)}</span>
-            <span className="xs:hidden">Equity</span>
+            <span>{t('accountEquityCurve', language)}</span>
           </button>
 
           <button
@@ -175,8 +174,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
             }`}
           >
             <CandlestickChart className="w-3 h-3" />
-            <span className="hidden xs:inline">{t('marketChart', language)}</span>
-            <span className="xs:hidden">Chart</span>
+            <span>{t('marketChart', language)}</span>
           </button>
 
           {/* Market Type Pills - Only when kline active */}
