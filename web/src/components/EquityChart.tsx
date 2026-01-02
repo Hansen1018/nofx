@@ -61,6 +61,22 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
     }
   )
 
+  // 获取最新决策的周期号（用于显示历史周期数）
+  const { data: latestDecisions } = useSWR(
+    user && token && traderId ? `latest-decisions-${traderId}` : null,
+    () => api.getLatestDecisions(traderId, 1),
+    {
+      refreshInterval: 30000, // 30秒刷新
+      revalidateOnFocus: false,
+      dedupingInterval: 20000,
+    }
+  )
+
+  // 获取最新决策的周期号
+  const latestCycleNumber = latestDecisions && latestDecisions.length > 0 
+    ? latestDecisions[0].cycle_number 
+    : null
+
   // Loading state - show skeleton
   if (isLoading) {
     return (
@@ -142,16 +158,23 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
     1000 // 默认值（与创建交易员时的默认配置一致）
 
   // 转换数据格式
-  const chartData = displayHistory.map((point) => {
+  const chartData = displayHistory.map((point, index) => {
     const pnl = point.total_equity - initialBalance
     const pnlPct = ((pnl / initialBalance) * 100).toFixed(2)
+    // 如果API返回的数据没有cycle_number，使用索引+1作为fallback
+    // 但优先使用最新决策的周期号来计算
+    const cycleNumber = point.cycle_number !== undefined 
+      ? point.cycle_number 
+      : (latestCycleNumber !== null 
+          ? latestCycleNumber - (displayHistory.length - 1 - index)
+          : index + 1)
     return {
       time: new Date(point.timestamp).toLocaleTimeString('zh-CN', {
         hour: '2-digit',
         minute: '2-digit',
       }),
       value: displayMode === 'dollar' ? point.total_equity : parseFloat(pnlPct),
-      cycle: point.cycle_number,
+      cycle: cycleNumber,
       raw_equity: point.total_equity,
       raw_pnl: pnl,
       raw_pnl_pct: parseFloat(pnlPct),
@@ -451,7 +474,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
             className="text-xs sm:text-sm font-bold mono"
             style={{ color: '#EAECEF' }}
           >
-            {validHistory.length} {t('cycles', language)}
+            {latestCycleNumber !== null ? latestCycleNumber : validHistory.length} {t('cycles', language)}
           </div>
         </div>
         <div
