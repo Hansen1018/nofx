@@ -133,13 +133,13 @@ function StatCard({
 
 // Progress Ring Component
 function ProgressRing({ progress, size = 120 }: { progress: number; size?: number }) {
-  const strokeWidth = 8
+  const strokeWidth = size > 80 ? 8 : 6
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
   const offset = circumference - (progress / 100) * circumference
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg className="transform -rotate-90" width={size} height={size}>
         <circle
           cx={size / 2}
@@ -164,10 +164,10 @@ function ProgressRing({ progress, size = 120 }: { progress: number; size?: numbe
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center flex-col">
-        <span className="text-2xl font-bold" style={{ color: '#F0B90B' }}>
+        <span className={`${size > 80 ? 'text-2xl' : 'text-lg'} font-bold`} style={{ color: '#F0B90B' }}>
           {progress.toFixed(0)}%
         </span>
-        <span className="text-xs" style={{ color: '#848E9C' }}>
+        <span className={`${size > 80 ? 'text-xs' : 'text-[10px]'}`} style={{ color: '#848E9C' }}>
           Complete
         </span>
       </div>
@@ -1094,53 +1094,56 @@ export function BacktestPage() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: '#EAECEF' }}>
-            <Brain className="w-7 h-7" style={{ color: '#F0B90B' }} />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3" style={{ color: '#EAECEF' }}>
+            <Brain className="w-5 h-5 sm:w-7 sm:h-7" style={{ color: '#F0B90B' }} />
             {tr('title')}
           </h1>
-          <p className="text-sm mt-1" style={{ color: '#848E9C' }}>
+          <p className="text-xs sm:text-sm mt-1" style={{ color: '#848E9C' }}>
             {tr('subtitle')}
           </p>
         </div>
         <button
           onClick={() => setWizardStep(1)}
-          className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all hover:opacity-90"
+          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-all hover:opacity-90 text-sm sm:text-base"
           style={{ background: '#F0B90B', color: '#0B0E11' }}
         >
-          <Play className="w-4 h-4" />
-          {language === 'zh' ? '新建回测' : 'New Backtest'}
+          <Play className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span className="hidden sm:inline">{language === 'zh' ? '新建回测' : 'New Backtest'}</span>
+          <span className="sm:hidden">{language === 'zh' ? '新建' : 'New'}</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Left Panel - Config / History */}
         <div className="space-y-4">
           {/* Wizard */}
-          <div className="binance-card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              {[1, 2, 3].map((step) => (
-                <div key={step} className="flex items-center">
-                  <button
-                    onClick={() => setWizardStep(step as WizardStep)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all"
-                    style={{
-                      background: wizardStep >= step ? '#F0B90B' : '#2B3139',
-                      color: wizardStep >= step ? '#0B0E11' : '#848E9C',
-                    }}
-                  >
-                    {step}
-                  </button>
-                  {step < 3 && (
-                    <div
-                      className="w-8 h-0.5 mx-1"
-                      style={{ background: wizardStep > step ? '#F0B90B' : '#2B3139' }}
-                    />
-                  )}
-                </div>
-              ))}
-              <span className="ml-2 text-xs" style={{ color: '#848E9C' }}>
+          <div className="binance-card p-3 sm:p-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-2 mb-4">
+              <div className="flex items-center">
+                {[1, 2, 3].map((step) => (
+                  <div key={step} className="flex items-center">
+                    <button
+                      onClick={() => setWizardStep(step as WizardStep)}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all"
+                      style={{
+                        background: wizardStep >= step ? '#F0B90B' : '#2B3139',
+                        color: wizardStep >= step ? '#0B0E11' : '#848E9C',
+                      }}
+                    >
+                      {step}
+                    </button>
+                    {step < 3 && (
+                      <div
+                        className="w-6 sm:w-8 h-0.5 mx-0.5 sm:mx-1"
+                        style={{ background: wizardStep > step ? '#F0B90B' : '#2B3139' }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <span className="text-xs sm:ml-2" style={{ color: '#848E9C' }}>
                 {wizardStep === 1
                   ? language === 'zh'
                     ? '选择模型'
@@ -1243,8 +1246,8 @@ export function BacktestPage() {
                       <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
                         {tr('form.symbolsLabel')}
                         {strategyHasDynamicCoins && (
-                          <span className="ml-2" style={{ color: '#5E6673' }}>
-                            ({language === 'zh' ? '可选 - 策略已配置币种来源' : 'Optional - strategy has coin source'})
+                          <span className="ml-1 sm:ml-2 text-[10px] sm:text-xs" style={{ color: '#5E6673' }}>
+                            ({language === 'zh' ? '可选' : 'Optional'})
                           </span>
                         )}
                       </label>
@@ -1263,7 +1266,7 @@ export function BacktestPage() {
                                     : [...current, sym]
                                   handleFormChange('symbols', updated.join(','))
                                 }}
-                                className="px-2 py-1 rounded text-xs transition-all"
+                                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs transition-all"
                                 style={{
                                   background: isSelected ? 'rgba(240,185,11,0.15)' : '#1E2329',
                                   border: `1px solid ${isSelected ? '#F0B90B' : '#2B3139'}`,
@@ -1296,10 +1299,11 @@ export function BacktestPage() {
                           <button
                             type="button"
                             onClick={() => handleFormChange('symbols', '')}
-                            className="absolute top-2 right-2 px-2 py-1 rounded text-xs"
+                            className="absolute top-2 right-2 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs"
                             style={{ background: '#F0B90B', color: '#0B0E11' }}
                           >
-                            {language === 'zh' ? '清空使用策略币种' : 'Clear to use strategy'}
+                            <span className="hidden sm:inline">{language === 'zh' ? '清空使用策略币种' : 'Clear to use strategy'}</span>
+                            <span className="sm:hidden">{language === 'zh' ? '清空' : 'Clear'}</span>
                           </button>
                         )}
                       </div>
@@ -1337,24 +1341,24 @@ export function BacktestPage() {
                             key={r.hours}
                             type="button"
                             onClick={() => applyQuickRange(r.hours)}
-                            className="px-3 py-1 rounded text-xs"
+                            className="px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs"
                             style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                           >
                             {r.label}
                           </button>
                         ))}
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
                           type="datetime-local"
-                          className="p-2 rounded-lg text-xs"
+                          className="p-1.5 sm:p-2 rounded-lg text-[10px] sm:text-xs"
                           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                           value={formState.start}
                           onChange={(e) => handleFormChange('start', e.target.value)}
                         />
                         <input
                           type="datetime-local"
-                          className="p-2 rounded-lg text-xs"
+                          className="p-1.5 sm:p-2 rounded-lg text-[10px] sm:text-xs"
                           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                           value={formState.end}
                           onChange={(e) => handleFormChange('end', e.target.value)}
@@ -1379,7 +1383,7 @@ export function BacktestPage() {
                                   : [...formState.timeframes, tf]
                                 if (updated.length > 0) handleFormChange('timeframes', updated)
                               }}
-                              className="px-2 py-1 rounded text-xs transition-all"
+                              className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs transition-all"
                               style={{
                                 background: isSelected ? 'rgba(240,185,11,0.15)' : '#1E2329',
                                 border: `1px solid ${isSelected ? '#F0B90B' : '#2B3139'}`,
@@ -1393,7 +1397,7 @@ export function BacktestPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       <div>
                         <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>
                           {tr('form.initialBalanceLabel')}
@@ -1484,14 +1488,14 @@ export function BacktestPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>
                           {tr('form.feeLabel')}
                         </label>
                         <input
                           type="number"
-                          className="w-full p-2 rounded-lg text-xs"
+                          className="w-full p-1.5 sm:p-2 rounded-lg text-[10px] sm:text-xs"
                           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                           value={formState.fee}
                           onChange={(e) => handleFormChange('fee', Number(e.target.value))}
@@ -1503,7 +1507,7 @@ export function BacktestPage() {
                         </label>
                         <input
                           type="number"
-                          className="w-full p-2 rounded-lg text-xs"
+                          className="w-full p-1.5 sm:p-2 rounded-lg text-[10px] sm:text-xs"
                           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                           value={formState.slippage}
                           onChange={(e) => handleFormChange('slippage', Number(e.target.value))}
@@ -1515,7 +1519,7 @@ export function BacktestPage() {
                         </label>
                         <input
                           type="number"
-                          className="w-full p-2 rounded-lg text-xs"
+                          className="w-full p-1.5 sm:p-2 rounded-lg text-[10px] sm:text-xs"
                           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                           value={formState.cadence}
                           onChange={(e) => handleFormChange('cadence', Number(e.target.value))}
@@ -1682,15 +1686,15 @@ export function BacktestPage() {
           ) : (
             <>
               {/* Status Bar */}
-              <div className="binance-card p-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <ProgressRing progress={status?.progress_pct ?? selectedRun?.summary.progress_pct ?? 0} size={80} />
-                    <div>
-                      <h2 className="font-mono font-bold" style={{ color: '#EAECEF' }}>
+              <div className="binance-card p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <ProgressRing progress={status?.progress_pct ?? selectedRun?.summary.progress_pct ?? 0} size={60} />
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-mono font-bold text-sm sm:text-base truncate" style={{ color: '#EAECEF' }}>
                         {selectedRunId}
                       </h2>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span
                           className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
                           style={{
@@ -1702,15 +1706,15 @@ export function BacktestPage() {
                           {tr(`states.${status?.state ?? selectedRun?.state}`)}
                         </span>
                         {selectedRun?.summary.decision_tf && (
-                          <span className="text-xs" style={{ color: '#848E9C' }}>
-                            {selectedRun.summary.decision_tf} · {selectedRun.summary.symbol_count} symbols
+                          <span className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
+                            {selectedRun.summary.decision_tf} · {selectedRun.summary.symbol_count} {language === 'zh' ? '币种' : 'symbols'}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {(status?.state === 'running' || selectedRun?.state === 'running') && (
                       <>
                         <button
@@ -1781,7 +1785,7 @@ export function BacktestPage() {
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
                 <StatCard
                   icon={Target}
                   label={language === 'zh' ? '当前净值' : 'Equity'}
@@ -1817,12 +1821,12 @@ export function BacktestPage() {
 
               {/* Tabs */}
               <div className="binance-card">
-                <div className="flex border-b" style={{ borderColor: '#2B3139' }}>
+                <div className="flex border-b overflow-x-auto" style={{ borderColor: '#2B3139' }}>
                   {(['overview', 'chart', 'trades', 'decisions'] as ViewTab[]).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setViewTab(tab)}
-                      className="px-4 py-3 text-sm font-medium transition-all relative"
+                      className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all relative flex-shrink-0 whitespace-nowrap"
                       style={{ color: viewTab === tab ? '#F0B90B' : '#848E9C' }}
                     >
                       {tab === 'overview'
@@ -1869,38 +1873,38 @@ export function BacktestPage() {
                         )}
 
                         {metrics && (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                            <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
-                              <div className="flex items-center gap-1 text-xs" style={{ color: '#848E9C' }}>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mt-4">
+                            <div className="p-2 sm:p-3 rounded-lg" style={{ background: '#1E2329' }}>
+                              <div className="flex items-center gap-1 text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                                 {language === 'zh' ? '胜率' : 'Win Rate'}
                                 <MetricTooltip metricKey="win_rate" language={language} size={11} />
                               </div>
-                              <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
+                              <div className="text-base sm:text-lg font-bold" style={{ color: '#EAECEF' }}>
                                 {(metrics.win_rate ?? 0).toFixed(1)}%
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
-                              <div className="flex items-center gap-1 text-xs" style={{ color: '#848E9C' }}>
+                            <div className="p-2 sm:p-3 rounded-lg" style={{ background: '#1E2329' }}>
+                              <div className="flex items-center gap-1 text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                                 {language === 'zh' ? '盈亏因子' : 'Profit Factor'}
                                 <MetricTooltip metricKey="profit_factor" language={language} size={11} />
                               </div>
-                              <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
+                              <div className="text-base sm:text-lg font-bold" style={{ color: '#EAECEF' }}>
                                 {(metrics.profit_factor ?? 0).toFixed(2)}
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
-                              <div className="text-xs" style={{ color: '#848E9C' }}>
+                            <div className="p-2 sm:p-3 rounded-lg" style={{ background: '#1E2329' }}>
+                              <div className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                                 {language === 'zh' ? '总交易数' : 'Total Trades'}
                               </div>
-                              <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
+                              <div className="text-base sm:text-lg font-bold" style={{ color: '#EAECEF' }}>
                                 {metrics.trades ?? 0}
                               </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
-                              <div className="text-xs" style={{ color: '#848E9C' }}>
+                            <div className="p-2 sm:p-3 rounded-lg" style={{ background: '#1E2329' }}>
+                              <div className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                                 {language === 'zh' ? '最佳币种' : 'Best Symbol'}
                               </div>
-                              <div className="text-lg font-bold" style={{ color: '#0ECB81' }}>
+                              <div className="text-base sm:text-lg font-bold truncate" style={{ color: '#0ECB81' }}>
                                 {metrics.best_symbol?.replace('USDT', '') || '-'}
                               </div>
                             </div>
