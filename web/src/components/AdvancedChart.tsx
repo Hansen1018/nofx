@@ -305,9 +305,10 @@ export function AdvancedChart({
   useEffect(() => {
     if (!chartContainerRef.current) return
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: height,
+    const container = chartContainerRef.current
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: container.clientHeight || height,
       layout: {
         background: { color: '#0B0E11' },
         textColor: '#B7BDC6',
@@ -410,8 +411,10 @@ export function AdvancedChart({
     // 响应式调整
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
+        const container = chartContainerRef.current
         chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
+          width: container.clientWidth,
+          height: container.clientHeight || height,
         })
       }
     }
@@ -761,7 +764,7 @@ export function AdvancedChart({
 
   return (
     <div
-      className="relative shadow-xl"
+      className="relative shadow-xl h-full flex flex-col"
       style={{
         background: 'linear-gradient(180deg, #0F1215 0%, #0B0E11 100%)',
         borderRadius: '12px',
@@ -929,8 +932,8 @@ export function AdvancedChart({
       )}
 
       {/* 图表容器 */}
-      <div style={{ position: 'relative' }}>
-        <div ref={chartContainerRef} />
+      <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
+        <div ref={chartContainerRef} style={{ height: '100%', width: '100%' }} />
 
         {/* OHLC Tooltip */}
         {tooltipData && (
