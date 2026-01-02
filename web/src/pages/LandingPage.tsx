@@ -54,16 +54,16 @@ export function LandingPage() {
         <CommunitySection language={language} />
 
         {/* Final CTA Section */}
-        <section className="py-12 sm:py-16 md:py-20 lg:py-24 relative overflow-hidden" style={{ background: '#0D1117' }}>
+        <section className="py-24 relative overflow-hidden" style={{ background: '#0D1117' }}>
           {/* Background Glow */}
           <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] md:w-[500px] md:h-[500px] lg:w-[600px] lg:h-[600px] rounded-full blur-3xl opacity-30"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-3xl opacity-30"
             style={{ background: 'radial-gradient(circle, rgba(240, 185, 11, 0.15) 0%, transparent 70%)' }}
           />
 
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 text-center relative z-10">
+          <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
             <motion.h2
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-5 md:mb-6"
+              className="text-4xl lg:text-5xl font-bold mb-6"
               style={{ color: '#EAECEF' }}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -72,7 +72,7 @@ export function LandingPage() {
               {t('readyToDefine', language)}
             </motion.h2>
             <motion.p
-              className="text-sm sm:text-base md:text-lg mb-6 sm:mb-8 md:mb-10 max-w-2xl mx-auto"
+              className="text-lg mb-10 max-w-2xl mx-auto"
               style={{ color: '#848E9C' }}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -111,7 +111,7 @@ export function LandingPage() {
                 href={OFFICIAL_LINKS.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex items-center gap-2 sm:gap-3 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg w-full sm:w-auto justify-center"
+                className="group flex items-center gap-3 px-8 py-4 rounded-xl font-bold text-lg"
                 style={{
                   background: 'rgba(255, 255, 255, 0.05)',
                   color: '#EAECEF',

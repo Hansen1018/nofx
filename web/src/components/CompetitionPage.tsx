@@ -135,23 +135,23 @@ export function CompetitionPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Competition Header - 精简版 */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
+        <div className="flex items-center gap-3 md:gap-4">
           <div
-            className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center"
             style={{
               background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
               boxShadow: '0 4px 14px rgba(240, 185, 11, 0.4)',
             }}
           >
             <Trophy
-              className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7"
+              className="w-6 h-6 md:w-7 md:h-7"
               style={{ color: '#000' }}
             />
           </div>
-          <div className="min-w-0">
+          <div>
             <h1
-              className="text-lg sm:text-xl md:text-2xl font-bold flex flex-wrap items-center gap-2"
+              className="text-xl md:text-2xl font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
               {t('aiCompetition', language)}
@@ -193,15 +193,15 @@ export function CompetitionPage() {
       </div>
 
       {/* Left/Right Split: Performance Chart + Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left: Performance Comparison Chart */}
         <div
-          className="binance-card p-4 sm:p-5 animate-slide-in"
+          className="binance-card p-5 animate-slide-in"
           style={{ animationDelay: '0.1s' }}
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-4">
             <h2
-              className="text-base sm:text-lg font-bold flex items-center gap-2"
+              className="text-lg font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
               {t('performanceComparison', language)}
@@ -215,12 +215,12 @@ export function CompetitionPage() {
 
         {/* Right: Leaderboard */}
         <div
-          className="binance-card p-4 sm:p-5 animate-slide-in"
+          className="binance-card p-5 animate-slide-in"
           style={{ animationDelay: '0.1s' }}
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-4">
             <h2
-              className="text-base sm:text-lg font-bold flex items-center gap-2"
+              className="text-lg font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
               {t('leaderboard', language)}
@@ -302,7 +302,7 @@ export function CompetitionPage() {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap">
                       {/* Total Equity */}
                       <div className="text-right">
                         <div className="text-xs" style={{ color: '#848E9C' }}>
@@ -398,7 +398,7 @@ export function CompetitionPage() {
           >
             {t('headToHead', language)}
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {sortedTraders.map((trader, index) => {
               const isWinning = index === 0
               const opponent = sortedTraders[1 - index]

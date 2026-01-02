@@ -480,7 +480,7 @@ function App() {
             )
           }}
         />
-        <main className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 pt-20 sm:pt-22 md:pt-24">
+        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
           <CompetitionPage />
         </main>
       </div>
@@ -517,7 +517,7 @@ function App() {
               }
             }}
           />
-          <main className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 pt-20 sm:pt-22 md:pt-24">
+          <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
             <BacktestPage />
           </main>
         </div>
@@ -583,7 +583,7 @@ function App() {
         className={
           currentPage === 'debate'
             ? 'h-[calc(100vh-64px)] mt-16'
-            : 'max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 pt-20 sm:pt-22 md:pt-24'
+            : 'max-w-[1920px] mx-auto px-6 py-6 pt-24'
         }
       >
         {currentPage === 'competition' ? (
@@ -645,7 +645,7 @@ function App() {
           style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
         >
           <div
-            className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6 text-center text-xs sm:text-sm"
+            className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm"
             style={{ color: '#5E6673' }}
           >
             <p>{t('footerTitle', language)}</p>
@@ -1038,9 +1038,9 @@ function TraderDetailsPage({
           boxShadow: '0 0 30px rgba(240, 185, 11, 0.15)',
         }}
       >
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-3">
+        <div className="flex items-start justify-between mb-3">
           <h2
-            className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3"
+            className="text-2xl font-bold flex items-center gap-3"
             style={{ color: '#EAECEF' }}
           >
             <PunkAvatar
@@ -1054,17 +1054,17 @@ function TraderDetailsPage({
             {selectedTrader.trader_name}
           </h2>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+          <div className="flex items-center gap-4">
             {/* Trader Selector */}
             {traders && traders.length > 0 && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
-                <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm" style={{ color: '#848E9C' }}>
                   {t('switchTrader', language)}:
                 </span>
                 <select
                   value={selectedTraderId}
                   onChange={(e) => onTraderSelect(e.target.value)}
-                  className="rounded px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium cursor-pointer transition-colors w-full sm:w-auto"
+                  className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
                   style={{
                     background: '#1E2329',
                     border: '1px solid #2B3139',
@@ -1131,7 +1131,7 @@ function TraderDetailsPage({
           </div>
         </div>
         <div
-          className="flex flex-wrap items-center gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm"
+          className="flex items-center gap-4 text-sm flex-wrap"
           style={{ color: '#848E9C' }}
         >
           <span>
@@ -1195,7 +1195,7 @@ function TraderDetailsPage({
       )}
 
       {/* Account Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           title={t('totalEquity', language)}
           value={`${account?.total_equity?.toFixed(2) || '0.00'} USDT`}
@@ -1221,7 +1221,7 @@ function TraderDetailsPage({
       </div>
 
       {/* 主要内容区：左右分屏 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6 mb-4 sm:mb-5 md:mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* 左侧：图表 + 持仓 */}
         <div className="space-y-6">
           {/* Chart Tabs (Equity / K-line) */}
@@ -1246,9 +1246,9 @@ function TraderDetailsPage({
             className="binance-card p-6 animate-slide-in"
             style={{ animationDelay: '0.15s' }}
           >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4 sm:mb-5">
+            <div className="flex items-center justify-between mb-5">
               <h2
-                className="text-lg sm:text-xl font-bold flex items-center gap-2"
+                className="text-xl font-bold flex items-center gap-2"
                 style={{ color: '#EAECEF' }}
               >
                 📈 {t('currentPositions', language)}
@@ -1268,8 +1268,8 @@ function TraderDetailsPage({
             </div>
             {positions && positions.length > 0 ? (
               <div>
-                <div className="overflow-x-auto -mx-2 sm:mx-0">
-                  <table className="w-full text-[10px] sm:text-xs min-w-[800px]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
                     <thead className="text-left border-b border-gray-800">
                       <tr>
                         <th className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-left">
@@ -1548,40 +1548,38 @@ function TraderDetailsPage({
 
         {/* 右侧：Recent Decisions - 卡片容器 */}
         <div
-          className="binance-card p-4 sm:p-5 md:p-6 animate-slide-in h-fit lg:sticky lg:top-20 sm:lg:top-24 lg:max-h-[calc(100vh-120px)]"
+          className="binance-card p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)]"
           style={{ animationDelay: '0.2s' }}
         >
           {/* 标题 */}
           <div
-            className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-3 mb-4 sm:mb-5 pb-3 sm:pb-4 border-b"
+            className="flex items-center gap-3 mb-5 pb-4 border-b"
             style={{ borderColor: '#2B3139' }}
           >
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div
-                className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-lg sm:text-xl flex-shrink-0"
-                style={{
-                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
-                }}
-              >
-                🧠
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-lg sm:text-xl font-bold truncate" style={{ color: '#EAECEF' }}>
-                  {t('recentDecisions', language)}
-                </h2>
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+              style={{
+                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+              }}
+            >
+              🧠
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+                {t('recentDecisions', language)}
+              </h2>
               {decisions && decisions.length > 0 && (
                 <div className="text-xs" style={{ color: '#848E9C' }}>
                   {t('lastCycles', language, { count: decisions.length })}
                 </div>
               )}
             </div>
-            </div>
             {/* 数量选择器 */}
             <select
               value={decisionsLimit}
               onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
-              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all w-full sm:w-auto"
+              className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all"
               style={{
                 background: '#2B3139',
                 color: '#EAECEF',
@@ -1598,8 +1596,8 @@ function TraderDetailsPage({
 
           {/* 决策列表 - 可滚动 */}
           <div
-            className="space-y-3 sm:space-y-4 overflow-y-auto pr-1 sm:pr-2"
-            style={{ maxHeight: 'calc(100vh - 240px)' }}
+            className="space-y-4 overflow-y-auto pr-2"
+            style={{ maxHeight: 'calc(100vh - 280px)' }}
           >
             {decisions && decisions.length > 0 ? (
               decisions.map((decision, i) => (
@@ -1630,12 +1628,12 @@ function TraderDetailsPage({
           className="binance-card p-6 animate-slide-in"
           style={{ animationDelay: '0.25s' }}
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4 sm:mb-5">
+          <div className="flex items-center justify-between mb-5">
             <h2
-              className="text-lg sm:text-xl font-bold flex items-center gap-2"
+              className="text-xl font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
-              <span className="text-xl sm:text-2xl">📜</span>
+              <span className="text-2xl">📜</span>
               {t('positionHistory.title', language)}
             </h2>
           </div>
