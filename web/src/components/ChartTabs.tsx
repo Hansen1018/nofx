@@ -148,40 +148,42 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
     <div className="binance-card" style={{ background: '#0D1117', borderRadius: '8px', overflow: 'hidden' }}>
       {/* Clean Professional Toolbar */}
       <div
-        className="flex items-center justify-between px-3 py-1.5"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-2 sm:px-3 py-2 sm:py-1.5"
         style={{ borderBottom: '1px solid rgba(43, 49, 57, 0.6)', background: '#161B22' }}
       >
         {/* Left: Tab Switcher */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button
             onClick={() => setActiveTab('equity')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded text-[10px] sm:text-[11px] font-medium transition-all ${
               activeTab === 'equity'
                 ? 'bg-blue-500/15 text-blue-400'
                 : 'text-gray-500 hover:text-gray-300'
             }`}
           >
             <BarChart3 className="w-3 h-3" />
-            <span>{t('accountEquityCurve', language)}</span>
+            <span className="hidden xs:inline">{t('accountEquityCurve', language)}</span>
+            <span className="xs:hidden">Equity</span>
           </button>
 
           <button
             onClick={() => setActiveTab('kline')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded text-[10px] sm:text-[11px] font-medium transition-all ${
               activeTab === 'kline'
                 ? 'bg-blue-500/15 text-blue-400'
                 : 'text-gray-500 hover:text-gray-300'
             }`}
           >
             <CandlestickChart className="w-3 h-3" />
-            <span>{t('marketChart', language)}</span>
+            <span className="hidden xs:inline">{t('marketChart', language)}</span>
+            <span className="xs:hidden">Chart</span>
           </button>
 
           {/* Market Type Pills - Only when kline active */}
           {activeTab === 'kline' && (
             <>
-              <div className="w-px h-3 bg-[#30363D] mx-1" />
-              <div className="flex items-center gap-0.5">
+              <div className="w-px h-3 bg-[#30363D] mx-1 hidden sm:block" />
+              <div className="flex items-center gap-0.5 flex-wrap">
                 {(Object.keys(MARKET_CONFIG) as MarketType[]).map((type) => {
                   const config = MARKET_CONFIG[type]
                   const isActive = marketType === type
@@ -189,13 +191,13 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                     <button
                       key={type}
                       onClick={() => handleMarketTypeChange(type)}
-                      className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
+                      className={`px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-medium rounded transition-all ${
                         isActive
                           ? 'bg-[#21262D] text-white'
                           : 'text-gray-500 hover:text-gray-400'
                       }`}
                     >
-                      {config.icon} {language === 'zh' ? config.label.zh : config.label.en}
+                      {config.icon} <span className="hidden sm:inline">{language === 'zh' ? config.label.zh : config.label.en}</span>
                     </button>
                   )
                 })}
@@ -206,19 +208,19 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
 
         {/* Right: Symbol + Interval */}
         {activeTab === 'kline' && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {/* Symbol Dropdown */}
             {marketConfig.hasDropdown ? (
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center gap-1 px-2 py-1 bg-[#21262D] rounded text-[11px] font-bold text-white hover:bg-[#30363D] transition-all"
+                  className="flex items-center gap-1 px-2 py-1 bg-[#21262D] rounded text-[10px] sm:text-[11px] font-bold text-white hover:bg-[#30363D] transition-all"
                 >
-                  <span>{chartSymbol}</span>
-                  <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+                  <span className="max-w-[60px] sm:max-w-none truncate">{chartSymbol}</span>
+                  <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 {showDropdown && (
-                  <div className="absolute top-full right-0 mt-1 w-56 bg-[#161B22] border border-[#30363D] rounded-lg shadow-2xl z-50 max-h-72 overflow-hidden">
+                  <div className="absolute top-full right-0 mt-1 w-[calc(100vw-2rem)] sm:w-56 max-w-[280px] bg-[#161B22] border border-[#30363D] rounded-lg shadow-2xl z-50 max-h-72 overflow-hidden">
                     <div className="p-2 border-b border-[#30363D]">
                       <div className="flex items-center gap-2 px-2 py-1 bg-[#0D1117] rounded border border-[#30363D]">
                         <Search className="w-3 h-3 text-gray-500" />
@@ -257,7 +259,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 )}
               </div>
             ) : (
-              <span className="px-2 py-1 bg-[#21262D] rounded text-[11px] font-bold text-white">{chartSymbol}</span>
+              <span className="px-2 py-1 bg-[#21262D] rounded text-[10px] sm:text-[11px] font-bold text-white truncate max-w-[80px] sm:max-w-none">{chartSymbol}</span>
             )}
 
             {/* Interval Selector */}
@@ -266,7 +268,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 <button
                   key={int.value}
                   onClick={() => setInterval(int.value)}
-                  className={`px-2 py-1 text-[10px] font-medium transition-all ${
+                  className={`px-1.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-medium transition-all ${
                     interval === int.value
                       ? 'bg-blue-500/30 text-blue-400'
                       : 'text-gray-500 hover:text-gray-300 hover:bg-[#30363D]'
@@ -284,9 +286,9 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 value={symbolInput}
                 onChange={(e) => setSymbolInput(e.target.value)}
                 placeholder="Symbol..."
-                className="w-20 px-2 py-1 bg-[#0D1117] border border-[#30363D] rounded-l text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-16 sm:w-20 px-1.5 sm:px-2 py-1 bg-[#0D1117] border border-[#30363D] rounded-l text-[9px] sm:text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
               />
-              <button type="submit" className="px-2 py-1 bg-[#21262D] border border-[#30363D] border-l-0 rounded-r text-[10px] text-gray-400 hover:text-white hover:bg-[#30363D] transition-all">
+              <button type="submit" className="px-1.5 sm:px-2 py-1 bg-[#21262D] border border-[#30363D] border-l-0 rounded-r text-[9px] sm:text-[10px] text-gray-400 hover:text-white hover:bg-[#30363D] transition-all">
                 Go
               </button>
             </form>
@@ -295,7 +297,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
       </div>
 
       {/* Tab Content */}
-      <div className="relative overflow-hidden min-h-[400px]">
+      <div className="relative overflow-hidden min-h-[300px] sm:min-h-[400px] lg:min-h-[500px]">
         <AnimatePresence mode="wait">
           {activeTab === 'equity' ? (
             <motion.div
@@ -317,14 +319,16 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
               transition={{ duration: 0.2 }}
               className="h-full"
             >
-              <AdvancedChart
-                symbol={chartSymbol}
-                interval={interval}
-                traderID={traderId}
-                height={550}
-                exchange={currentExchange}
-                onSymbolChange={setChartSymbol}
-              />
+              <div className="h-[350px] sm:h-[450px] lg:h-[550px] w-full flex flex-col">
+                <AdvancedChart
+                  symbol={chartSymbol}
+                  interval={interval}
+                  traderID={traderId}
+                  height={550}
+                  exchange={currentExchange}
+                  onSymbolChange={setChartSymbol}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
