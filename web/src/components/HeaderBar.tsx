@@ -73,7 +73,7 @@ export default function HeaderBar({
 
   return (
     <nav className="fixed top-0 w-full z-50 header-bar">
-      <div className="flex items-center justify-between h-16 px-4 sm:px-6 max-w-[1920px] mx-auto">
+      <div className="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-4 md:px-6 max-w-[1920px] mx-auto">
         {/* Logo - Always go to home page */}
         <div
           onClick={() => {
@@ -81,9 +81,9 @@ export default function HeaderBar({
           }}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
-          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-7 h-7" />
+          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-6 h-6 sm:w-7 sm:h-7" />
           <span
-            className="text-lg font-bold"
+            className="text-base sm:text-lg font-bold"
             style={{ color: 'var(--brand-yellow)' }}
           >
             NOFX
@@ -91,9 +91,9 @@ export default function HeaderBar({
         </div>
 
         {/* Desktop Menu */}
-        <div className="hidden md:flex items-center justify-between flex-1 ml-8">
+        <div className="hidden md:flex items-center justify-between flex-1 ml-4 lg:ml-8">
           {/* Left Side - Navigation Tabs */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4 flex-wrap">
             {isLoggedIn ? (
               // Main app navigation when logged in
               <>
@@ -104,13 +104,13 @@ export default function HeaderBar({
                     }
                     navigate('/competition')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'competition'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -146,13 +146,13 @@ export default function HeaderBar({
                     }
                     navigate('/traders')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'traders'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -188,13 +188,13 @@ export default function HeaderBar({
                     }
                     navigate('/dashboard')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'trader'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -230,13 +230,13 @@ export default function HeaderBar({
                     }
                     navigate('/strategy')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'strategy'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -271,13 +271,13 @@ export default function HeaderBar({
                     }
                     navigate('/debate')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'debate'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -312,13 +312,13 @@ export default function HeaderBar({
                     }
                     navigate('/backtest')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'backtest'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -353,13 +353,13 @@ export default function HeaderBar({
                     }
                     navigate('/faq')
                   }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'faq'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -393,13 +393,13 @@ export default function HeaderBar({
               <>
                 <a
                   href="/competition"
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'competition'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -430,13 +430,13 @@ export default function HeaderBar({
 
                 <a
                   href="/faq"
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color:
                       currentPage === 'faq'
                         ? 'var(--brand-yellow)'
                         : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -469,7 +469,7 @@ export default function HeaderBar({
           </div>
 
           {/* Right Side - Social Links and User Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
             {/* Social Links - Always visible */}
             <div className="flex items-center gap-1">
               {/* GitHub */}
