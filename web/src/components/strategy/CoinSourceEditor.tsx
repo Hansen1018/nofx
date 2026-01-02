@@ -116,13 +116,13 @@ export function CoinSourceEditor({
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-6">
       {/* Source Type Selector */}
       <div>
-        <label className="block text-xs sm:text-sm font-medium mb-2 sm:mb-3" style={{ color: '#EAECEF' }}>
+        <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
           {t('sourceType')}
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
             <button
               key={value}
@@ -131,7 +131,7 @@ export function CoinSourceEditor({
                 onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
               }
               disabled={disabled}
-              className={`p-2 sm:p-4 rounded-lg border transition-all ${
+              className={`p-4 rounded-lg border transition-all ${
                 config.source_type === value
                   ? 'ring-2 ring-yellow-500'
                   : 'hover:bg-white/5'
@@ -144,11 +144,11 @@ export function CoinSourceEditor({
                 borderColor: '#2B3139',
               }}
             >
-              <Icon className="w-4 h-4 sm:w-6 sm:h-6 mx-auto mb-1 sm:mb-2" style={{ color }} />
-              <div className="text-xs sm:text-sm font-medium" style={{ color: '#EAECEF' }}>
+              <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
+              <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
                 {t(value)}
               </div>
-              <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 line-clamp-2" style={{ color: '#848E9C' }}>
+              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
                 {t(`${value}Desc`)}
               </div>
             </button>
@@ -159,21 +159,21 @@ export function CoinSourceEditor({
       {/* Static Coins */}
       {(config.source_type === 'static' || config.source_type === 'mixed') && (
         <div>
-          <label className="block text-xs sm:text-sm font-medium mb-2 sm:mb-3" style={{ color: '#EAECEF' }}>
+          <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
             {t('staticCoins')}
           </label>
-          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+          <div className="flex flex-wrap gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
               <span
                 key={coin}
-                className="flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
                 style={{ background: '#2B3139', color: '#EAECEF' }}
               >
-                <span className="truncate max-w-[120px] sm:max-w-none">{coin}</span>
+                {coin}
                 {!disabled && (
                   <button
                     onClick={() => handleRemoveCoin(coin)}
-                    className="ml-0.5 sm:ml-1 hover:text-red-400 transition-colors flex-shrink-0"
+                    className="ml-1 hover:text-red-400 transition-colors"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -182,14 +182,14 @@ export function CoinSourceEditor({
             ))}
           </div>
           {!disabled && (
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={newCoin}
                 onChange={(e) => setNewCoin(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCoin()}
                 placeholder="BTC, ETH, SOL..."
-                className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm"
+                className="flex-1 px-4 py-2 rounded-lg"
                 style={{
                   background: '#0B0E11',
                   border: '1px solid #2B3139',
@@ -198,10 +198,10 @@ export function CoinSourceEditor({
               />
               <button
                 onClick={handleAddCoin}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 transition-colors text-xs sm:text-sm whitespace-nowrap"
+                className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                 style={{ background: '#F0B90B', color: '#0B0E11' }}
               >
-                <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                <Plus className="w-4 h-4" />
                 {t('addCoin')}
               </button>
             </div>
@@ -211,17 +211,17 @@ export function CoinSourceEditor({
 
       {/* Coin Pool Options */}
       {(config.source_type === 'coinpool' || config.source_type === 'mixed') && (
-        <div className="space-y-3 sm:space-y-4">
-          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-            <Link className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" style={{ color: '#F0B90B' }} />
-            <span className="text-xs sm:text-sm font-medium" style={{ color: '#EAECEF' }}>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Link className="w-4 h-4" style={{ color: '#F0B90B' }} />
+            <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
               {t('dataSourceConfig')} - AI500
             </span>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-              <label className="flex items-center gap-2 sm:gap-3 cursor-pointer">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="flex items-center gap-3 mb-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={config.use_coin_pool}
@@ -229,13 +229,13 @@ export function CoinSourceEditor({
                     !disabled && onChange({ ...config, use_coin_pool: e.target.checked })
                   }
                   disabled={disabled}
-                  className="w-4 h-4 sm:w-5 sm:h-5 rounded accent-yellow-500 flex-shrink-0"
+                  className="w-5 h-5 rounded accent-yellow-500"
                 />
-                <span className="text-xs sm:text-sm" style={{ color: '#EAECEF' }}>{t('useCoinPool')}</span>
+                <span style={{ color: '#EAECEF' }}>{t('useCoinPool')}</span>
               </label>
               {config.use_coin_pool && (
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm" style={{ color: '#848E9C' }}>
                     {t('coinPoolLimit')}:
                   </span>
                   <input
@@ -248,7 +248,7 @@ export function CoinSourceEditor({
                     disabled={disabled}
                     min={1}
                     max={100}
-                    className="w-20 sm:w-24 px-2 sm:px-3 py-1.5 sm:py-2 rounded text-xs sm:text-sm"
+                    className="w-20 px-3 py-1.5 rounded"
                     style={{
                       background: '#0B0E11',
                       border: '1px solid #2B3139',
@@ -258,66 +258,66 @@ export function CoinSourceEditor({
                 </div>
               )}
             </div>
+          </div>
 
-            {config.use_coin_pool && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs sm:text-sm" style={{ color: '#848E9C' }}>
-                    {t('coinPoolApiUrl')}
-                  </label>
-                  {!disabled && !config.coin_pool_api_url && (
-                    <button
-                      type="button"
-                      onClick={() => onChange({ ...config, coin_pool_api_url: DEFAULT_COIN_POOL_API_URL })}
-                      className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded flex-shrink-0"
-                      style={{ background: '#F0B90B20', color: '#F0B90B' }}
-                    >
-                      {t('fillDefault')}
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="url"
-                  value={config.coin_pool_api_url || ''}
-                  onChange={(e) =>
-                    !disabled && onChange({ ...config, coin_pool_api_url: e.target.value })
-                  }
-                  disabled={disabled}
-                  placeholder={t('coinPoolApiUrlPlaceholder')}
-                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2.5 rounded-lg font-mono text-xs sm:text-sm"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
-                />
-                {!config.coin_pool_api_url && (
-                  <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
-                    <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" style={{ color: '#F0B90B' }} />
-                    <span className="text-[10px] sm:text-xs" style={{ color: '#F0B90B' }}>
-                      {t('apiUrlRequired')}
-                    </span>
-                  </div>
+          {config.use_coin_pool && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('coinPoolApiUrl')}
+                </label>
+                {!disabled && !config.coin_pool_api_url && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...config, coin_pool_api_url: DEFAULT_COIN_POOL_API_URL })}
+                    className="text-xs px-2 py-1 rounded"
+                    style={{ background: '#F0B90B20', color: '#F0B90B' }}
+                  >
+                    {t('fillDefault')}
+                  </button>
                 )}
               </div>
-            )}
-          </div>
+              <input
+                type="url"
+                value={config.coin_pool_api_url || ''}
+                onChange={(e) =>
+                  !disabled && onChange({ ...config, coin_pool_api_url: e.target.value })
+                }
+                disabled={disabled}
+                placeholder={t('coinPoolApiUrlPlaceholder')}
+                className="w-full px-4 py-2.5 rounded-lg font-mono text-sm"
+                style={{
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              {!config.coin_pool_api_url && (
+                <div className="flex items-center gap-2 mt-2">
+                  <AlertCircle className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                  <span className="text-xs" style={{ color: '#F0B90B' }}>
+                    {t('apiUrlRequired')}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* OI Top Options */}
       {(config.source_type === 'oi_top' || config.source_type === 'mixed') && (
-        <div className="space-y-3 sm:space-y-4">
-          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-            <Link className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" style={{ color: '#0ECB81' }} />
-            <span className="text-xs sm:text-sm font-medium" style={{ color: '#EAECEF' }}>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Link className="w-4 h-4" style={{ color: '#0ECB81' }} />
+            <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
               {t('dataSourceConfig')} - OI Top
             </span>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-              <label className="flex items-center gap-2 sm:gap-3 cursor-pointer">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="flex items-center gap-3 mb-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={config.use_oi_top}
@@ -325,13 +325,13 @@ export function CoinSourceEditor({
                     !disabled && onChange({ ...config, use_oi_top: e.target.checked })
                   }
                   disabled={disabled}
-                  className="w-4 h-4 sm:w-5 sm:h-5 rounded accent-yellow-500 flex-shrink-0"
+                  className="w-5 h-5 rounded accent-yellow-500"
                 />
-                <span className="text-xs sm:text-sm" style={{ color: '#EAECEF' }}>{t('useOITop')}</span>
+                <span style={{ color: '#EAECEF' }}>{t('useOITop')}</span>
               </label>
               {config.use_oi_top && (
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm" style={{ color: '#848E9C' }}>
                     {t('oiTopLimit')}:
                   </span>
                   <input
@@ -344,7 +344,7 @@ export function CoinSourceEditor({
                     disabled={disabled}
                     min={1}
                     max={50}
-                    className="w-20 sm:w-24 px-2 sm:px-3 py-1.5 sm:py-2 rounded text-xs sm:text-sm"
+                    className="w-20 px-3 py-1.5 rounded"
                     style={{
                       background: '#0B0E11',
                       border: '1px solid #2B3139',
@@ -354,50 +354,50 @@ export function CoinSourceEditor({
                 </div>
               )}
             </div>
+          </div>
 
-            {config.use_oi_top && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs sm:text-sm" style={{ color: '#848E9C' }}>
-                    {t('oiTopApiUrl')}
-                  </label>
-                  {!disabled && !config.oi_top_api_url && (
-                    <button
-                      type="button"
-                      onClick={() => onChange({ ...config, oi_top_api_url: DEFAULT_OI_TOP_API_URL })}
-                      className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded flex-shrink-0"
-                      style={{ background: '#0ECB8120', color: '#0ECB81' }}
-                    >
-                      {t('fillDefault')}
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="url"
-                  value={config.oi_top_api_url || ''}
-                  onChange={(e) =>
-                    !disabled && onChange({ ...config, oi_top_api_url: e.target.value })
-                  }
-                  disabled={disabled}
-                  placeholder={t('oiTopApiUrlPlaceholder')}
-                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2.5 rounded-lg font-mono text-xs sm:text-sm"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
-                />
-                {!config.oi_top_api_url && (
-                  <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
-                    <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" style={{ color: '#F0B90B' }} />
-                    <span className="text-[10px] sm:text-xs" style={{ color: '#F0B90B' }}>
-                      {t('apiUrlRequired')}
-                    </span>
-                  </div>
+          {config.use_oi_top && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('oiTopApiUrl')}
+                </label>
+                {!disabled && !config.oi_top_api_url && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...config, oi_top_api_url: DEFAULT_OI_TOP_API_URL })}
+                    className="text-xs px-2 py-1 rounded"
+                    style={{ background: '#0ECB8120', color: '#0ECB81' }}
+                  >
+                    {t('fillDefault')}
+                  </button>
                 )}
               </div>
-            )}
-          </div>
+              <input
+                type="url"
+                value={config.oi_top_api_url || ''}
+                onChange={(e) =>
+                  !disabled && onChange({ ...config, oi_top_api_url: e.target.value })
+                }
+                disabled={disabled}
+                placeholder={t('oiTopApiUrlPlaceholder')}
+                className="w-full px-4 py-2.5 rounded-lg font-mono text-sm"
+                style={{
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              {!config.oi_top_api_url && (
+                <div className="flex items-center gap-2 mt-2">
+                  <AlertCircle className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                  <span className="text-xs" style={{ color: '#F0B90B' }}>
+                    {t('apiUrlRequired')}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
