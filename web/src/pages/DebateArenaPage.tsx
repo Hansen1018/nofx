@@ -538,16 +538,16 @@ export function DebateArenaPage() {
   return (
     <div className="h-full bg-[#0a0c10] flex flex-col lg:flex-row overflow-hidden">
       {/* Left - Debate List + Online Traders */}
-      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col max-h-[300px] lg:max-h-none">
+      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col h-[50vh] lg:h-auto lg:max-h-none overflow-hidden">
         {/* New Debate Button */}
         <button onClick={() => setShowCreate(true)}
-          className="m-2 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm flex items-center justify-center gap-1">
+          className="m-2 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm flex items-center justify-center gap-1 flex-shrink-0">
           <Plus size={16} /> {t('newDebate', language)}
         </button>
 
         {/* Debate List */}
-        <div className="px-2 py-1 text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
-        <div className="overflow-y-auto flex-1 lg:flex-none max-h-[150px] lg:max-h-[30%]">
+        <div className="px-2 py-1 text-xs text-gray-500 font-semibold flex-shrink-0">{t('debateSessions', language)}</div>
+        <div className="overflow-y-auto flex-shrink-0 h-[140px] lg:h-auto lg:max-h-[30%]">
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
               className={`p-1.5 sm:p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
@@ -569,12 +569,12 @@ export function DebateArenaPage() {
         </div>
 
         {/* Online Traders Section - Now visible on mobile */}
-        <div className="flex flex-1 border-t border-white/5 mt-2 overflow-hidden flex-col min-h-0">
+        <div className="flex flex-1 border-t border-white/5 mt-2 overflow-hidden flex-col min-h-[160px]">
           <div className="px-2 py-1.5 sm:py-2 text-xs text-gray-500 font-semibold flex items-center gap-1 flex-shrink-0">
             <Zap size={12} className="text-green-400" />
             {t('onlineTraders', language)}
           </div>
-          <div className="flex-1 overflow-y-auto px-2 space-y-1.5 sm:space-y-2 min-h-0">
+          <div className="flex-1 overflow-y-auto px-2 space-y-1.5 sm:space-y-2 min-h-0 pb-2">
             {traders?.filter(tr => tr.is_running).map(tr => (
               <div key={tr.trader_id}
                 onClick={() => { setTraderId(tr.trader_id); if (decision && !decision.executed) setExecId(detail?.id || null) }}
