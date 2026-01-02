@@ -547,7 +547,7 @@ export function DebateArenaPage() {
 
         {/* Debate List */}
         <div className="px-2 py-1 text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
-        <div className="overflow-y-auto flex-1 lg:flex-none" style={{ maxHeight: '150px', lg: { maxHeight: '30%' } }}>
+        <div className="overflow-y-auto flex-1 lg:flex-none max-h-[150px] lg:max-h-[30%]">
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
               className={`p-1.5 sm:p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
