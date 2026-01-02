@@ -804,20 +804,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
-        <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
           <div
-            className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center"
+            className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
               background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
               boxShadow: '0 4px 14px rgba(240, 185, 11, 0.4)',
             }}
           >
-            <Bot className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#000' }} />
+            <Bot className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" style={{ color: '#000' }} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1
-              className="text-xl md:text-2xl font-bold flex items-center gap-2"
+              className="text-lg sm:text-xl md:text-2xl font-bold flex flex-wrap items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
               {t('aiTraders', language)}
@@ -837,7 +837,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
-        <div className="flex gap-2 md:gap-3 w-full md:w-auto overflow-hidden flex-wrap md:flex-nowrap">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto sm:overflow-x-visible flex-wrap sm:flex-nowrap">
           <button
             onClick={handleAddModel}
             className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap"
@@ -888,11 +888,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       </div>
 
       {/* Configuration Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {/* AI Models */}
-        <div className="binance-card p-3 md:p-4">
+        <div className="binance-card p-3 sm:p-4">
           <h3
-            className="text-base md:text-lg font-semibold mb-3 flex items-center gap-2"
+            className="text-sm sm:text-base md:text-lg font-semibold mb-3 flex items-center gap-2"
             style={{ color: '#EAECEF' }}
           >
             <Brain
@@ -990,9 +990,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         </div>
 
         {/* Exchanges */}
-        <div className="binance-card p-3 md:p-4">
+        <div className="binance-card p-3 sm:p-4">
           <h3
-            className="text-base md:text-lg font-semibold mb-3 flex items-center gap-2"
+            className="text-sm sm:text-base md:text-lg font-semibold mb-3 flex items-center gap-2"
             style={{ color: '#EAECEF' }}
           >
             <Landmark
@@ -1136,10 +1136,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       </div>
 
       {/* Traders List */}
-      <div className="binance-card p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4 md:mb-5">
+      <div className="binance-card p-3 sm:p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-3 sm:mb-4 md:mb-5">
           <h2
-            className="text-lg md:text-xl font-bold flex items-center gap-2"
+            className="text-base sm:text-lg md:text-xl font-bold flex items-center gap-2"
             style={{ color: '#EAECEF' }}
           >
             <Users
@@ -1182,28 +1182,33 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                 className="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 rounded transition-all hover:translate-y-[-1px] gap-3 md:gap-4"
                 style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
               >
-                <div className="flex items-center gap-3 md:gap-4">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0 flex-1">
                   <div className="flex-shrink-0">
+                    <PunkAvatar
+                      seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
+                      size={40}
+                      className="rounded-lg sm:hidden"
+                    />
+                    <PunkAvatar
+                      seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
+                      size={44}
+                      className="rounded-lg hidden sm:block md:hidden"
+                    />
                     <PunkAvatar
                       seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
                       size={48}
                       className="rounded-lg hidden md:block"
                     />
-                    <PunkAvatar
-                      seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
-                      size={40}
-                      className="rounded-lg md:hidden"
-                    />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div
-                      className="font-bold text-base md:text-lg truncate"
+                      className="font-bold text-sm sm:text-base md:text-lg truncate"
                       style={{ color: '#EAECEF' }}
                     >
                       {trader.trader_name}
                     </div>
                     <div
-                      className="text-xs md:text-sm truncate"
+                      className="text-[10px] sm:text-xs md:text-sm truncate"
                       style={{
                         color: trader.ai_model.includes('deepseek')
                           ? '#60a5fa'
@@ -1218,7 +1223,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 md:gap-4 flex-wrap md:flex-nowrap">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-wrap">
                   {/* Wallet Address for Perp-DEX - placed before status for alignment */}
                   {(() => {
                     const exchange = allExchanges.find(e => e.id === trader.exchange_id)
@@ -1303,7 +1308,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                   </div>
 
                   {/* Actions: 禁止换行，超出横向滚动 */}
-                  <div className="flex gap-1.5 md:gap-2 flex-nowrap overflow-x-auto items-center">
+                  <div className="flex gap-1 sm:gap-1.5 md:gap-2 flex-nowrap overflow-x-auto items-center w-full sm:w-auto">
                     <button
                       onClick={() => {
                         if (onTraderSelect) {
