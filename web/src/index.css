@@ -768,12 +768,48 @@ tr:hover {
 }
 
 /* Responsive utilities */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
+  .binance-card {
+    padding: 0.75rem;
+  }
+
+  .stat-card {
+    padding: 0.75rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
   .binance-card {
     padding: 1rem;
   }
 
   .stat-card {
     padding: 1rem;
+  }
+}
+
+/* Mobile-first responsive text sizes */
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+  }
+  
+  h3 {
+    font-size: 1.125rem;
+  }
+}
+
+/* Ensure tables are scrollable on mobile */
+@media (max-width: 768px) {
+  table {
+    font-size: 0.75rem;
+  }
+  
+  th, td {
+    padding: 0.5rem 0.25rem;
   }
 }
