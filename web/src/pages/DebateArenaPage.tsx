@@ -547,7 +547,7 @@ export function DebateArenaPage() {
 
         {/* Debate List */}
         <div className="px-2 py-1 text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
-        <div className="overflow-y-auto" style={{ maxHeight: '30%' }}>
+        <div className="overflow-y-auto flex-1 lg:flex-none max-h-[120px] lg:max-h-[30%]">
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
               className={`p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
@@ -568,19 +568,19 @@ export function DebateArenaPage() {
           ))}
         </div>
 
-        {/* Online Traders Section */}
-        <div className="flex-1 border-t border-white/5 mt-2 overflow-hidden flex flex-col">
-          <div className="px-2 py-2 text-xs text-gray-500 font-semibold flex items-center gap-1">
+        {/* Online Traders Section - Now visible on mobile */}
+        <div className="flex flex-1 border-t border-white/5 mt-2 overflow-hidden flex-col min-h-0">
+          <div className="px-2 py-1.5 sm:py-2 text-xs text-gray-500 font-semibold flex items-center gap-1 flex-shrink-0">
             <Zap size={12} className="text-green-400" />
             {t('onlineTraders', language)}
           </div>
-          <div className="flex-1 overflow-y-auto px-2 space-y-2">
+          <div className="flex-1 overflow-y-auto px-2 space-y-1.5 sm:space-y-2 min-h-0">
             {traders?.filter(tr => tr.is_running).map(tr => (
               <div key={tr.trader_id}
                 onClick={() => { setTraderId(tr.trader_id); if (decision && !decision.executed) setExecId(detail?.id || null) }}
-                className={`p-2 rounded-lg cursor-pointer transition-all ${traderId === tr.trader_id ? 'bg-green-500/20 ring-1 ring-green-500' : 'bg-white/5 hover:bg-white/10'}`}>
-                <div className="flex items-center gap-2">
-                  <PunkAvatar seed={tr.trader_id} size={32} className="rounded-lg" />
+                className={`p-1.5 sm:p-2 rounded-lg cursor-pointer transition-all ${traderId === tr.trader_id ? 'bg-green-500/20 ring-1 ring-green-500' : 'bg-white/5 hover:bg-white/10'}`}>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <PunkAvatar seed={tr.trader_id} size={24} className="rounded-lg sm:w-8 sm:h-8 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-white font-medium truncate">{tr.trader_name}</div>
                     <div className="text-xs text-gray-500 truncate">{tr.ai_model}</div>
@@ -590,10 +590,10 @@ export function DebateArenaPage() {
               </div>
             ))}
             {traders?.filter(tr => !tr.is_running).slice(0, 3).map(tr => (
-              <div key={tr.trader_id} className="p-2 rounded-lg bg-white/5 opacity-50">
-                <div className="flex items-center gap-2">
-                  <div className="grayscale">
-                    <PunkAvatar seed={tr.trader_id} size={32} className="rounded-lg" />
+              <div key={tr.trader_id} className="p-1.5 sm:p-2 rounded-lg bg-white/5 opacity-50">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="grayscale flex-shrink-0">
+                    <PunkAvatar seed={tr.trader_id} size={24} className="rounded-lg sm:w-8 sm:h-8" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-white font-medium truncate">{tr.trader_name}</div>
