@@ -1509,6 +1509,23 @@ func extractDecisions(response string) ([]Decision, error) {
 	}
 
 	jsonContent := strings.TrimSpace(reJSONArray.FindString(jsonPart))
+	
+	// If no complete JSON array found, try to find incomplete JSON and fix it
+	if jsonContent == "" {
+		// Try to find incomplete JSON (e.g., truncated output)
+		// Look for pattern: [{ ... (may be incomplete)
+		incompletePattern := regexp.MustCompile(`(?is)\[\s*\{[^}]*`)
+		if incompleteMatch := incompletePattern.FindString(jsonPart); incompleteMatch != "" {
+			logger.Infof("⚠️  [JSON Recovery] Found incomplete JSON, attempting to fix...")
+			
+			// Try to extract and fix incomplete JSON
+			jsonContent = tryFixIncompleteJSON(incompleteMatch, jsonPart)
+			if jsonContent != "" {
+				logger.Infof("✓ [JSON Recovery] Successfully fixed incomplete JSON")
+			}
+		}
+	}
+	
 	if jsonContent == "" {
 		logger.Infof("⚠️  [SafeFallback] AI didn't output JSON decision, entering safe wait mode")
 
@@ -1605,6 +1622,140 @@ func removeInvisibleRunes(s string) string {
 
 func compactArrayOpen(s string) string {
 	return reArrayOpenSpace.ReplaceAllString(strings.TrimSpace(s), "[{")
+}
+
+// tryFixIncompleteJSON attempts to fix incomplete JSON output (e.g., truncated responses)
+func tryFixIncompleteJSON(incompleteMatch string, fullText string) string {
+	// Find the start of the JSON array
+	startIdx := strings.Index(fullText, incompleteMatch)
+	if startIdx == -1 {
+		return ""
+	}
+	
+	// Extract from start to end of text (assuming JSON was truncated)
+	jsonCandidate := fullText[startIdx:]
+	jsonCandidate = strings.TrimSpace(jsonCandidate)
+	
+	// Ensure it starts with [
+	if !strings.HasPrefix(jsonCandidate, "[") {
+		// Try to find the first [ in the candidate
+		bracketIdx := strings.Index(jsonCandidate, "[")
+		if bracketIdx != -1 {
+			jsonCandidate = jsonCandidate[bracketIdx:]
+		} else {
+			jsonCandidate = "[" + jsonCandidate
+		}
+	}
+	
+	// Count braces and brackets to determine what's missing
+	openBraces := strings.Count(jsonCandidate, "{")
+	closeBraces := strings.Count(jsonCandidate, "}")
+	openBrackets := strings.Count(jsonCandidate, "[")
+	closeBrackets := strings.Count(jsonCandidate, "]")
+	
+	// Try to find complete objects by scanning character by character
+	// This is more reliable than regex for nested structures
+	var completeObjects []string
+	depth := 0
+	objStart := -1
+	inString := false
+	escapeNext := false
+	
+	for i, char := range jsonCandidate {
+		if escapeNext {
+			escapeNext = false
+			continue
+		}
+		
+		if char == '\\' {
+			escapeNext = true
+			continue
+		}
+		
+		if char == '"' {
+			inString = !inString
+			continue
+		}
+		
+		if inString {
+			continue
+		}
+		
+		if char == '[' {
+			depth++
+			if depth == 1 && objStart == -1 {
+				objStart = i
+			}
+		} else if char == ']' {
+			depth--
+			if depth == 0 && objStart != -1 {
+				// Found a complete array, try to extract objects
+				arrayContent := jsonCandidate[objStart+1 : i]
+				// Try to find complete objects within this array
+				objDepth := 0
+				objStartIdx := -1
+				for j, c := range arrayContent {
+					if c == '{' && !inString {
+						if objDepth == 0 {
+							objStartIdx = j
+						}
+						objDepth++
+					} else if c == '}' && !inString {
+						objDepth--
+						if objDepth == 0 && objStartIdx != -1 {
+							completeObjects = append(completeObjects, arrayContent[objStartIdx:j+1])
+							objStartIdx = -1
+						}
+					}
+				}
+				break
+			}
+		}
+	}
+	
+	// If we found complete objects, try to construct valid JSON
+	if len(completeObjects) > 0 {
+		simpleArray := "[" + strings.Join(completeObjects, ",") + "]"
+		var testDecisions []Decision
+		if err := json.Unmarshal([]byte(simpleArray), &testDecisions); err == nil {
+			return simpleArray
+		}
+	}
+	
+	// Last resort: try to balance braces and brackets manually
+	if openBraces > closeBraces || openBrackets > closeBrackets {
+		balanced := jsonCandidate
+		// Remove any trailing incomplete content (look for last complete },])
+		lastCompleteIdx := -1
+		for i := len(balanced) - 1; i >= 0; i-- {
+			if balanced[i] == '}' || balanced[i] == ']' {
+				lastCompleteIdx = i
+				break
+			}
+		}
+		
+		if lastCompleteIdx != -1 {
+			balanced = balanced[:lastCompleteIdx+1]
+		}
+		
+		// Add missing closing brackets/braces
+		neededCloseBraces := strings.Count(balanced, "{") - strings.Count(balanced, "}")
+		neededCloseBrackets := strings.Count(balanced, "[") - strings.Count(balanced, "]")
+		
+		for i := 0; i < neededCloseBraces; i++ {
+			balanced += "}"
+		}
+		for i := 0; i < neededCloseBrackets; i++ {
+			balanced += "]"
+		}
+		
+		var testDecisions []Decision
+		if err := json.Unmarshal([]byte(balanced), &testDecisions); err == nil {
+			return balanced
+		}
+	}
+	
+	return ""
 }
 
 // ============================================================================
