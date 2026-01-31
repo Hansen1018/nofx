@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   LineChart,
   Line,
@@ -14,6 +14,7 @@ import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { t } from '../i18n/translations'
+import type { DecisionRecord } from '../types'
 import {
   AlertTriangle,
   BarChart3,
@@ -40,8 +41,22 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
   const [displayMode, setDisplayMode] = useState<'dollar' | 'percent'>('dollar')
+  const [isMobile, setIsMobile] = useState(false)
 
-  const { data: history, error, isLoading } = useSWR<EquityPoint[]>(
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  const {
+    data: history,
+    error,
+    isLoading,
+  } = useSWR<EquityPoint[]>(
     user && token && traderId ? `equity-history-${traderId}` : null,
     () => api.getEquityHistory(traderId),
     {
@@ -61,12 +76,32 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
     }
   )
 
+  // Get latest decision to get the current cycle number for alignment
+  const { data: latestDecisions } = useSWR<DecisionRecord[]>(
+    user && token && traderId ? `latest-decisions-${traderId}` : null,
+    () => api.getLatestDecisions(traderId, 1),
+    {
+      refreshInterval: 30000, // 30秒刷新
+      revalidateOnFocus: false,
+      dedupingInterval: 20000,
+    }
+  )
+
+  // Get the latest cycle number from decision records
+  const latestDecisionCycleNumber =
+    latestDecisions && latestDecisions.length > 0
+      ? latestDecisions[0].cycle_number
+      : null
+
   // Loading state - show skeleton
   if (isLoading) {
     return (
       <div className={embedded ? 'p-6' : 'binance-card p-6'}>
         {!embedded && (
-          <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>
+          <h3
+            className="text-lg font-semibold mb-6"
+            style={{ color: '#EAECEF' }}
+          >
             {t('accountEquityCurve', language)}
           </h3>
         )}
@@ -108,7 +143,10 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
     return (
       <div className={embedded ? 'p-6' : 'binance-card p-6'}>
         {!embedded && (
-          <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>
+          <h3
+            className="text-lg font-semibold mb-6"
+            style={{ color: '#EAECEF' }}
+          >
             {t('accountEquityCurve', language)}
           </h3>
         )}
@@ -145,11 +183,25 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   const chartData = displayHistory.map((point) => {
     const pnl = point.total_equity - initialBalance
     const pnlPct = ((pnl / initialBalance) * 100).toFixed(2)
+    // 处理时间戳：支持 Unix 时间戳（秒或毫秒）和 ISO 字符串
+    let date: Date
+    if (typeof point.timestamp === 'number') {
+      // 如果是数字，判断是秒还是毫秒
+      date =
+        point.timestamp > 1000000000000
+          ? new Date(point.timestamp) // 毫秒
+          : new Date(point.timestamp * 1000) // 秒转毫秒
+    } else {
+      date = new Date(point.timestamp)
+    }
+    // 格式化时间：显示 月/日 时:分
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const day = date.getDate().toString().padStart(2, '0')
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    const timeStr = `${month}/${day} ${hours}:${minutes}`
     return {
-      time: new Date(point.timestamp).toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      time: timeStr,
       value: displayMode === 'dollar' ? point.total_equity : parseFloat(pnlPct),
       cycle: point.cycle_number,
       raw_equity: point.total_equity,
@@ -159,7 +211,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   })
 
   const currentValue = chartData[chartData.length - 1]
-  const isProfit = currentValue.raw_pnl >= 0
+  const isProfit = currentValue?.raw_pnl >= 0
 
   // 计算Y轴范围
   const calculateYDomain = () => {
@@ -212,9 +264,11 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   }
 
   return (
-    <div className={embedded ? 'p-3 sm:p-5' : 'binance-card p-3 sm:p-5 animate-fade-in'}>
+    <div
+      className={`${embedded ? 'p-2 sm:p-5' : 'binance-card p-2 sm:p-5 animate-fade-in'} w-full h-full flex flex-col`}
+    >
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+      <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between mb-2 sm:mb-4 flex-shrink-0">
         <div className="flex-1">
           {!embedded && (
             <h3
@@ -258,14 +312,14 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
                   <ArrowDown className="w-4 h-4" />
                 )}
                 {isProfit ? '+' : ''}
-                {currentValue.raw_pnl_pct}%
+                {currentValue?.raw_pnl_pct ?? 0}%
               </span>
               <span
                 className="text-xs sm:text-sm mono"
                 style={{ color: '#848E9C' }}
               >
                 ({isProfit ? '+' : ''}
-                {currentValue.raw_pnl.toFixed(2)} USDT)
+                {currentValue?.raw_pnl?.toFixed(2) ?? '0.00'} USDT)
               </span>
             </div>
           </div>
@@ -311,11 +365,12 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
 
       {/* Chart */}
       <div
-        className="my-2"
+        className={isMobile ? 'my-1' : 'my-2'}
         style={{
           borderRadius: '8px',
           overflow: 'hidden',
           position: 'relative',
+          height: isMobile ? '400px' : '320px',
         }}
       >
         {/* NOFX Watermark */}
@@ -334,10 +389,14 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
         >
           NOFX
         </div>
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
-            margin={{ top: 10, right: 20, left: 5, bottom: 30 }}
+            margin={
+              isMobile
+                ? { top: 5, right: 10, left: 5, bottom: 40 }
+                : { top: 10, right: 20, left: 20, bottom: 50 }
+            }
           >
             <defs>
               <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
@@ -349,17 +408,20 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
             <XAxis
               dataKey="time"
               stroke="#5E6673"
-              tick={{ fill: '#848E9C', fontSize: 11 }}
+              tick={{ fill: '#848E9C', fontSize: isMobile ? 10 : 11 }}
               tickLine={{ stroke: '#2B3139' }}
-              interval={Math.floor(chartData.length / 10)}
-              angle={-15}
-              textAnchor="end"
-              height={60}
+              interval={Math.floor(chartData.length / (isMobile ? 6 : 10))}
+              angle={isMobile ? -30 : -15}
+              textAnchor="middle"
+              height={isMobile ? 70 : 50}
+              dx={0}
+              dy={isMobile ? 8 : 15}
             />
             <YAxis
               stroke="#5E6673"
-              tick={{ fill: '#848E9C', fontSize: 12 }}
+              tick={{ fill: '#848E9C', fontSize: isMobile ? 10 : 12 }}
               tickLine={{ stroke: '#2B3139' }}
+              width={isMobile ? 35 : 50}
               domain={calculateYDomain()}
               tickFormatter={(value) =>
                 displayMode === 'dollar' ? `$${value.toFixed(0)}` : `${value}%`
@@ -399,7 +461,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
 
       {/* Footer Stats */}
       <div
-        className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-3"
+        className={`${isMobile ? 'mt-2 pt-2 gap-1.5' : 'mt-4 pt-3 gap-2 sm:gap-3'} grid grid-cols-2 sm:grid-cols-4 flex-shrink-0`}
         style={{ borderTop: '1px solid #2B3139' }}
       >
         <div
@@ -433,7 +495,10 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
             className="text-xs sm:text-sm font-bold mono"
             style={{ color: '#EAECEF' }}
           >
-            {currentValue.raw_equity.toFixed(2)} USDT
+            {currentValue?.raw_equity
+              ? currentValue.raw_equity.toFixed(2)
+              : '0.00'}{' '}
+            USDT
           </div>
         </div>
         <div
@@ -450,7 +515,13 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
             className="text-xs sm:text-sm font-bold mono"
             style={{ color: '#EAECEF' }}
           >
-            {validHistory.length} {t('cycles', language)}
+            {latestDecisionCycleNumber !== null
+              ? latestDecisionCycleNumber
+              : chartData.length > 0 && chartData[chartData.length - 1]?.cycle
+                ? chartData[chartData.length - 1].cycle
+                : validHistory.length > 0
+                  ? validHistory[validHistory.length - 1].cycle_number
+                  : 0}
           </div>
         </div>
         <div

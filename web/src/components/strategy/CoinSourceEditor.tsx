@@ -187,7 +187,7 @@ export function CoinSourceEditor({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Source Type Selector */}
       <div>
         <label className="block text-sm font-medium mb-3 text-nofx-text">
@@ -199,7 +199,10 @@ export function CoinSourceEditor({
               key={value}
               onClick={() =>
                 !disabled &&
-                onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
+                onChange({
+                  ...config,
+                  source_type: value as CoinSourceConfig['source_type'],
+                })
               }
               disabled={disabled}
               className={`p-4 rounded-lg border transition-all ${config.source_type === value
@@ -225,26 +228,28 @@ export function CoinSourceEditor({
           <label className="block text-sm font-medium mb-3 text-nofx-text">
             {t('staticCoins')}
           </label>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
               <span
                 key={coin}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-nofx-bg-lighter text-nofx-text"
               >
-                {coin}
+                <span className="truncate max-w-[120px] sm:max-w-none">
+                  {coin}
+                </span>
                 {!disabled && (
                   <button
                     onClick={() => handleRemoveCoin(coin)}
-                    className="ml-1 hover:text-red-400 transition-colors"
+                    className="ml-0.5 sm:ml-1 hover:text-red-400 transition-colors flex-shrink-0"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </button>
                 )}
               </span>
             ))}
           </div>
           {!disabled && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={newCoin}
@@ -257,8 +262,8 @@ export function CoinSourceEditor({
                 onClick={handleAddCoin}
                 className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors bg-nofx-gold text-black hover:bg-yellow-500"
               >
-                <Plus className="w-4 h-4" />
-                {t('addCoin')}
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="whitespace-nowrap">{t('addCoin')}</span>
               </button>
             </div>
           )}

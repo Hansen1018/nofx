@@ -1,0 +1,88 @@
+name: Publish Backend to GitHub Packages (Go Module)
+
+on:
+  push:
+    branches:
+      - main
+      - Individual
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish Go module
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整历史记录用于 Go 模块版本
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.3'
+
+      - name: Configure Git for Go modules
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create version tag (if not exists)
+        if: startsWith(github.ref, 'refs/heads/')
+        run: |
+          VERSION=$(date +%Y%m%d%H%M%S)
+          git tag -a "v0.0.0-dev.$VERSION" -m "Development version $VERSION"
+          git push origin "v0.0.0-dev.$VERSION" || true
+
+      - name: Get version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Configure Go for GitHub Packages
+        run: |
+          echo "module nofx" > go.mod.tmp
+          cat go.mod >> go.mod.tmp
+          mv go.mod.tmp go.mod
+          
+          # 配置 GOPROXY 以支持 GitHub Packages
+          go env -w GOPROXY=https://proxy.golang.org,direct
+          go env -w GOSUMDB=sum.golang.org
+
+      - name: Build and verify module
+        run: |
+          go mod download
+          go mod verify
+          go build ./...
+
+      - name: Publish Go module
+        run: |
+          # Go 模块通过 git tag 自动发布
+          # 确保模块路径正确
+          echo "✅ Go module ready for publishing"
+          echo "📦 Module: github.com/Hansen1018/nofx"
+          echo "🔗 Package: https://github.com/${{ github.repository }}"
+          echo ""
+          echo "To use this module:"
+          echo "  go get github.com/Hansen1018/nofx@latest"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release (optional)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false

@@ -2841,13 +2841,21 @@ func (s *Server) handleLatestDecisions(c *gin.Context) {
 		return
 	}
 
-	// Reverse array to put newest first (for list display)
-	// GetLatestRecords returns oldest to newest (for charts), here we need newest to oldest
-	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
-		records[i], records[j] = records[j], records[i]
+	// Filter out cycle 0 records (manual closes) - they should not appear in recent decisions
+	filteredRecords := make([]*store.DecisionRecord, 0, len(records))
+	for _, record := range records {
+		if record.CycleNumber > 0 {
+			filteredRecords = append(filteredRecords, record)
+		}
 	}
 
-	c.JSON(http.StatusOK, records)
+	// Reverse array to put newest first (for list display)
+	// GetLatestRecords returns oldest to newest (for charts), here we need newest to oldest
+	for i, j := 0, len(filteredRecords)-1; i < j; i, j = i+1, j-1 {
+		filteredRecords[i], filteredRecords[j] = filteredRecords[j], filteredRecords[i]
+	}
+
+	c.JSON(http.StatusOK, filteredRecords)
 }
 
 // handleStatistics Statistics information

@@ -3,7 +3,14 @@ import type { AIModel, Exchange, CreateTraderRequest, Strategy } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { toast } from 'sonner'
-import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
+import {
+  Pencil,
+  Plus,
+  X as IconX,
+  Sparkles,
+  ExternalLink,
+  UserPlus,
+} from 'lucide-react'
 import { httpClient } from '../lib/httpClient'
 
 // 提取下划线后面的名称部分
@@ -13,8 +20,14 @@ function getShortName(fullName: string): string {
 }
 
 // 交易所注册链接配置
-const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: boolean }> = {
-  binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
+const EXCHANGE_REGISTRATION_LINKS: Record<
+  string,
+  { url: string; hasReferral?: boolean }
+> = {
+  binance: {
+    url: 'https://www.binance.com/join?ref=NOFXENG',
+    hasReferral: true,
+  },
   okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
   bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
   hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
@@ -75,17 +88,25 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchStrategies = async () => {
       try {
-        const result = await httpClient.get<{ strategies: Strategy[] }>('/api/strategies')
+        const result = await httpClient.get<{ strategies: Strategy[] }>(
+          '/api/strategies'
+        )
         if (result.success && result.data?.strategies) {
           const strategyList = result.data.strategies
           setStrategies(strategyList)
           // 如果没有选择策略，默认选中激活的策略
           if (!formData.strategy_id && !isEditMode) {
-            const activeStrategy = strategyList.find(s => s.is_active)
+            const activeStrategy = strategyList.find((s) => s.is_active)
             if (activeStrategy) {
-              setFormData(prev => ({ ...prev, strategy_id: activeStrategy.id }))
+              setFormData((prev) => ({
+                ...prev,
+                strategy_id: activeStrategy.id,
+              }))
             } else if (strategyList.length > 0) {
-              setFormData(prev => ({ ...prev, strategy_id: strategyList[0].id }))
+              setFormData((prev) => ({
+                ...prev,
+                strategy_id: strategyList[0].id,
+              }))
             }
           }
         }
@@ -187,7 +208,7 @@ export function TraderConfigModal({
     }
   }
 
-  const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
+  const selectedStrategy = strategies.find((s) => s.id === formData.strategy_id)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -372,7 +393,12 @@ export function TraderConfigModal({
                         selectedStrategy.config.coin_source.source_type === 'oi_top' ? 'OI Top' : '混合'}
                     </div>
                     <div>
-                      保证金上限: {((selectedStrategy.config.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%
+                      保证金上限:{' '}
+                      {(
+                        (selectedStrategy.config.risk_control
+                          ?.max_margin_usage || 0.9) * 100
+                      ).toFixed(0)}
+                      %
                     </div>
                   </div>
                 </div>
@@ -541,7 +567,6 @@ export function TraderConfigModal({
               )}
             </div>
           </div>
-
         </div>
 
         {/* Footer */}

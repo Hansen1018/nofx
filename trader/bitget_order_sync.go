@@ -48,7 +48,6 @@ func (t *BitgetTrader) GetTrades(startTime time.Time, limit int) ([]BitgetTrade,
 		return nil, fmt.Errorf("failed to get fill history: %w", err)
 	}
 
-
 	// Bitget fill structure - supports both one-way and hedge mode
 	type BitgetFill struct {
 		TradeID    string `json:"tradeId"`
@@ -161,8 +160,31 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 		return fmt.Errorf("store is nil")
 	}
 
-	// Get recent trades (last 24 hours)
-	startTime := time.Now().Add(-24 * time.Hour)
+	// Get last sync time - try database first, then use last closed position time, then default to 30 days
+	orderStore := st.Order()
+	positionStore := st.Position()
+	nowMs := time.Now().UTC().UnixMilli()
+
+	// Try to get last fill time from database
+	lastFillTimeMs, err := orderStore.GetLastFillTimeByExchange(exchangeID)
+	var startTime time.Time
+
+	if err == nil && lastFillTimeMs > 0 && lastFillTimeMs < nowMs {
+		// Use last fill time from database (add 1 second buffer)
+		startTime = time.UnixMilli(lastFillTimeMs + 1000).UTC()
+		logger.Infof("📅 Recovered last sync time from DB: %s (UTC)", startTime.Format("2006-01-02 15:04:05"))
+	} else {
+		// First sync: try to get last closed position time
+		lastClosedTimeMs, err := positionStore.GetLastClosedPositionTime(traderID)
+		if err == nil && lastClosedTimeMs > 0 && lastClosedTimeMs < nowMs {
+			startTime = time.UnixMilli(lastClosedTimeMs).UTC()
+			logger.Infof("📅 First sync, starting from last closed position: %s (UTC)", startTime.Format("2006-01-02 15:04:05"))
+		} else {
+			// No historical data: go back 30 days
+			startTime = time.Now().Add(-30 * 24 * time.Hour)
+			logger.Infof("📅 First sync, starting from 30 days ago: %s (UTC)", startTime.Format("2006-01-02 15:04:05"))
+		}
+	}
 
 	logger.Infof("🔄 Syncing Bitget trades from: %s", startTime.Format(time.RFC3339))
 
@@ -180,8 +202,6 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 	})
 
 	// Process trades one by one (no transaction to avoid deadlock)
-	orderStore := st.Order()
-	positionStore := st.Position()
 	posBuilder := store.NewPositionBuilder(positionStore)
 	syncedCount := 0
 

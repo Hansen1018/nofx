@@ -21,14 +21,16 @@ import (
 // ============================================================================
 
 var (
-	// Safe regex: precisely match ```json code blocks
 	reJSONFence      = regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
 	reJSONArray      = regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
 	reArrayHead      = regexp.MustCompile(`^\[\s*\{`)
 	reArrayOpenSpace = regexp.MustCompile(`^\[\s+\{`)
 	reInvisibleRunes = regexp.MustCompile("[\u200B\u200C\u200D\uFEFF]")
 
-	// XML tag extraction (supports any characters in reasoning chain)
+	reJSONArrayFlexible = regexp.MustCompile(`(?is)\[\s*\{[\s\S]*?\}\s*\]`)
+	reCodeBlock         = regexp.MustCompile("(?is)" + "```\\w*\\s*([\\s\\S]*?)\\s*```")
+	reJSONObject        = regexp.MustCompile(`(?is)\{[\s\S]*?\}`)
+
 	reReasoningTag = regexp.MustCompile(`(?s)<reasoning>(.*?)</reasoning>`)
 	reDecisionTag  = regexp.MustCompile(`(?s)<decision>(.*?)</decision>`)
 )
@@ -974,7 +976,72 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
 		riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
 	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
-	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
+	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n", riskControl.MinConfidence))
+
+	// 4. Position Management - always describe breakeven & dynamic stop-loss to make rules explicit
+	sb.WriteString("\n## Position Management:\n")
+	if lang == LangChinese {
+		// 保本目标说明（0 表示当前未启用）
+		sb.WriteString(fmt.Sprintf("- 保本目标 (Breakeven Threshold): 当前配置为 +%.1f%% 未实现盈亏时，将止损价格上调至入场价以保护本金（如果为 0%% 则视为关闭保本保护）\n",
+			riskControl.BreakevenThreshold))
+		// 动态止损说明
+		sb.WriteString("- 动态止损 (Dynamic Stop-Loss): 使用 update_stop_loss action 可以更新持仓的止损价格。CRITICAL: 只能向有利方向移动止损（做多只能上移，做空只能下移），禁止下移止损价以保护利润。\n")
+	} else {
+		// English description
+		sb.WriteString(fmt.Sprintf("- Breakeven Threshold: Currently configured at +%.1f%% UnrealizedPnL; when reached, you should move stop_loss to entry price for breakeven protection (0%% means breakeven protection is disabled)\n",
+			riskControl.BreakevenThreshold))
+		sb.WriteString("- Dynamic Stop-Loss: Use update_stop_loss action to update position stop-loss price. CRITICAL: Only allow moving stop-loss in favorable direction (up for long, down for short), never move stop-loss against profit to protect gains.\n")
+	}
+
+	// Exit Signals (if configured)
+	if riskControl.HardStopLossPct < 0 || riskControl.TrailingStopPct > 0 || riskControl.TrailingStopMinProfit > 0 || riskControl.TrailingStopDrawdown > 0 {
+		sb.WriteString("\n## Exit Signals:\n")
+		if riskControl.HardStopLossPct < 0 {
+			sb.WriteString(fmt.Sprintf("- Hard Stop Loss: Recommend stop-loss when single position loss reaches %.1f%% (execute via stop_loss field)\n", riskControl.HardStopLossPct))
+		}
+		if riskControl.TrailingStopPct > 0 {
+			sb.WriteString(fmt.Sprintf("- Trailing Stop: Recommend partial/full profit-taking when PnL pulls back %.0f%% from peak\n", riskControl.TrailingStopPct))
+		}
+		if riskControl.TrailingStopMinProfit > 0 {
+			sb.WriteString(fmt.Sprintf("- Trailing Stop Activation: Minimum +%.1f%% profit required before trailing stop activates (CODE ENFORCED)\n", riskControl.TrailingStopMinProfit))
+		}
+		if riskControl.TrailingStopDrawdown > 0 {
+			sb.WriteString(fmt.Sprintf("- Auto-Close Trigger: Auto-close position when drawdown from peak reaches %.0f%% (CODE ENFORCED)\n", riskControl.TrailingStopDrawdown))
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("\n")
+	}
+
+	// Position sizing guidance
+	sb.WriteString("## Position Sizing Guidance\n")
+	sb.WriteString("Calculate `position_size_usd` based on your confidence and the Position Value Limits above:\n")
+	sb.WriteString("- High confidence (≥85): Use 80-100%% of max position value limit\n")
+	sb.WriteString("- Medium confidence (70-84): Use 50-80%% of max position value limit\n")
+	sb.WriteString("- Low confidence (60-69): Use 30-50%% of max position value limit\n")
+	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
+		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
+	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
+
+	// Position sizing guidance
+	sb.WriteString("## Position Sizing Guidance\n")
+	sb.WriteString("Calculate `position_size_usd` based on your confidence and the Position Value Limits above:\n")
+	sb.WriteString("- High confidence (≥85): Use 80-100%% of max position value limit\n")
+	sb.WriteString("- Medium confidence (70-84): Use 50-80%% of max position value limit\n")
+	sb.WriteString("- Low confidence (60-69): Use 30-50%% of max position value limit\n")
+	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
+		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
+	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
+
+	// Position sizing guidance
+	sb.WriteString("## Position Sizing Guidance\n")
+	sb.WriteString("Calculate `position_size_usd` based on your confidence and the Position Value Limits above:\n")
+	sb.WriteString("- High confidence (≥85): Use 80-100%% of max position value limit\n")
+	sb.WriteString("- Medium confidence (70-84): Use 50-80%% of max position value limit\n")
+	sb.WriteString("- Low confidence (60-69): Use 30-50%% of max position value limit\n")
+	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
+		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
+	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
 
 	// Position sizing guidance
 	sb.WriteString("## Position Sizing Guidance\n")
@@ -1041,9 +1108,10 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | update_stop_loss | hold | wait\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- Required when updating stop-loss: stop_loss (new stop-loss price, must be in favorable direction - up for long, down for short)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt
@@ -1331,7 +1399,9 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
-		sb.WriteString(e.formatMarketData(marketData))
+		marketDataStr := e.formatMarketData(marketData)
+		sb.WriteString(fmt.Sprintf("Latest Price (from position): %.4f\n\n", pos.MarkPrice))
+		sb.WriteString(marketDataStr)
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
@@ -1706,10 +1776,23 @@ func extractCoTTrace(response string) string {
 		return strings.TrimSpace(response[:decisionIdx])
 	}
 
+	if codeBlockMatch := reCodeBlock.FindStringSubmatch(response); codeBlockMatch != nil && len(codeBlockMatch) > 1 {
+		beforeBlock := strings.TrimSpace(response[:strings.Index(response, codeBlockMatch[0])])
+		if beforeBlock != "" {
+			logger.Infof("✓ Extracted reasoning chain before code block")
+			return beforeBlock
+		}
+	}
+
 	jsonStart := strings.Index(response, "[")
 	if jsonStart > 0 {
 		logger.Infof("⚠️  Extracted reasoning chain using old format ([ character separator)")
 		return strings.TrimSpace(response[:jsonStart])
+	}
+
+	if objStart := strings.Index(response, "{"); objStart > 0 {
+		logger.Infof("✓ Extracted reasoning chain before JSON object")
+		return strings.TrimSpace(response[:objStart])
 	}
 
 	return strings.TrimSpace(response)
@@ -1731,51 +1814,102 @@ func extractDecisions(response string) ([]Decision, error) {
 
 	jsonPart = fixMissingQuotes(jsonPart)
 
-	if m := reJSONFence.FindStringSubmatch(jsonPart); m != nil && len(m) > 1 {
-		jsonContent := strings.TrimSpace(m[1])
-		jsonContent = compactArrayOpen(jsonContent)
-		jsonContent = fixMissingQuotes(jsonContent)
-		if err := validateJSONFormat(jsonContent); err != nil {
-			return nil, fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
-		}
-		var decisions []Decision
-		if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-			return nil, fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
-		}
-		return decisions, nil
+	extractors := []struct {
+		name    string
+		extract func(string) (string, bool)
+	}{
+		{
+			name: "```json code block",
+			extract: func(s string) (string, bool) {
+				if m := reJSONFence.FindStringSubmatch(s); m != nil && len(m) > 1 {
+					return strings.TrimSpace(m[1]), true
+				}
+				return "", false
+			},
+		},
+		{
+			name: "markdown code block (any language)",
+			extract: func(s string) (string, bool) {
+				if m := reCodeBlock.FindStringSubmatch(s); m != nil && len(m) > 1 {
+					candidate := strings.TrimSpace(m[1])
+					if strings.HasPrefix(candidate, "[") && strings.Contains(candidate, "{") {
+						return candidate, true
+					}
+				}
+				return "", false
+			},
+		},
+		{
+			name: "JSON array (flexible)",
+			extract: func(s string) (string, bool) {
+				result := strings.TrimSpace(reJSONArrayFlexible.FindString(s))
+				if result != "" {
+					return result, true
+				}
+				return "", false
+			},
+		},
+		{
+			name: "JSON array (strict)",
+			extract: func(s string) (string, bool) {
+				result := strings.TrimSpace(reJSONArray.FindString(s))
+				if result != "" {
+					return result, true
+				}
+				return "", false
+			},
+		},
+		{
+			name: "JSON object (fallback)",
+			extract: func(s string) (string, bool) {
+				objMatch := reJSONObject.FindString(s)
+				if objMatch != "" {
+					return "[" + objMatch + "]", true
+				}
+				return "", false
+			},
+		},
 	}
 
-	jsonContent := strings.TrimSpace(reJSONArray.FindString(jsonPart))
-	if jsonContent == "" {
-		logger.Infof("⚠️  [SafeFallback] AI didn't output JSON decision, entering safe wait mode")
+	for _, extractor := range extractors {
+		jsonContent, found := extractor.extract(jsonPart)
+		if found {
+			logger.Infof("✓ Extracted JSON using: %s", extractor.name)
 
-		cotSummary := jsonPart
-		if len(cotSummary) > 240 {
-			cotSummary = cotSummary[:240] + "..."
+			jsonContent = compactArrayOpen(jsonContent)
+			jsonContent = fixMissingQuotes(jsonContent)
+
+			if err := validateJSONFormat(jsonContent); err != nil {
+				logger.Warnf("⚠️  JSON validation failed for %s: %v. Trying next extractor...", extractor.name, err)
+				continue
+			}
+
+			var decisions []Decision
+			if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
+				logger.Warnf("⚠️  JSON unmarshal failed for %s: %v. Trying next extractor...", extractor.name, err)
+				continue
+			}
+
+			logger.Infof("✓ Successfully parsed %d decisions", len(decisions))
+			return decisions, nil
 		}
-
-		fallbackDecision := Decision{
-			Symbol:    "ALL",
-			Action:    "wait",
-			Reasoning: fmt.Sprintf("Model didn't output structured JSON decision, entering safe wait; summary: %s", cotSummary),
-		}
-
-		return []Decision{fallbackDecision}, nil
 	}
 
-	jsonContent = compactArrayOpen(jsonContent)
-	jsonContent = fixMissingQuotes(jsonContent)
+	logger.Infof("⚠️  [SafeFallback] All JSON extractors failed, entering safe wait mode")
+	logger.Debugf("Full AI response for debugging:\n%s", jsonPart)
 
-	if err := validateJSONFormat(jsonContent); err != nil {
-		return nil, fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
+	cotSummary := jsonPart
+	if len(cotSummary) > 240 {
+		cotSummary = cotSummary[:240] + "..."
 	}
 
-	var decisions []Decision
-	if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-		return nil, fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
+	fallbackDecision := Decision{
+		Symbol:    "ALL",
+		Action:    "wait",
+		Reasoning: fmt.Sprintf("Model didn't output structured JSON decision, entering safe wait; summary: %s", cotSummary),
 	}
 
-	return decisions, nil
+	return []Decision{fallbackDecision}, nil
 }
 
 func fixMissingQuotes(jsonStr string) string {
@@ -1859,12 +1993,13 @@ func validateDecisions(decisions []Decision, accountEquity float64, btcEthLevera
 
 func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
 	validActions := map[string]bool{
-		"open_long":   true,
-		"open_short":  true,
-		"close_long":  true,
-		"close_short": true,
-		"hold":        true,
-		"wait":        true,
+		"open_long":        true,
+		"open_short":       true,
+		"close_long":       true,
+		"close_short":      true,
+		"update_stop_loss": true,
+		"hold":             true,
+		"wait":             true,
 	}
 
 	if !validActions[d.Action] {
@@ -1953,6 +2088,13 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		if riskRewardRatio < 3.0 {
 			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥3.0:1 [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
 				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
+		}
+	}
+
+	// Validate update_stop_loss action
+	if d.Action == "update_stop_loss" {
+		if d.StopLoss <= 0 {
+			return fmt.Errorf("update_stop_loss requires stop_loss price greater than 0: %.4f", d.StopLoss)
 		}
 	}
 

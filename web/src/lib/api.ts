@@ -481,7 +481,9 @@ export const api = {
     return handleJSONResponse<BacktestRunsResponse>(res)
   },
 
-  async startBacktest(config: BacktestStartConfig): Promise<BacktestRunMetadata> {
+  async startBacktest(
+    config: BacktestStartConfig
+  ): Promise<BacktestRunMetadata> {
     const res = await fetch(`${API_BASE}/backtest/start`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -653,19 +655,25 @@ export const api = {
   },
 
   async getStrategy(strategyId: string): Promise<Strategy> {
-    const result = await httpClient.get<Strategy>(`${API_BASE}/strategies/${strategyId}`)
+    const result = await httpClient.get<Strategy>(
+      `${API_BASE}/strategies/${strategyId}`
+    )
     if (!result.success) throw new Error('获取策略失败')
     return result.data!
   },
 
   async getActiveStrategy(): Promise<Strategy> {
-    const result = await httpClient.get<Strategy>(`${API_BASE}/strategies/active`)
+    const result = await httpClient.get<Strategy>(
+      `${API_BASE}/strategies/active`
+    )
     if (!result.success) throw new Error('获取激活策略失败')
     return result.data!
   },
 
   async getDefaultStrategyConfig(): Promise<StrategyConfig> {
-    const result = await httpClient.get<StrategyConfig>(`${API_BASE}/strategies/default-config`)
+    const result = await httpClient.get<StrategyConfig>(
+      `${API_BASE}/strategies/default-config`
+    )
     if (!result.success) throw new Error('获取默认策略配置失败')
     return result.data!
   },
@@ -675,7 +683,10 @@ export const api = {
     description: string
     config: StrategyConfig
   }): Promise<Strategy> {
-    const result = await httpClient.post<Strategy>(`${API_BASE}/strategies`, data)
+    const result = await httpClient.post<Strategy>(
+      `${API_BASE}/strategies`,
+      data
+    )
     if (!result.success) throw new Error('创建策略失败')
     return result.data!
   },
@@ -688,24 +699,33 @@ export const api = {
       config?: StrategyConfig
     }
   ): Promise<Strategy> {
-    const result = await httpClient.put<Strategy>(`${API_BASE}/strategies/${strategyId}`, data)
+    const result = await httpClient.put<Strategy>(
+      `${API_BASE}/strategies/${strategyId}`,
+      data
+    )
     if (!result.success) throw new Error('更新策略失败')
     return result.data!
   },
 
   async deleteStrategy(strategyId: string): Promise<void> {
-    const result = await httpClient.delete(`${API_BASE}/strategies/${strategyId}`)
+    const result = await httpClient.delete(
+      `${API_BASE}/strategies/${strategyId}`
+    )
     if (!result.success) throw new Error('删除策略失败')
   },
 
   async activateStrategy(strategyId: string): Promise<Strategy> {
-    const result = await httpClient.post<Strategy>(`${API_BASE}/strategies/${strategyId}/activate`)
+    const result = await httpClient.post<Strategy>(
+      `${API_BASE}/strategies/${strategyId}/activate`
+    )
     if (!result.success) throw new Error('激活策略失败')
     return result.data!
   },
 
   async duplicateStrategy(strategyId: string): Promise<Strategy> {
-    const result = await httpClient.post<Strategy>(`${API_BASE}/strategies/${strategyId}/duplicate`)
+    const result = await httpClient.post<Strategy>(
+      `${API_BASE}/strategies/${strategyId}/duplicate`
+    )
     if (!result.success) throw new Error('复制策略失败')
     return result.data!
   },

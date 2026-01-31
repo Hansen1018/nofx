@@ -226,6 +226,35 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 	return records, nil
 }
 
+// HasDecisionForOrder checks if a decision record exists for the given order ID
+// This prevents duplicate decision records for the same order (e.g., manual close via API and sync)
+func (s *DecisionStore) HasDecisionForOrder(traderID string, orderID int64) (bool, error) {
+	// Query recent decision records (last 1000) to check if orderID exists in Decisions JSON
+	var dbRecords []DecisionRecordDB
+	err := s.db.Where("trader_id = ?", traderID).
+		Order("timestamp DESC").
+		Limit(1000).
+		Find(&dbRecords).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to query decision records: %w", err)
+	}
+
+	// Check each record's Decisions JSON for the orderID
+	for _, db := range dbRecords {
+		var decisions []DecisionAction
+		if err := json.Unmarshal([]byte(db.Decisions), &decisions); err != nil {
+			continue
+		}
+		for _, action := range decisions {
+			if action.OrderID == orderID {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
 // GetRecordsByDate gets all records for a specified trader on a specified date
 func (s *DecisionStore) GetRecordsByDate(traderID string, date time.Time) ([]*DecisionRecord, error) {
 	dateStr := date.Format("2006-01-02")

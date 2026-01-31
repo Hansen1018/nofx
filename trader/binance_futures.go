@@ -1048,6 +1048,92 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 	return nil
 }
 
+// SetBreakevenStopLoss sets breakeven stop-loss order using Algo Order API
+// When unrealized profit reaches breakeven threshold, adjusts stop-loss to entry price
+func (t *FuturesTrader) SetBreakevenStopLoss(symbol string, positionSide string, entryPrice float64) error {
+	var side futures.SideType
+	var posSide futures.PositionSideType
+
+	if positionSide == "LONG" {
+		side = futures.SideTypeSell
+		posSide = futures.PositionSideTypeLong
+	} else {
+		side = futures.SideTypeBuy
+		posSide = futures.PositionSideTypeShort
+	}
+
+	// Use entry price as stop-loss price (breakeven protection)
+	breakevenPrice := entryPrice
+
+	// Use new Algo Order API for breakeven stop-loss
+	_, err := t.client.NewCreateAlgoOrderService().
+		Symbol(symbol).
+		Side(side).
+		PositionSide(posSide).
+		Type(futures.AlgoOrderTypeStopMarket).
+		TriggerPrice(fmt.Sprintf("%.8f", breakevenPrice)).
+		WorkingType(futures.WorkingTypeContractPrice).
+		ClosePosition(true).
+		ClientAlgoId(getBrOrderID()).
+		Do(context.Background())
+
+	if err != nil {
+		return fmt.Errorf("failed to set breakeven stop-loss: %w", err)
+	}
+
+	logger.Infof("  ✓ Breakeven stop-loss set (Algo Order): %.4f (entry price)", breakevenPrice)
+	return nil
+}
+
+// CancelBreakevenStopLoss cancels breakeven stop-loss orders for a symbol
+// Uses Algo Order API to cancel stop-loss orders at entry price
+func (t *FuturesTrader) CancelBreakevenStopLoss(symbol string) error {
+	canceledCount := 0
+	var cancelErrors []error
+
+	// Get all Algo orders for this symbol
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err != nil {
+		logger.Infof("  ⚠ Failed to list Algo orders: %v", err)
+		return fmt.Errorf("failed to list Algo orders: %w", err)
+	}
+
+	// Cancel stop-loss Algo orders (breakeven stop-loss uses STOP_MARKET type)
+	for _, algoOrder := range algoOrders {
+		if algoOrder.OrderType == futures.AlgoOrderTypeStopMarket || algoOrder.OrderType == futures.AlgoOrderTypeStop {
+			_, err := t.client.NewCancelAlgoOrderService().
+				AlgoID(algoOrder.AlgoId).
+				Do(context.Background())
+
+			if err != nil {
+				errMsg := fmt.Sprintf("Algo ID %d: %v", algoOrder.AlgoId, err)
+				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
+				logger.Infof("  ⚠ Failed to cancel breakeven stop-loss order: %s", errMsg)
+				continue
+			}
+
+			canceledCount++
+			logger.Infof("  ✓ Canceled breakeven stop-loss order (Algo ID: %d)", algoOrder.AlgoId)
+		}
+	}
+
+	if canceledCount == 0 && len(cancelErrors) == 0 {
+		logger.Infof("  ℹ %s has no breakeven stop-loss orders to cancel", symbol)
+	} else if canceledCount > 0 {
+		logger.Infof("  ✓ Canceled %d breakeven stop-loss order(s) for %s", canceledCount, symbol)
+	}
+
+	// If all cancellations failed, return error
+	if len(cancelErrors) > 0 && canceledCount == 0 {
+		return fmt.Errorf("failed to cancel breakeven stop-loss orders: %v", cancelErrors)
+	}
+
+	return nil
+}
+
 // GetMinNotional gets minimum notional value (Binance requirement)
 func (t *FuturesTrader) GetMinNotional(symbol string) float64 {
 	// Use conservative default value of 10 USDT to ensure order passes exchange validation

@@ -196,7 +196,7 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	if err != nil {
 		return nil, fmt.Errorf("failed to get market info: %w", err)
 	}
-	marketIndex := uint8(marketInfo.MarketID) // SDK expects uint8
+	marketIndex := int16(marketInfo.MarketID) // SDK expects uint8
 
 	// Build order request
 	// Use ClientOrderIndex=0 for market orders (same as web UI)
@@ -260,7 +260,7 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	}
 
 	txReq := &types.CreateOrderTxReq{
-		MarketIndex:      marketIndex,
+		MarketIndex: int16(marketIndex),
 		ClientOrderIndex: clientOrderIndex,
 		BaseAmount:       baseAmount,
 		Price:            priceValue,
@@ -636,7 +636,7 @@ func (t *LighterTraderV2) SetLeverage(symbol string, leverage int) error {
 	if err != nil {
 		return fmt.Errorf("failed to get market info: %w", err)
 	}
-	marketIndex := uint8(marketInfo.MarketID)
+	marketIndex := int16(marketInfo.MarketID)
 
 	// Calculate InitialMarginFraction from leverage
 	// leverage = 100 / margin_fraction_percent
@@ -693,7 +693,7 @@ func (t *LighterTraderV2) SetMarginMode(symbol string, isCrossMargin bool) error
 	if err != nil {
 		return fmt.Errorf("failed to get market info: %w", err)
 	}
-	marketIndex := uint8(marketInfo.MarketID)
+	marketIndex := int16(marketInfo.MarketID)
 
 	// Determine margin mode value
 	var marginMode uint8 = 0 // cross
@@ -758,7 +758,7 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 	if err != nil {
 		return nil, fmt.Errorf("failed to get market info: %w", err)
 	}
-	marketIndex := uint8(marketInfo.MarketID)
+	marketIndex := int16(marketInfo.MarketID)
 
 	// Build order request
 	clientOrderIndex := time.Now().UnixMilli() % 281474976710655
