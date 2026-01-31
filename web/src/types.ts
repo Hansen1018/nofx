@@ -605,10 +605,6 @@ export interface RiskControlConfig {
   min_confidence: number;          // Min AI confidence to open position (AI guided)
 }
 
-// Debate Arena Types
-export type DebateStatus = 'pending' | 'running' | 'voting' | 'completed' | 'cancelled';
-export type DebatePersonality = 'bull' | 'bear' | 'analyst' | 'contrarian' | 'risk_manager';
-
 export interface DebateDecision {
   action: string;
   symbol: string;
