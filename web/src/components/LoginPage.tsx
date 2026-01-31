@@ -144,7 +144,7 @@ export function LoginPage() {
   return (
     <DeepVoidBackground className="min-h-screen flex items-center justify-center py-12 font-mono" disableAnimation>
 
-      <div className="w-full max-w-md relative z-10 px-6">
+      <div className="w-full max-w-md mx-auto relative z-10 px-6">
         {/* Navigation - Top Bar (Mobile/Desktop Friendly) */}
         <div className="flex justify-between items-center mb-8">
           <button
