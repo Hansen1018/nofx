@@ -1515,6 +1515,36 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *kernel.Decision,
 		return fmt.Errorf("trader is not FuturesTrader, cannot update stop-loss")
 	}
 
+	// Get current stop-loss price for direction validation
+	currentStopLossPrice, err := futuresTrader.GetCurrentStopLossPrice(decision.Symbol, positionSide)
+	if err == nil && currentStopLossPrice > 0 {
+		logger.Infof("  📊 Found existing stop-loss: %.4f", currentStopLossPrice)
+
+		// CRITICAL: Validate stop-loss direction - only allow moving in favorable direction
+		// For LONG: new stop-loss must be >= current stop-loss (can only move up)
+		// For SHORT: new stop-loss must be <= current stop-loss (can only move down)
+		if positionSide == "LONG" {
+			if decision.StopLoss < currentStopLossPrice {
+				return fmt.Errorf("cannot move stop-loss down for LONG position: current=%.4f, requested=%.4f (only upward movement allowed)", currentStopLossPrice, decision.StopLoss)
+			}
+		} else { // SHORT
+			if decision.StopLoss > currentStopLossPrice {
+				return fmt.Errorf("cannot move stop-loss up for SHORT position: current=%.4f, requested=%.4f (only downward movement allowed)", currentStopLossPrice, decision.StopLoss)
+			}
+		}
+	} else {
+		// No existing stop-loss, validate against entry price
+		if positionSide == "LONG" {
+			if decision.StopLoss < entryPrice {
+				logger.Infof("  ⚠️ Warning: New stop-loss (%.4f) is below entry price (%.2f) for LONG position", decision.StopLoss, entryPrice)
+			}
+		} else { // SHORT
+			if decision.StopLoss > entryPrice {
+				logger.Infof("  ⚠️ Warning: New stop-loss (%.4f) is above entry price (%.2f) for SHORT position", decision.StopLoss, entryPrice)
+			}
+		}
+	}
+
 	// Cancel existing stop-loss orders first
 	if err := futuresTrader.CancelStopLossOrders(decision.Symbol); err != nil {
 		logger.Infof("  ⚠️ Failed to cancel existing stop-loss orders: %v (continuing anyway)", err)

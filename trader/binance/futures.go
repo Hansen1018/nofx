@@ -610,6 +610,51 @@ func (t *FuturesTrader) CancelStopLossOrders(symbol string) error {
 	return nil
 }
 
+// GetCurrentStopLossPrice gets the current stop-loss price for a symbol and position side
+// Returns 0 if no stop-loss order is found
+func (t *FuturesTrader) GetCurrentStopLossPrice(symbol string, positionSide string) (float64, error) {
+	var currentStopLossPrice float64
+
+	// 1. Check legacy stop-loss orders
+	orders, err := t.client.NewListOpenOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err == nil {
+		for _, order := range orders {
+			orderType := string(order.Type)
+			// Check if it's a stop-loss order
+			if (orderType == "STOP_MARKET" || orderType == "STOP") &&
+				string(order.PositionSide) == positionSide {
+				if stopPrice, parseErr := strconv.ParseFloat(order.StopPrice, 64); parseErr == nil && stopPrice > 0 {
+					currentStopLossPrice = stopPrice
+					return currentStopLossPrice, nil
+				}
+			}
+		}
+	}
+
+	// 2. Check Algo stop-loss orders
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err == nil {
+		for _, algoOrder := range algoOrders {
+			// Check if it's a stop-loss order
+			if (algoOrder.OrderType == futures.AlgoOrderTypeStopMarket || algoOrder.OrderType == futures.AlgoOrderTypeStop) &&
+				string(algoOrder.PositionSide) == positionSide {
+				if triggerPrice, parseErr := strconv.ParseFloat(algoOrder.TriggerPrice, 64); parseErr == nil && triggerPrice > 0 {
+					currentStopLossPrice = triggerPrice
+					return currentStopLossPrice, nil
+				}
+			}
+		}
+	}
+
+	return currentStopLossPrice, nil
+}
+
 // CancelTakeProfitOrders cancels only take-profit orders (doesn't affect stop-loss orders)
 // Now uses both legacy API and new Algo Order API
 func (t *FuturesTrader) CancelTakeProfitOrders(symbol string) error {
