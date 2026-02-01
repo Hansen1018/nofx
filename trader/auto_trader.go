@@ -1981,25 +1981,8 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		// Check breakeven stop-loss condition
 		at.checkAndUpdateBreakevenStopLoss(symbol, side, entryPrice, currentPnLPct)
 
-		// Check close position condition: profit > 5% and drawdown >= 40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
-			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
-
-			// Execute close position
-			if err := at.emergencyClosePosition(symbol, side); err != nil {
-				logger.Infof("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
-			} else {
-				logger.Infof("✅ Drawdown close position succeeded: %s %s", symbol, side)
-				// Clear cache for this position after closing
-				at.ClearPeakPnLCache(symbol, side)
-				at.clearBreakevenCache(symbol, side)
-			}
-		} else if currentPnLPct > 5.0 {
-			// Record situations close to close position condition (for debugging)
-			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
-		}
+		// Check trailing stop condition using strategy config
+		at.checkTrailingStop(symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 	}
 }
 
@@ -2132,6 +2115,55 @@ func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
 	}
 
 	return nil
+}
+
+// checkTrailingStop checks if trailing stop condition is met and closes position
+// Uses TrailingStopDrawdown and TrailingStopMinProfit from strategy config
+func (at *AutoTrader) checkTrailingStop(symbol, side string, currentPnLPct, peakPnLPct, drawdownPct float64) {
+	// Get trailing stop config from strategy
+	if at.strategyEngine == nil {
+		return
+	}
+
+	riskConfig := at.strategyEngine.GetRiskControlConfig()
+	trailingStopDrawdown := riskConfig.TrailingStopDrawdown
+	trailingStopMinProfit := riskConfig.TrailingStopMinProfit
+
+	// If trailing stop is not configured, skip
+	if trailingStopDrawdown <= 0 {
+		return
+	}
+
+	// Use default minimum profit if not configured
+	minProfit := trailingStopMinProfit
+	if minProfit <= 0 {
+		minProfit = 2.0 // Default: require at least 2% profit before trailing stop activates
+	}
+
+	// Check if minimum profit requirement is met
+	if currentPnLPct < minProfit {
+		return
+	}
+
+	// Check if drawdown exceeds threshold
+	if drawdownPct >= trailingStopDrawdown {
+		logger.Infof("🚨 Trailing stop triggered: %s %s | Current: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%% (threshold: %.2f%%)",
+			symbol, side, currentPnLPct, peakPnLPct, drawdownPct, trailingStopDrawdown)
+
+		// Execute close position
+		if err := at.emergencyClosePosition(symbol, side); err != nil {
+			logger.Infof("❌ Trailing stop close failed (%s %s): %v", symbol, side, err)
+		} else {
+			logger.Infof("✅ Trailing stop close succeeded: %s %s", symbol, side)
+			// Clear cache for this position after closing
+			at.ClearPeakPnLCache(symbol, side)
+			at.clearBreakevenCache(symbol, side)
+		}
+	} else if currentPnLPct > minProfit {
+		// Log monitoring info when above minimum profit
+		logger.Infof("📊 Trailing stop monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%% (threshold: %.2f%%)",
+			symbol, side, currentPnLPct, peakPnLPct, drawdownPct, trailingStopDrawdown)
+	}
 }
 
 // GetPeakPnLCache gets peak profit cache
