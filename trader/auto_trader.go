@@ -1,7 +1,6 @@
 package trader
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -19,12 +18,9 @@ import (
 	"nofx/trader/hyperliquid"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/adshao/go-binance/v2/futures"
 )
 
 // AutoTraderConfig auto trading configuration (simplified version - AI makes all decisions)
@@ -1514,54 +1510,9 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *kernel.Decision,
 	}
 
 	// Get current stop-loss orders to check existing stop-loss price
-	futuresTrader, ok := at.trader.(*FuturesTrader)
+	futuresTrader, ok := at.trader.(*binance.FuturesTrader)
 	if !ok {
 		return fmt.Errorf("trader is not FuturesTrader, cannot update stop-loss")
-	}
-
-	// Get existing Algo orders to find current stop-loss
-	algoOrders, err := futuresTrader.client.NewListOpenAlgoOrdersService().
-		Symbol(decision.Symbol).
-		Do(context.Background())
-
-	var currentStopLossPrice float64
-	if err == nil {
-		for _, algoOrder := range algoOrders {
-			if (algoOrder.OrderType == futures.AlgoOrderTypeStopMarket || algoOrder.OrderType == futures.AlgoOrderTypeStop) &&
-				string(algoOrder.PositionSide) == positionSide {
-				if triggerPrice, parseErr := strconv.ParseFloat(algoOrder.TriggerPrice, 64); parseErr == nil {
-					currentStopLossPrice = triggerPrice
-					logger.Infof("  📊 Found existing stop-loss: %.4f", currentStopLossPrice)
-					break
-				}
-			}
-		}
-	}
-
-	// CRITICAL: Validate stop-loss direction - only allow moving in favorable direction
-	// For LONG: new stop-loss must be >= current stop-loss (can only move up)
-	// For SHORT: new stop-loss must be <= current stop-loss (can only move down)
-	if currentStopLossPrice > 0 {
-		if positionSide == "LONG" {
-			if decision.StopLoss < currentStopLossPrice {
-				return fmt.Errorf("cannot move stop-loss down for LONG position: current=%.4f, requested=%.4f (only upward movement allowed)", currentStopLossPrice, decision.StopLoss)
-			}
-		} else { // SHORT
-			if decision.StopLoss > currentStopLossPrice {
-				return fmt.Errorf("cannot move stop-loss up for SHORT position: current=%.4f, requested=%.4f (only downward movement allowed)", currentStopLossPrice, decision.StopLoss)
-			}
-		}
-	} else {
-		// No existing stop-loss, validate against entry price
-		if positionSide == "LONG" {
-			if decision.StopLoss < entryPrice {
-				logger.Infof("  ⚠️ Warning: New stop-loss (%.4f) is below entry price (%.4f) for LONG position", decision.StopLoss, entryPrice)
-			}
-		} else { // SHORT
-			if decision.StopLoss > entryPrice {
-				logger.Infof("  ⚠️ Warning: New stop-loss (%.4f) is above entry price (%.4f) for SHORT position", decision.StopLoss, entryPrice)
-			}
-		}
 	}
 
 	// Cancel existing stop-loss orders first
@@ -2083,7 +2034,7 @@ func (at *AutoTrader) checkAndUpdateBreakevenStopLoss(symbol, side string, entry
 		symbol, side, currentPnLPct, breakevenThreshold, entryPrice)
 
 	// Cast trader to FuturesTrader to access SetBreakevenStopLoss method
-	futuresTrader, ok := at.trader.(*FuturesTrader)
+	futuresTrader, ok := at.trader.(*binance.FuturesTrader)
 	if !ok {
 		logger.Infof("  ⚠️ Trader is not FuturesTrader, cannot set breakeven stop-loss")
 		return
