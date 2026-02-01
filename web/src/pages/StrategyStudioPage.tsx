@@ -229,7 +229,7 @@ export function StrategyStudioPage() {
         publishSettings: false,
       })
     }
-  }, [editingConfig?.strategy_type, editingConfig])
+  }, [editingConfig?.strategy_type])
 
   // When language changes, update prompt sections to match the new language
   useEffect(() => {
@@ -1018,9 +1018,15 @@ export function StrategyStudioPage() {
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
-                          updateConfig('strategy_type', 'ai_trading')
-                          // Clear grid config when switching to AI trading
-                          updateConfig('grid_config', undefined)
+                          setEditingConfig((prev) => {
+                            if (!prev) return prev
+                            return {
+                              ...prev,
+                              strategy_type: 'ai_trading',
+                              grid_config: undefined,
+                            }
+                          })
+                          setHasChanges(true)
                         }
                       }}
                       disabled={selectedStrategy?.is_default}
@@ -1044,20 +1050,15 @@ export function StrategyStudioPage() {
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
-                          // Initialize grid config first if not exists, then set strategy type
-                          if (!editingConfig.grid_config) {
-                            setEditingConfig((prev) => {
-                              if (!prev) return prev
-                              return {
-                                ...prev,
-                                grid_config: defaultGridConfig,
-                                strategy_type: 'grid_trading',
-                              }
-                            })
-                            setHasChanges(true)
-                          } else {
-                            updateConfig('strategy_type', 'grid_trading')
-                          }
+                          setEditingConfig((prev) => {
+                            if (!prev) return prev
+                            return {
+                              ...prev,
+                              strategy_type: 'grid_trading',
+                              grid_config: prev.grid_config || defaultGridConfig,
+                            }
+                          })
+                          setHasChanges(true)
                         }
                       }}
                       disabled={selectedStrategy?.is_default}
@@ -1085,14 +1086,11 @@ export function StrategyStudioPage() {
               )}
 
               {/* Config Sections */}
-              <div
-                key={`sections-${currentStrategyType}`}
-                className="space-y-2"
-              >
+              <div className="space-y-2">
                 {configSections.map(
                   ({ key, icon: Icon, color, title, content }) => (
                     <div
-                      key={key}
+                      key={`${currentStrategyType}-${key}`}
                       className="rounded-lg overflow-hidden bg-nofx-bg-lighter border border-nofx-gold/20"
                     >
                       <button
@@ -1111,7 +1109,7 @@ export function StrategyStudioPage() {
                           <ChevronRight className="w-4 h-4 text-nofx-text-muted" />
                         )}
                       </button>
-                      {expandedSections[key] && (
+                      {expandedSections[key] && content && (
                         <div className="px-3 pb-3">{content}</div>
                       )}
                     </div>
