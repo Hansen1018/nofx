@@ -957,7 +957,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- Cacheable content: System messages only (this entire prompt)\n")
 	sb.WriteString("- Non-cacheable content: User messages (market data, account info)\n")
 	sb.WriteString("- Cache control header: {\"type\": \"ephemeral\"}\n")
-	sb.WriteString("- Minimum cache requirement: 1024 tokens for Claude Sonnet 3.5 models\n\n")
+	sb.WriteString("- Minimum cache requirement: 1024 tokens for Claude Sonnet 4.5 models\n\n")
 
 	sb.WriteString("## Cache Status Monitoring\n")
 	sb.WriteString("- Watch for \"Cache hit!\" logs to confirm caching is active\n")
