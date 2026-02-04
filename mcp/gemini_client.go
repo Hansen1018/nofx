@@ -120,10 +120,6 @@ func (c *GeminiClient) detectEndpointMode() {
 		return
 	}
 
-	if strings.Contains(urlLower, "/v1") {
-		c.logger.Infof("🔍 [MCP] URL contains /v1 path, testing endpoints")
-	}
-
 	detected := c.probeEndpoint()
 	c.detectedMode = detected
 
@@ -206,6 +202,8 @@ func (c *GeminiClient) testNativeEndpoint() bool {
 	var testURL string
 	if strings.Contains(baseURL, ":generateContent") {
 		testURL = baseURL
+	} else if strings.HasSuffix(baseURL, "/v1beta") {
+		testURL = fmt.Sprintf("%s/models/%s:generateContent", baseURL, c.Model)
 	} else {
 		testURL = fmt.Sprintf("%s/models/%s:generateContent", baseURL, c.Model)
 	}
@@ -304,7 +302,10 @@ func (c *GeminiClient) buildUrl() string {
 		if strings.Contains(baseURL, ":generateContent") {
 			return baseURL
 		}
-		return fmt.Sprintf("%s/models/%s:generateContent", baseURL, c.Model)
+		if strings.HasSuffix(baseURL, "/v1beta") {
+			return fmt.Sprintf("%s/models/%s:generateContent", baseURL, c.Model)
+		}
+		return fmt.Sprintf("%s/v1beta/models/%s:generateContent", baseURL, c.Model)
 	}
 
 	if strings.HasSuffix(baseURL, "/chat/completions") {
