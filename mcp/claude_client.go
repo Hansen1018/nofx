@@ -199,7 +199,7 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	} else if strings.HasSuffix(baseURL, "/v1") {
 		testURL = baseURL + "/messages"
 	} else {
-		testURL = baseURL + "/messages"
+		testURL = baseURL + "/v1/messages"
 	}
 
 	c.logger.Debugf("🔍 [MCP] Testing native endpoint: %s", testURL)
@@ -278,7 +278,7 @@ func (c *ClaudeClient) testCompatibleEndpoint() bool {
 	} else if strings.HasSuffix(baseURL, "/v1") {
 		testURL = baseURL + "/chat/completions"
 	} else {
-		testURL = baseURL + "/chat/completions"
+		testURL = baseURL + "/v1/chat/completions"
 	}
 
 	c.logger.Debugf("🔍 [MCP] Testing compatible endpoint: %s", testURL)
@@ -360,14 +360,18 @@ func (c *ClaudeClient) buildUrl() string {
 	if mode == EndpointModeNative {
 		if strings.HasSuffix(baseURL, "/messages") {
 			return baseURL
+		} else if strings.HasSuffix(baseURL, "/v1") {
+			return baseURL + "/messages"
 		}
-		return baseURL + "/messages"
+		return baseURL + "/v1/messages"
 	}
 
 	if strings.HasSuffix(baseURL, "/chat/completions") {
 		return baseURL
+	} else if strings.HasSuffix(baseURL, "/v1") {
+		return baseURL + "/chat/completions"
 	}
-	return baseURL + "/chat/completions"
+	return baseURL + "/v1/chat/completions"
 }
 
 // buildMCPRequestBody 根据模式构建请求体
