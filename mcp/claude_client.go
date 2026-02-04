@@ -191,7 +191,18 @@ func (c *ClaudeClient) probeEndpoint() EndpointMode {
 
 // testNativeEndpoint 测试 Anthropic 原生端点
 func (c *ClaudeClient) testNativeEndpoint() bool {
-	testURL := fmt.Sprintf("%s/messages", c.BaseURL)
+	baseURL := strings.TrimSuffix(c.BaseURL, "/")
+
+	var testURL string
+	if strings.HasSuffix(baseURL, "/messages") {
+		testURL = baseURL
+	} else if strings.HasSuffix(baseURL, "/v1") {
+		testURL = baseURL + "/messages"
+	} else {
+		testURL = baseURL + "/messages"
+	}
+
+	c.logger.Debugf("🔍 [MCP] Testing native endpoint: %s", testURL)
 
 	// 构造最小的 Anthropic 格式请求
 	testBody := map[string]any{
@@ -205,6 +216,7 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	jsonData, _ := json.Marshal(testBody)
 	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
 	if err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
 		return false
 	}
 
@@ -216,12 +228,14 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
+		c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
 		return false
 	}
 
@@ -229,18 +243,32 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	body, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
 		return false
 	}
 
 	// Anthropic 原生响应有 content 数组
 	_, hasContent := result["content"]
+	if hasContent {
+		c.logger.Debugf("✅ [MCP] Native endpoint detected with content field")
+	}
 	return hasContent
 }
 
 // testCompatibleEndpoint 测试 OpenAI 兼容端点
 func (c *ClaudeClient) testCompatibleEndpoint() bool {
-	// 尝试 OpenAI 格式的 /chat/completions 端点
-	testURL := fmt.Sprintf("%s/chat/completions", c.BaseURL)
+	baseURL := strings.TrimSuffix(c.BaseURL, "/")
+
+	var testURL string
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		testURL = baseURL
+	} else if strings.HasSuffix(baseURL, "/v1") {
+		testURL = baseURL + "/chat/completions"
+	} else {
+		testURL = baseURL + "/chat/completions"
+	}
+
+	c.logger.Debugf("🔍 [MCP] Testing compatible endpoint: %s", testURL)
 
 	testBody := map[string]any{
 		"model":       c.Model,
@@ -254,6 +282,7 @@ func (c *ClaudeClient) testCompatibleEndpoint() bool {
 	jsonData, _ := json.Marshal(testBody)
 	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
 	if err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to create compatible endpoint request: %v", err)
 		return false
 	}
 
@@ -263,9 +292,16 @@ func (c *ClaudeClient) testCompatibleEndpoint() bool {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
+	} else {
+		c.logger.Debugf("❌ [MCP] Compatible endpoint returned status: %d", resp.StatusCode)
+	}
 
 	return resp.StatusCode == http.StatusOK
 }
@@ -300,12 +336,19 @@ func (c *ClaudeClient) setAuthHeader(reqHeaders http.Header) {
 // buildUrl 构建请求 URL
 func (c *ClaudeClient) buildUrl() string {
 	mode := c.GetEndpointMode()
+	baseURL := strings.TrimSuffix(c.BaseURL, "/")
 
 	if mode == EndpointModeNative {
-		return fmt.Sprintf("%s/messages", c.BaseURL)
+		if strings.HasSuffix(baseURL, "/messages") {
+			return baseURL
+		}
+		return baseURL + "/messages"
 	}
-	// OpenAI 兼容格式
-	return fmt.Sprintf("%s/chat/completions", c.BaseURL)
+
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		return baseURL
+	}
+	return baseURL + "/chat/completions"
 }
 
 // buildMCPRequestBody 根据模式构建请求体
