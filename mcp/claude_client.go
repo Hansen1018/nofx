@@ -49,12 +49,13 @@ var claude4CachingModels = []string{
 
 // 各模型最小可缓存 token 数
 var minCacheableTokens = map[string]int{
-	"claude-opus-4-5":   4096,
-	"claude-sonnet-4-5": 1024,
-	"claude-haiku-4-5":  4096,
-	"claude-opus-4-1":   1024,
-	"claude-opus-4":     1024,
-	"claude-sonnet-4":   1024,
+	"claude-opus-4-5":   512,
+	"claude-sonnet-4-5": 512,
+	"claude-haiku-4-5":  512,
+	"claude-opus-4-1":   512,
+	"claude-opus-4":     512,
+	"claude-sonnet-4":   512,
+	"claude-sonnet-4-1": 512,
 }
 
 type ClaudeClient struct {
@@ -150,7 +151,7 @@ func (c *ClaudeClient) SetAPIKey(apiKey string, customURL string, customModel st
 // detectEndpointMode 自动检测代理支持的 API 格式
 func (c *ClaudeClient) detectEndpointMode() {
 	c.logger.Infof("🔍 [MCP] Detecting endpoint mode for: %s", c.BaseURL)
-	
+
 	// 方法 1: 通过 URL 特征判断
 	urlLower := strings.ToLower(c.BaseURL)
 	if strings.Contains(urlLower, "anthropic.com") {
@@ -158,11 +159,11 @@ func (c *ClaudeClient) detectEndpointMode() {
 		c.logger.Infof("✅ [MCP] Detected Anthropic official endpoint (native)")
 		return
 	}
-	
+
 	// 方法 2: 发送探测请求
 	detected := c.probeEndpoint()
 	c.detectedMode = detected
-	
+
 	switch detected {
 	case EndpointModeNative:
 		c.logger.Infof("✅ [MCP] Detected native Anthropic endpoint (prompt caching supported)")
@@ -173,6 +174,7 @@ func (c *ClaudeClient) detectEndpointMode() {
 		c.logger.Infof("⚠️  [MCP] Could not detect endpoint type, defaulting to OpenAI compatible mode")
 	}
 }
+
 // probeEndpoint 探测端点类型
 func (c *ClaudeClient) probeEndpoint() EndpointMode {
 	oldCallback := TokenUsageCallback
