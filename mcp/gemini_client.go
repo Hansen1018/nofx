@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -114,20 +115,21 @@ func (c *GeminiClient) detectEndpointMode() {
 	urlLower := strings.ToLower(c.BaseURL)
 	if strings.Contains(urlLower, "googleapis.com") ||
 		strings.Contains(urlLower, "generativelanguage") {
-		c.detectedMode = EndpointModeCompatible
-		c.logger.Infof("ℹ️  [MCP] Detected Google official endpoint (OpenAI compatible)")
+		c.detectedMode = EndpointModeNative
+		c.logger.Infof("ℹ️  [MCP] Detected Google official endpoint (native)")
 		return
 	}
 
-	// Check if URL contains /v1 path
 	if strings.Contains(urlLower, "/v1") {
-		c.logger.Infof("🔍 [MCP] URL contains /v1 path, testing OpenAI compatible endpoint")
+		c.logger.Infof("🔍 [MCP] URL contains /v1 path, testing endpoints")
 	}
 
 	detected := c.probeEndpoint()
 	c.detectedMode = detected
 
 	switch detected {
+	case EndpointModeNative:
+		c.logger.Infof("✅ [MCP] Detected native Gemini endpoint (context caching supported)")
 	case EndpointModeCompatible:
 		c.logger.Infof("✅ [MCP] Detected OpenAI compatible endpoint")
 	default:
@@ -137,6 +139,11 @@ func (c *GeminiClient) detectEndpointMode() {
 }
 
 func (c *GeminiClient) probeEndpoint() EndpointMode {
+	// Try native endpoint first
+	if c.testNativeEndpoint() {
+		return EndpointModeNative
+	}
+	// Fall back to compatible endpoint
 	if c.testCompatibleEndpoint() {
 		return EndpointModeCompatible
 	}
@@ -193,6 +200,70 @@ func (c *GeminiClient) testCompatibleEndpoint() bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+func (c *GeminiClient) testNativeEndpoint() bool {
+	baseURL := strings.TrimSuffix(c.BaseURL, "/")
+
+	var testURL string
+	if strings.Contains(baseURL, ":generateContent") {
+		testURL = baseURL
+	} else {
+		testURL = fmt.Sprintf("%s/models/%s:generateContent", baseURL, c.Model)
+	}
+
+	c.logger.Debugf("🔍 [MCP] Testing native endpoint: %s", testURL)
+
+	testBody := map[string]any{
+		"contents": []map[string]any{
+			{
+				"role": "user",
+				"parts": []map[string]string{
+					{"text": "hi"},
+				},
+			},
+		},
+		"generationConfig": map[string]any{
+			"maxOutputTokens": 1,
+			"temperature":     0,
+		},
+	}
+
+	jsonData, _ := json.Marshal(testBody)
+	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
+		return false
+	}
+
+	req.Header.Set("x-goog-api-key", c.APIKey)
+	req.Header.Set("content-type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
+		return false
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	if err := json.Unmarshal(body, &result); err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
+		return false
+	}
+
+	_, hasCandidates := result["candidates"]
+	if hasCandidates {
+		c.logger.Debugf("✅ [MCP] Native endpoint detected with candidates field")
+	}
+	return hasCandidates
+}
+
 func (c *GeminiClient) GetEndpointMode() EndpointMode {
 	if c.endpointMode == EndpointModeAuto {
 		return c.detectedMode
@@ -216,11 +287,25 @@ func (c *GeminiClient) supportsContextCaching() bool {
 }
 
 func (c *GeminiClient) setAuthHeader(reqHeaders http.Header) {
-	c.Client.setAuthHeader(reqHeaders)
+	mode := c.GetEndpointMode()
+
+	if mode == EndpointModeNative {
+		reqHeaders.Set("x-goog-api-key", c.APIKey)
+	} else {
+		c.Client.setAuthHeader(reqHeaders)
+	}
 }
 
 func (c *GeminiClient) buildUrl() string {
 	baseURL := strings.TrimSuffix(c.BaseURL, "/")
+	mode := c.GetEndpointMode()
+
+	if mode == EndpointModeNative {
+		if strings.Contains(baseURL, ":generateContent") {
+			return baseURL
+		}
+		return fmt.Sprintf("%s/models/%s:generateContent", baseURL, c.Model)
+	}
 
 	if strings.HasSuffix(baseURL, "/chat/completions") {
 		return baseURL
@@ -229,6 +314,43 @@ func (c *GeminiClient) buildUrl() string {
 }
 
 func (c *GeminiClient) buildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
+	mode := c.GetEndpointMode()
+
+	if mode == EndpointModeNative {
+		return c.buildNativeRequest(systemPrompt, userPrompt)
+	}
+	return c.buildCompatibleRequest(systemPrompt, userPrompt)
+}
+
+func (c *GeminiClient) buildNativeRequest(systemPrompt, userPrompt string) map[string]any {
+	parts := []map[string]string{
+		{"text": userPrompt},
+	}
+
+	if systemPrompt != "" {
+		parts = append([]map[string]string{{"text": systemPrompt}}, parts...)
+	}
+
+	requestBody := map[string]any{
+		"contents": []map[string]any{
+			{
+				"role":  "user",
+				"parts": parts,
+			},
+		},
+		"generationConfig": map[string]any{
+			"maxOutputTokens": c.MaxTokens,
+		},
+	}
+
+	if c.config.Temperature > 0 {
+		requestBody["generationConfig"].(map[string]any)["temperature"] = c.config.Temperature
+	}
+
+	return requestBody
+}
+
+func (c *GeminiClient) buildCompatibleRequest(systemPrompt, userPrompt string) map[string]any {
 	messages := []map[string]string{}
 
 	if systemPrompt != "" {
@@ -257,6 +379,70 @@ func (c *GeminiClient) buildMCPRequestBody(systemPrompt, userPrompt string) map[
 }
 
 func (c *GeminiClient) parseMCPResponse(body []byte) (string, error) {
+	mode := c.GetEndpointMode()
+
+	if mode == EndpointModeNative {
+		return c.parseNativeResponse(body)
+	}
+	return c.parseCompatibleResponse(body)
+}
+
+func (c *GeminiClient) parseNativeResponse(body []byte) (string, error) {
+	var response struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+		UsageMetadata *struct {
+			PromptTokenCount        int `json:"promptTokenCount"`
+			CandidatesTokenCount    int `json:"candidatesTokenCount"`
+			CachedContentTokenCount int `json:"cachedContentTokenCount,omitempty"`
+		} `json:"usageMetadata"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("failed to parse Gemini native response: %w", err)
+	}
+
+	if response.Error != nil {
+		return "", fmt.Errorf("Gemini API error: %s", response.Error.Message)
+	}
+
+	if len(response.Candidates) == 0 {
+		return "", fmt.Errorf("no candidates in Gemini response")
+	}
+
+	if len(response.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content parts in Gemini response")
+	}
+
+	if response.UsageMetadata != nil && response.UsageMetadata.CachedContentTokenCount > 0 {
+		c.logger.Infof("💰 [MCP] Context cache hit! %d tokens from cache", response.UsageMetadata.CachedContentTokenCount)
+	}
+
+	if response.UsageMetadata != nil && TokenUsageCallback != nil {
+		totalTokens := response.UsageMetadata.PromptTokenCount + response.UsageMetadata.CandidatesTokenCount
+		if totalTokens > 0 {
+			TokenUsageCallback(TokenUsage{
+				Provider:         c.Provider,
+				Model:            c.Model,
+				PromptTokens:     response.UsageMetadata.PromptTokenCount,
+				CompletionTokens: response.UsageMetadata.CandidatesTokenCount,
+				TotalTokens:      totalTokens,
+			})
+		}
+	}
+
+	return response.Candidates[0].Content.Parts[0].Text, nil
+}
+
+func (c *GeminiClient) parseCompatibleResponse(body []byte) (string, error) {
 	var response struct {
 		Choices []struct {
 			Message struct {
@@ -274,7 +460,7 @@ func (c *GeminiClient) parseMCPResponse(body []byte) (string, error) {
 	}
 
 	if err := json.Unmarshal(body, &response); err != nil {
-		return "", fmt.Errorf("failed to parse Gemini response: %w", err)
+		return "", fmt.Errorf("failed to parse Gemini compatible response: %w", err)
 	}
 
 	if response.Error != nil {
