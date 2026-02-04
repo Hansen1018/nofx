@@ -933,39 +933,6 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("\n\n")
 	sb.WriteString("---\n\n")
 
-	// 0.5. Prompt Caching Extension
-	// This section extends the system prompt to meet the 1024 token minimum requirement
-	// for Claude prompt caching. This enables ~90% cost savings for repeated API calls.
-	sb.WriteString("# Prompt Caching Extension\n\n")
-	sb.WriteString("## Purpose\n")
-	sb.WriteString("The following content extends this system prompt to enable Claude's prompt caching feature.\n")
-	sb.WriteString("This does not replace or alter the trading strategy defined below.\n\n")
-
-	sb.WriteString("## Cache Benefits\n")
-	sb.WriteString("- Prompt caching caches the entire system prompt including all trading rules and constraints\n")
-	sb.WriteString("- Cached prompts can be reused across multiple API calls without re-processing\n")
-	sb.WriteString("- Expected cost savings: approximately 90% for repeated requests\n")
-	sb.WriteString("- Improves response speed by avoiding re-analysis of unchanged system context\n\n")
-
-	sb.WriteString("## Cache Control Behavior\n")
-	sb.WriteString("- This system prompt will be automatically cached by the AI provider\n")
-	sb.WriteString("- User prompts containing market data will NOT be cached (as expected)\n")
-	sb.WriteString("- Cache TTL (Time To Live): 5 minutes for ephemeral cache\n")
-	sb.WriteString("- Cache is invalidated if system prompt changes\n\n")
-
-	sb.WriteString("## Technical Details\n")
-	sb.WriteString("- Cacheable content: System messages only (this entire prompt)\n")
-	sb.WriteString("- Non-cacheable content: User messages (market data, account info)\n")
-	sb.WriteString("- Cache control header: {\"type\": \"ephemeral\"}\n")
-	sb.WriteString("- Minimum cache requirement: 1024 tokens for Claude Sonnet 4.5 models\n\n")
-
-	sb.WriteString("## Cache Status Monitoring\n")
-	sb.WriteString("- Watch for \"Cache hit!\" logs to confirm caching is active\n")
-	sb.WriteString("- \"Cache created\" logs indicate first-time caching\n")
-	sb.WriteString("- Cost tracking will show reduced token usage for cached portions\n\n")
-
-	sb.WriteString("---\n\n")
-
 	// 1. Role definition (editable)
 	if promptSections.RoleDefinition != "" {
 		sb.WriteString(promptSections.RoleDefinition)
