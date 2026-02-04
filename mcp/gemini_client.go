@@ -63,6 +63,7 @@ func NewGeminiClientWithOptions(opts ...ClientOption) AIClient {
 	geminiClient := &GeminiClient{
 		Client:       baseClient,
 		endpointMode: EndpointModeAuto,
+		detectedMode: EndpointModeCompatible,
 		cache:        &geminiCache{},
 	}
 

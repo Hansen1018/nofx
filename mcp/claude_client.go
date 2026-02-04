@@ -95,6 +95,7 @@ func NewClaudeClientWithOptions(opts ...ClientOption) AIClient {
 	claudeClient := &ClaudeClient{
 		Client:       baseClient,
 		endpointMode: EndpointModeAuto,
+		detectedMode: EndpointModeCompatible,
 		cache:        &claudeCache{},
 	}
 
