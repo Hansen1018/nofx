@@ -49,13 +49,13 @@ var claude4CachingModels = []string{
 
 // 各模型最小可缓存 token 数
 var minCacheableTokens = map[string]int{
-	"claude-opus-4-5":   512,
-	"claude-sonnet-4-5": 512,
-	"claude-haiku-4-5":  512,
-	"claude-opus-4-1":   512,
-	"claude-opus-4":     512,
-	"claude-sonnet-4":   512,
-	"claude-sonnet-4-1": 512,
+	"claude-opus-4-5":   4096,
+	"claude-sonnet-4-5": 1024,
+	"claude-haiku-4-5":  4096,
+	"claude-opus-4-1":   1024,
+	"claude-opus-4":     1024,
+	"claude-sonnet-4":   1024,
+	"claude-sonnet-4-1": 1024,
 }
 
 type ClaudeClient struct {
