@@ -135,14 +135,16 @@ func (c *GeminiClient) detectEndpointMode() {
 }
 
 func (c *GeminiClient) probeEndpoint() EndpointMode {
-	// Try native endpoint first
+	oldCallback := TokenUsageCallback
+	TokenUsageCallback = nil
+	defer func() {
+		TokenUsageCallback = oldCallback
+	}()
+
 	if c.testNativeEndpoint() {
 		return EndpointModeNative
 	}
-	// Fall back to compatible endpoint
-	if c.testCompatibleEndpoint() {
-		return EndpointModeCompatible
-	}
+
 	return EndpointModeCompatible
 }
 

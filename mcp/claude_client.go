@@ -158,7 +158,6 @@ func (c *ClaudeClient) detectEndpointMode() {
 		return
 	}
 
-	// 方法 2: 发送探测请求
 	detected := c.probeEndpoint()
 	c.detectedMode = detected
 
@@ -176,17 +175,17 @@ func (c *ClaudeClient) detectEndpointMode() {
 
 // probeEndpoint 探测端点类型
 func (c *ClaudeClient) probeEndpoint() EndpointMode {
-	// 尝试原生端点
+	oldCallback := TokenUsageCallback
+	TokenUsageCallback = nil
+	defer func() {
+		TokenUsageCallback = oldCallback
+	}()
+
 	if c.testNativeEndpoint() {
 		return EndpointModeNative
 	}
 
-	// 尝试兼容端点
-	if c.testCompatibleEndpoint() {
-		return EndpointModeCompatible
-	}
-
-	return EndpointModeCompatible // 默认
+	return EndpointModeCompatible
 }
 
 // testNativeEndpoint 测试 Anthropic 原生端点
