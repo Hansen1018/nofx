@@ -119,6 +119,11 @@ func (c *GeminiClient) detectEndpointMode() {
 		return
 	}
 
+	// Check if URL contains /v1 path
+	if strings.Contains(urlLower, "/v1") {
+		c.logger.Infof("🔍 [MCP] URL contains /v1 path, testing OpenAI compatible endpoint")
+	}
+
 	detected := c.probeEndpoint()
 	c.detectedMode = detected
 
@@ -139,7 +144,18 @@ func (c *GeminiClient) probeEndpoint() EndpointMode {
 }
 
 func (c *GeminiClient) testCompatibleEndpoint() bool {
-	testURL := fmt.Sprintf("%s/chat/completions", c.BaseURL)
+	baseURL := strings.TrimSuffix(c.BaseURL, "/")
+
+	var testURL string
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		testURL = baseURL
+	} else if strings.HasSuffix(baseURL, "/v1") {
+		testURL = baseURL + "/chat/completions"
+	} else {
+		testURL = baseURL + "/chat/completions"
+	}
+
+	c.logger.Debugf("🔍 [MCP] Testing compatible endpoint: %s", testURL)
 
 	testBody := map[string]any{
 		"model":       c.Model,
@@ -153,6 +169,7 @@ func (c *GeminiClient) testCompatibleEndpoint() bool {
 	jsonData, _ := json.Marshal(testBody)
 	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
 	if err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to create compatible endpoint request: %v", err)
 		return false
 	}
 
@@ -162,9 +179,16 @@ func (c *GeminiClient) testCompatibleEndpoint() bool {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
+	} else {
+		c.logger.Debugf("❌ [MCP] Compatible endpoint returned status: %d", resp.StatusCode)
+	}
 
 	return resp.StatusCode == http.StatusOK
 }
@@ -196,7 +220,12 @@ func (c *GeminiClient) setAuthHeader(reqHeaders http.Header) {
 }
 
 func (c *GeminiClient) buildUrl() string {
-	return fmt.Sprintf("%s/chat/completions", c.BaseURL)
+	baseURL := strings.TrimSuffix(c.BaseURL, "/")
+
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		return baseURL
+	}
+	return baseURL + "/chat/completions"
 }
 
 func (c *GeminiClient) buildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
