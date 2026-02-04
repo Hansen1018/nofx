@@ -58,8 +58,8 @@ type AutoTraderConfig struct {
 	GateSecretKey string
 
 	// KuCoin API configuration
-	KuCoinAPIKey    string
-	KuCoinSecretKey string
+	KuCoinAPIKey     string
+	KuCoinSecretKey  string
 	KuCoinPassphrase string
 
 	// Hyperliquid configuration
@@ -176,9 +176,18 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 
 	switch aiModel {
 	case "claude":
-		mcpClient = mcp.NewClaudeClient()
+		mcpClient = mcp.NewClaudeClientWithOptions(
+			mcp.WithEndpointMode(mcp.EndpointModeAuto),
+		)
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
-		logger.Infof("🤖 [%s] Using Claude AI", config.Name)
+
+		if cc, ok := mcpClient.(*mcp.ClaudeClient); ok {
+			mode := cc.GetEndpointMode()
+			caching := cc.IsPromptCachingEnabled()
+			logger.Infof("🤖 [%s] Using Claude AI (mode: %s, caching: %v)", config.Name, mode, caching)
+		} else {
+			logger.Infof("🤖 [%s] Using Claude AI", config.Name)
+		}
 
 	case "kimi":
 		mcpClient = mcp.NewKimiClient()
@@ -186,9 +195,18 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		logger.Infof("🤖 [%s] Using Kimi (Moonshot) AI", config.Name)
 
 	case "gemini":
-		mcpClient = mcp.NewGeminiClient()
+		mcpClient = mcp.NewGeminiClientWithOptions(
+			mcp.WithEndpointMode(mcp.EndpointModeAuto),
+		)
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
-		logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
+
+		if gc, ok := mcpClient.(*mcp.GeminiClient); ok {
+			mode := gc.GetEndpointMode()
+			caching := gc.IsContextCachingEnabled()
+			logger.Infof("🤖 [%s] Using Google Gemini AI (mode: %s, caching: %v)", config.Name, mode, caching)
+		} else {
+			logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
+		}
 
 	case "grok":
 		mcpClient = mcp.NewGrokClient()

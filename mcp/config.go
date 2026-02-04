@@ -12,10 +12,11 @@ import (
 // Config client configuration (centralized management of all configurations)
 type Config struct {
 	// Provider configuration
-	Provider string
-	APIKey   string
-	BaseURL  string
-	Model    string
+	Provider     string
+	APIKey       string
+	BaseURL      string
+	Model        string
+	EndpointMode string
 
 	// Behavior configuration
 	MaxTokens   int
