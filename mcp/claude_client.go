@@ -150,7 +150,7 @@ func (c *ClaudeClient) SetAPIKey(apiKey string, customURL string, customModel st
 // detectEndpointMode 自动检测代理支持的 API 格式
 func (c *ClaudeClient) detectEndpointMode() {
 	c.logger.Infof("🔍 [MCP] Detecting endpoint mode for: %s", c.BaseURL)
-
+	
 	// 方法 1: 通过 URL 特征判断
 	urlLower := strings.ToLower(c.BaseURL)
 	if strings.Contains(urlLower, "anthropic.com") {
@@ -158,22 +158,21 @@ func (c *ClaudeClient) detectEndpointMode() {
 		c.logger.Infof("✅ [MCP] Detected Anthropic official endpoint (native)")
 		return
 	}
-
+	
+	// 方法 2: 发送探测请求
 	detected := c.probeEndpoint()
 	c.detectedMode = detected
-
+	
 	switch detected {
 	case EndpointModeNative:
 		c.logger.Infof("✅ [MCP] Detected native Anthropic endpoint (prompt caching supported)")
 	case EndpointModeCompatible:
 		c.logger.Infof("ℹ️  [MCP] Detected OpenAI compatible endpoint")
 	default:
-		// 默认使用兼容模式（最安全，第三方代理通常支持）
 		c.detectedMode = EndpointModeCompatible
 		c.logger.Infof("⚠️  [MCP] Could not detect endpoint type, defaulting to OpenAI compatible mode")
 	}
 }
-
 // probeEndpoint 探测端点类型
 func (c *ClaudeClient) probeEndpoint() EndpointMode {
 	oldCallback := TokenUsageCallback
