@@ -170,30 +170,45 @@ func (c *GeminiClient) testCompatibleEndpoint() bool {
 	}
 
 	jsonData, _ := json.Marshal(testBody)
-	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		c.logger.Debugf("❌ [MCP] Failed to create compatible endpoint request: %v", err)
-		return false
-	}
+	client := &http.Client{Timeout: 15 * time.Second}
 
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-	req.Header.Set("content-type", "application/json")
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			c.logger.Debugf("🔄 [MCP] Retrying compatible endpoint test (attempt %d/3)", attempt+1)
+		}
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
-		return false
-	}
-	defer resp.Body.Close()
+		req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
+		if err != nil {
+			c.logger.Debugf("❌ [MCP] Failed to create compatible endpoint request: %v", err)
+			return false
+		}
 
-	if resp.StatusCode == http.StatusOK {
-		c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
-	} else {
+		req.Header.Set("Authorization", "Bearer "+c.APIKey)
+		req.Header.Set("content-type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
+			if attempt < 2 {
+				time.Sleep(time.Second * time.Duration(attempt+1))
+				continue
+			}
+			return false
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
+			return true
+		}
+
 		c.logger.Debugf("❌ [MCP] Compatible endpoint returned status: %d", resp.StatusCode)
+		if attempt < 2 {
+			time.Sleep(time.Second * time.Duration(attempt+1))
+		}
 	}
 
-	return resp.StatusCode == http.StatusOK
+	return false
 }
 
 func (c *GeminiClient) testNativeEndpoint() bool {
@@ -226,40 +241,63 @@ func (c *GeminiClient) testNativeEndpoint() bool {
 	}
 
 	jsonData, _ := json.Marshal(testBody)
-	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
+	client := &http.Client{Timeout: 15 * time.Second}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			c.logger.Debugf("🔄 [MCP] Retrying native endpoint test (attempt %d/3)", attempt+1)
+		}
+
+		req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
+		if err != nil {
+			c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
+			return false
+		}
+
+		req.Header.Set("x-goog-api-key", c.APIKey)
+		req.Header.Set("content-type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
+			if attempt < 2 {
+				time.Sleep(time.Second * time.Duration(attempt+1))
+				continue
+			}
+			return false
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
+			if attempt < 2 {
+				time.Sleep(time.Second * time.Duration(attempt+1))
+				continue
+			}
+			return false
+		}
+
+		body, _ := io.ReadAll(resp.Body)
+		var result map[string]any
+		if err := json.Unmarshal(body, &result); err != nil {
+			c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
+			if attempt < 2 {
+				time.Sleep(time.Second * time.Duration(attempt+1))
+				continue
+			}
+			return false
+		}
+
+		_, hasCandidates := result["candidates"]
+		if hasCandidates {
+			c.logger.Debugf("✅ [MCP] Native endpoint detected with candidates field")
+			return true
+		}
+
 		return false
 	}
 
-	req.Header.Set("x-goog-api-key", c.APIKey)
-	req.Header.Set("content-type", "application/json")
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
-		return false
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
-		return false
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]any
-	if err := json.Unmarshal(body, &result); err != nil {
-		c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
-		return false
-	}
-
-	_, hasCandidates := result["candidates"]
-	if hasCandidates {
-		c.logger.Debugf("✅ [MCP] Native endpoint detected with candidates field")
-	}
-	return hasCandidates
+	return false
 }
 
 func (c *GeminiClient) GetEndpointMode() EndpointMode {
