@@ -203,17 +203,19 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	}
 
 	c.logger.Debugf("🔍 [MCP] Testing native endpoint: %s", testURL)
+	c.logger.Debugf("🔍 [MCP] Using model: %s", c.Model)
 
-	// 构造最小的 Anthropic 格式请求
 	testBody := map[string]any{
 		"model":      c.Model,
-		"max_tokens": 1,
+		"max_tokens": 10,
 		"messages": []map[string]string{
 			{"role": "user", "content": "hi"},
 		},
 	}
 
 	jsonData, _ := json.Marshal(testBody)
+	c.logger.Debugf("🔍 [MCP] Request body: %s", string(jsonData))
+
 	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
@@ -224,8 +226,9 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	req.Header.Set("anthropic-version", AnthropicAPIVersion)
 	req.Header.Set("content-type", "application/json")
 
-	// 设置短超时
-	client := &http.Client{Timeout: 5 * time.Second}
+	c.logger.Debugf("🔍 [MCP] Request headers: x-api-key=*** anthropic-version=%s", AnthropicAPIVersion)
+
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
@@ -233,26 +236,36 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 	}
 	defer resp.Body.Close()
 
-	// 检查响应状态
+	body, _ := io.ReadAll(resp.Body)
+	c.logger.Debugf("🔍 [MCP] Response status: %d", resp.StatusCode)
+	c.logger.Debugf("🔍 [MCP] Response body: %s", string(body))
+
 	if resp.StatusCode != http.StatusOK {
 		c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
 		return false
 	}
 
-	// 检查响应体是否包含 Anthropic 特有字段
-	body, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
 		c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
 		return false
 	}
 
-	// Anthropic 原生响应有 content 数组
 	_, hasContent := result["content"]
+	_, hasChoices := result["choices"]
+
 	if hasContent {
 		c.logger.Debugf("✅ [MCP] Native endpoint detected with content field")
+		return true
 	}
-	return hasContent
+
+	if hasChoices {
+		c.logger.Debugf("⚠️  [MCP] Endpoint returned OpenAI format (choices), not native")
+		return false
+	}
+
+	c.logger.Debugf("❌ [MCP] Unknown response format")
+	return false
 }
 
 // testCompatibleEndpoint 测试 OpenAI 兼容端点
@@ -272,7 +285,7 @@ func (c *ClaudeClient) testCompatibleEndpoint() bool {
 
 	testBody := map[string]any{
 		"model":       c.Model,
-		"max_tokens":  1,
+		"max_tokens":  10,
 		"temperature": 0,
 		"messages": []map[string]string{
 			{"role": "user", "content": "hi"},
@@ -289,13 +302,19 @@ func (c *ClaudeClient) testCompatibleEndpoint() bool {
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("content-type", "application/json")
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	c.logger.Debugf("🔍 [MCP] Using Authorization: Bearer ***")
+
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	c.logger.Debugf("🔍 [MCP] Compatible response status: %d", resp.StatusCode)
+	c.logger.Debugf("🔍 [MCP] Compatible response body: %s", string(body))
 
 	if resp.StatusCode == http.StatusOK {
 		c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
