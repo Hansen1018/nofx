@@ -412,7 +412,7 @@ export function TraderDashboardPage({
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-xs md:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1 w-full sm:max-w-[200px]"
+                                        className="bg-[#0B0E11] text-xs md:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1 w-full sm:max-w-[200px] rounded"
                                     >
                                         {traders.map((trader) => (
                                             <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
