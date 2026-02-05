@@ -405,14 +405,14 @@ export function TraderDashboardPage({
                             </div>
                         </h2>
 
-                        <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-4">
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
-                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
+                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5 w-full sm:w-auto">
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-xs md:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1 max-w-[120px] md:max-w-none"
+                                        className="bg-transparent text-xs md:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1 w-full sm:max-w-[200px]"
                                     >
                                         {traders.map((trader) => (
                                             <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
