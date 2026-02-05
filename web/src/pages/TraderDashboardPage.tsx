@@ -525,12 +525,12 @@ export function TraderDashboardPage({
 
                 {/* Debug Info */}
                 {account && (
-                    <div className="mb-4 px-3 py-1.5 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
-                        <span>SYSTEM_STATUS::ONLINE</span>
-                        <div className="flex gap-4">
-                            <span>LAST_UPDATE::{lastUpdate}</span>
-                            <span>EQ::{account?.total_equity?.toFixed(2)}</span>
-                            <span>PNL::{account?.total_pnl?.toFixed(2)}</span>
+                    <div className="mb-4 px-3 py-2 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 opacity-60 hover:opacity-100 transition-opacity overflow-x-auto">
+                        <span className="whitespace-nowrap">SYSTEM_STATUS::ONLINE</span>
+                        <div className="flex flex-wrap sm:flex-nowrap gap-x-4 gap-y-1 sm:gap-4">
+                            <span className="whitespace-nowrap">LAST_UPDATE::{lastUpdate}</span>
+                            <span className="whitespace-nowrap">EQ::{account?.total_equity?.toFixed(2)}</span>
+                            <span className="whitespace-nowrap">PNL::{account?.total_pnl?.toFixed(2)}</span>
                         </div>
                     </div>
                 )}
