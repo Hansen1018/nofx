@@ -135,6 +135,7 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+    const [showFullTraderId, setShowFullTraderId] = useState<boolean>(false)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -351,14 +352,14 @@ export function TraderDashboardPage({
             <div className="w-full px-4 md:px-8 relative z-10 pt-6">
                 {/* Trader Header */}
                 <div
-                    className="mb-6 rounded-lg p-6 animate-scale-in nofx-glass group"
+                    className="mb-6 rounded-lg p-4 md:p-6 animate-scale-in nofx-glass group"
                     style={{
                         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.4) 100%)',
                     }}
                 >
-                    <div className="flex items-start justify-between mb-4">
-                        <h2 className="text-2xl font-bold flex items-center gap-4 text-nofx-text-main">
-                            <div className="relative">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-4 gap-4">
+                        <h2 className="text-xl md:text-2xl font-bold flex items-center gap-3 md:gap-4 text-nofx-text-main min-w-0 flex-1">
+                            <div className="relative shrink-0">
                                 <PunkAvatar
                                     seed={getTraderAvatar(
                                         selectedTrader.trader_id,
@@ -369,25 +370,49 @@ export function TraderDashboardPage({
                                 />
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-3xl tracking-tight text-nofx-text font-semibold">
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <span className="text-xl md:text-2xl lg:text-3xl tracking-tight text-nofx-text font-semibold break-words">
                                     {selectedTrader.trader_name}
                                 </span>
-                                <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full" />
-                                    ID: {selectedTrader.trader_id.slice(0, 8)}...
-                                </span>
+                                <div className="flex items-center gap-2 mt-0.5 group/trader-id">
+                                    <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2 min-w-0">
+                                        <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full shrink-0" />
+                                        <span className="break-all min-w-0">
+                                            ID: {showFullTraderId
+                                                ? selectedTrader.trader_id
+                                                : `${selectedTrader.trader_id.slice(0, 12)}...`}
+                                        </span>
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFullTraderId(!showFullTraderId)}
+                                        className="p-1 rounded hover:bg-white/10 transition-colors shrink-0 opacity-0 group-hover/trader-id:opacity-100 md:opacity-0 md:group-hover/trader-id:opacity-100"
+                                        title={showFullTraderId
+                                            ? language === 'zh'
+                                                ? '隐藏完整ID'
+                                                : 'Hide full ID'
+                                            : language === 'zh'
+                                                ? '显示完整ID'
+                                                : 'Show full ID'}
+                                    >
+                                        {showFullTraderId ? (
+                                            <EyeOff className="w-3 h-3 text-nofx-text-muted" />
+                                        ) : (
+                                            <Eye className="w-3 h-3 text-nofx-text-muted" />
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </h2>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap">
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
                                 <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1"
+                                        className="bg-transparent text-xs md:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1 max-w-[120px] md:max-w-none"
                                     >
                                         {traders.map((trader) => (
                                             <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
@@ -403,15 +428,18 @@ export function TraderDashboardPage({
                                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg nofx-glass border border-nofx-gold/20">
                                     {walletAddress ? (
                                         <>
-                                            <span className="text-xs font-mono text-nofx-gold">
+                                            <span className="text-xs font-mono text-nofx-gold hidden md:inline">
                                                 {showWalletAddress
                                                     ? walletAddress
                                                     : truncateAddress(walletAddress)}
                                             </span>
+                                            <span className="text-xs font-mono text-nofx-gold md:hidden">
+                                                {truncateAddress(walletAddress)}
+                                            </span>
                                             <button
                                                 type="button"
                                                 onClick={() => setShowWalletAddress(!showWalletAddress)}
-                                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                                className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
                                                 title={
                                                     showWalletAddress
                                                         ? language === 'zh'
@@ -431,7 +459,7 @@ export function TraderDashboardPage({
                                             <button
                                                 type="button"
                                                 onClick={handleCopyAddress}
-                                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                                className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
                                                 title={language === 'zh' ? '复制地址' : 'Copy address'}
                                             >
                                                 {copiedAddress ? (
