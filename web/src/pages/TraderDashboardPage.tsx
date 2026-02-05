@@ -408,7 +408,7 @@ export function TraderDashboardPage({
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-4">
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
-                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5 w-full sm:w-auto">
+                                <div className="flex items-center gap-2 nofx-glass bg-[#0B0E11] px-1 py-1 rounded-lg border border-white/5 w-full sm:w-auto">
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
@@ -425,7 +425,7 @@ export function TraderDashboardPage({
 
                             {/* Wallet Address Display for Perp-DEX */}
                             {exchanges && isPerpDex && (
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg nofx-glass border border-nofx-gold/20">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg nofx-glass bg-[#0B0E11] border border-nofx-gold/20">
                                     {walletAddress ? (
                                         <>
                                             <span className="text-xs font-mono text-nofx-gold hidden md:inline">
