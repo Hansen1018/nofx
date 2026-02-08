@@ -34,14 +34,16 @@ const (
 	ClaudeSonnet4 = "claude-sonnet-4-20250514"
 	ClaudeOpus4   = "claude-opus-4-20250514"
 	ClaudeOpus41  = "claude-opus-4-1-20250805"
+	ClaudeOpus46  = "claude-opus-4-6"
 
 	AnthropicAPIVersion = "2023-06-01"
 )
 
 var claude4CachingModels = []string{
+	"claude-opus-4-6",
+	"claude-opus-4-5",
 	"claude-sonnet-4-5",
 	"claude-haiku-4-5",
-	"claude-opus-4-5",
 	"claude-opus-4-1",
 	"claude-opus-4",
 	"claude-sonnet-4",
@@ -49,6 +51,7 @@ var claude4CachingModels = []string{
 
 // 各模型最小可缓存 token 数
 var minCacheableTokens = map[string]int{
+	"claude-opus-4-6":   4096,
 	"claude-opus-4-5":   4096,
 	"claude-sonnet-4-5": 1024,
 	"claude-haiku-4-5":  4096,
