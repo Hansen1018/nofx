@@ -222,74 +222,54 @@ func (c *ClaudeClient) testNativeEndpoint() bool {
 
 	client := &http.Client{Timeout: 15 * time.Second}
 
-	for attempt := 0; attempt < 3; attempt++ {
-		if attempt > 0 {
-			c.logger.Debugf("🔄 [MCP] Retrying native endpoint test (attempt %d/3)", attempt+1)
-		}
-
-		req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
-		if err != nil {
-			c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
-			return false
-		}
-
-		req.Header.Set("x-api-key", c.APIKey)
-		req.Header.Set("anthropic-version", AnthropicAPIVersion)
-		req.Header.Set("content-type", "application/json")
-
-		c.logger.Debugf("🔍 [MCP] Request headers: x-api-key=*** anthropic-version=%s", AnthropicAPIVersion)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
-			if attempt < 2 {
-				time.Sleep(time.Second * time.Duration(attempt+1))
-				continue
-			}
-			return false
-		}
-		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
-		c.logger.Debugf("🔍 [MCP] Response status: %d", resp.StatusCode)
-		c.logger.Debugf("🔍 [MCP] Response body: %s", string(body))
-
-		if resp.StatusCode != http.StatusOK {
-			c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
-			if attempt < 2 {
-				time.Sleep(time.Second * time.Duration(attempt+1))
-				continue
-			}
-			return false
-		}
-
-		var result map[string]any
-		if err := json.Unmarshal(body, &result); err != nil {
-			c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
-			if attempt < 2 {
-				time.Sleep(time.Second * time.Duration(attempt+1))
-				continue
-			}
-			return false
-		}
-
-		_, hasContent := result["content"]
-		_, hasChoices := result["choices"]
-
-		if hasContent {
-			c.logger.Debugf("✅ [MCP] Native endpoint detected with content field")
-			return true
-		}
-
-		if hasChoices {
-			c.logger.Debugf("⚠️  [MCP] Endpoint returned OpenAI format (choices), not native")
-			return false
-		}
-
-		c.logger.Debugf("❌ [MCP] Unknown response format")
+	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to create native endpoint request: %v", err)
 		return false
 	}
 
+	req.Header.Set("x-api-key", c.APIKey)
+	req.Header.Set("anthropic-version", AnthropicAPIVersion)
+	req.Header.Set("content-type", "application/json")
+
+	c.logger.Debugf("🔍 [MCP] Request headers: x-api-key=*** anthropic-version=%s", AnthropicAPIVersion)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		c.logger.Debugf("❌ [MCP] Native endpoint request failed: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	c.logger.Debugf("🔍 [MCP] Response status: %d", resp.StatusCode)
+	c.logger.Debugf("🔍 [MCP] Response body: %s", string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Debugf("❌ [MCP] Native endpoint returned status: %d", resp.StatusCode)
+		return false
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(body, &result); err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to parse native endpoint response: %v", err)
+		return false
+	}
+
+	_, hasContent := result["content"]
+	_, hasChoices := result["choices"]
+
+	if hasContent {
+		c.logger.Debugf("✅ [MCP] Native endpoint detected with content field")
+		return true
+	}
+
+	if hasChoices {
+		c.logger.Debugf("⚠️  [MCP] Endpoint returned OpenAI format (choices), not native")
+		return false
+	}
+
+	c.logger.Debugf("❌ [MCP] Unknown response format")
 	return false
 }
 
@@ -320,45 +300,31 @@ func (c *ClaudeClient) testCompatibleEndpoint() bool {
 	jsonData, _ := json.Marshal(testBody)
 	client := &http.Client{Timeout: 15 * time.Second}
 
-	for attempt := 0; attempt < 3; attempt++ {
-		if attempt > 0 {
-			c.logger.Debugf("🔄 [MCP] Retrying compatible endpoint test (attempt %d/3)", attempt+1)
-		}
+	req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		c.logger.Debugf("❌ [MCP] Failed to create compatible endpoint request: %v", err)
+		return false
+	}
 
-		req, err := http.NewRequest("POST", testURL, bytes.NewBuffer(jsonData))
-		if err != nil {
-			c.logger.Debugf("❌ [MCP] Failed to create compatible endpoint request: %v", err)
-			return false
-		}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("content-type", "application/json")
 
-		req.Header.Set("Authorization", "Bearer "+c.APIKey)
-		req.Header.Set("content-type", "application/json")
+	c.logger.Debugf("🔍 [MCP] Using Authorization: Bearer ***")
 
-		c.logger.Debugf("🔍 [MCP] Using Authorization: Bearer ***")
+	resp, err := client.Do(req)
+	if err != nil {
+		c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
 
-		resp, err := client.Do(req)
-		if err != nil {
-			c.logger.Debugf("❌ [MCP] Compatible endpoint request failed: %v", err)
-			if attempt < 2 {
-				time.Sleep(time.Second * time.Duration(attempt+1))
-				continue
-			}
-			return false
-		}
-		defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	c.logger.Debugf("🔍 [MCP] Compatible response status: %d", resp.StatusCode)
+	c.logger.Debugf("🔍 [MCP] Compatible response body: %s", string(body))
 
-		body, _ := io.ReadAll(resp.Body)
-		c.logger.Debugf("🔍 [MCP] Compatible response status: %d", resp.StatusCode)
-		c.logger.Debugf("🔍 [MCP] Compatible response body: %s", string(body))
-
-		if resp.StatusCode == http.StatusOK {
-			c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
-			return true
-		}
-
-		if attempt < 2 {
-			time.Sleep(time.Second * time.Duration(attempt+1))
-		}
+	if resp.StatusCode == http.StatusOK {
+		c.logger.Debugf("✅ [MCP] Compatible endpoint detected")
+		return true
 	}
 
 	return false
