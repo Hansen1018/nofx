@@ -177,7 +177,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	switch aiModel {
 	case "claude":
 		mcpClient = mcp.NewClaudeClientWithOptions(
-			mcp.WithEndpointMode(mcp.EndpointModeAuto),
+			mcp.WithEndpointMode(mcp.EndpointModeNative),
 		)
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 
