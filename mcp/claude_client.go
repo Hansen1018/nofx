@@ -26,7 +26,7 @@ const (
 	ProviderClaude       = "claude"
 	DefaultClaudeBaseURL = "https://api.anthropic.com/v1"
 
-	DefaultClaudeModel  = "claude-sonnet-4-5-20250929"
+	DefaultClaudeModel  = "claude-opus-4-6"
 	ClaudeSonnet45Alias = "claude-sonnet-4-5"
 	ClaudeHaiku45       = "claude-haiku-4-5-20251001"
 	ClaudeOpus45        = "claude-opus-4-5-20251101"
