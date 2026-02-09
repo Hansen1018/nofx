@@ -1059,10 +1059,6 @@ export interface GridRiskInfo {
   breakout_direction: string
 }
 
-// Debate Arena Types
-export type DebateStatus = 'pending' | 'running' | 'voting' | 'completed' | 'cancelled';
-export type DebatePersonality = 'bull' | 'bear' | 'analyst' | 'contrarian' | 'risk_manager';
-
 export interface DebateDecision {
   action: string;
   symbol: string;
