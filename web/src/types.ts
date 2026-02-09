@@ -1058,3 +1058,220 @@ export interface GridRiskInfo {
   breakout_level: string
   breakout_direction: string
 }
+
+// Debate Arena Types
+export type DebateStatus = 'pending' | 'running' | 'voting' | 'completed' | 'cancelled';
+export type DebatePersonality = 'bull' | 'bear' | 'analyst' | 'contrarian' | 'risk_manager';
+
+export interface DebateDecision {
+  action: string;
+  symbol: string;
+  confidence: number;
+  leverage?: number;
+  position_pct?: number;
+  position_size_usd?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  reasoning: string;
+  // Execution tracking
+  executed?: boolean;
+  executed_at?: string;
+  order_id?: string;
+  error?: string;
+}
+
+export interface DebateSession {
+  id: string;
+  user_id: string;
+  name: string;
+  strategy_id: string;
+  status: DebateStatus;
+  symbol: string;
+  interval_minutes: number;
+  prompt_variant: string;
+  trader_id?: string;
+  max_rounds: number;
+  current_round: number;
+  final_decision?: DebateDecision;
+  final_decisions?: DebateDecision[];  // Multi-coin decisions
+  auto_execute: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DebateParticipant {
+  id: string;
+  session_id: string;
+  ai_model_id: string;
+  ai_model_name: string;
+  provider: string;
+  personality: DebatePersonality;
+  color: string;
+  speak_order: number;
+  created_at: string;
+}
+
+export interface DebateMessage {
+  id: string;
+  session_id: string;
+  round: number;
+  ai_model_id: string;
+  ai_model_name: string;
+  provider: string;
+  personality: DebatePersonality;
+  message_type: string;
+  content: string;
+  decision?: DebateDecision;
+  decisions?: DebateDecision[];  // Multi-coin decisions
+  confidence: number;
+  created_at: string;
+}
+
+export interface DebateVote {
+  id: string;
+  session_id: string;
+  ai_model_id: string;
+  ai_model_name: string;
+  action: string;
+  symbol: string;
+  confidence: number;
+  leverage?: number;
+  position_pct?: number;
+  stop_loss_pct?: number;
+  take_profit_pct?: number;
+  reasoning: string;
+  created_at: string;
+}
+
+export interface DebateSessionWithDetails extends DebateSession {
+  participants: DebateParticipant[];
+  messages: DebateMessage[];
+  votes: DebateVote[];
+}
+
+export interface CreateDebateRequest {
+  name: string;
+  strategy_id: string;
+  symbol: string;
+  max_rounds?: number;
+  interval_minutes?: number;  // 5, 15, 30, 60 minutes
+  prompt_variant?: string;    // balanced, aggressive, conservative, scalping
+  auto_execute?: boolean;
+  trader_id?: string;         // Trader to use for auto-execute
+  // OI Ranking data options
+  enable_oi_ranking?: boolean;  // Whether to include OI ranking data
+  oi_ranking_limit?: number;    // Number of OI ranking entries (default 10)
+  oi_duration?: string;         // Duration for OI data (1h, 4h, 24h, etc.)
+  participants: {
+    ai_model_id: string;
+    personality: DebatePersonality;
+  }[];
+}
+
+export interface DebatePersonalityInfo {
+  id: DebatePersonality;
+  name: string;
+  emoji: string;
+  color: string;
+  description: string;
+}
+
+// Position History Types
+export interface HistoricalPosition {
+  id: number;
+  trader_id: string;
+  exchange_id: string;
+  exchange_type: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  entry_quantity: number;
+  entry_price: number;
+  entry_order_id: string;
+  entry_time: string;
+  exit_price: number;
+  exit_order_id: string;
+  exit_time: string;
+  realized_pnl: number;
+  fee: number;
+  leverage: number;
+  status: string;
+  close_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Matches Go TraderStats struct exactly
+export interface TraderStats {
+  total_trades: number;
+  win_trades: number;
+  loss_trades: number;
+  win_rate: number;
+  profit_factor: number;
+  sharpe_ratio: number;
+  total_pnl: number;
+  total_fee: number;
+  avg_win: number;
+  avg_loss: number;
+  max_drawdown_pct: number;
+}
+
+// Matches Go SymbolStats struct exactly
+export interface SymbolStats {
+  symbol: string;
+  total_trades: number;
+  win_trades: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl: number;
+  avg_hold_mins: number;
+}
+
+// Matches Go DirectionStats struct exactly
+export interface DirectionStats {
+  side: string;
+  trade_count: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl: number;
+}
+
+export interface PositionHistoryResponse {
+  positions: HistoricalPosition[];
+  stats: TraderStats | null;
+  symbol_stats: SymbolStats[];
+  direction_stats: DirectionStats[];
+}
+
+// Grid Risk Information for frontend display
+export interface GridRiskInfo {
+  // Leverage info
+  current_leverage: number
+  effective_leverage: number
+  recommended_leverage: number
+
+  // Position info
+  current_position: number
+  max_position: number
+  position_percent: number
+
+  // Liquidation info
+  liquidation_price: number
+  liquidation_distance: number
+
+  // Market state
+  regime_level: string
+
+  // Box state
+  short_box_upper: number
+  short_box_lower: number
+  mid_box_upper: number
+  mid_box_lower: number
+  long_box_upper: number
+  long_box_lower: number
+  current_price: number
+
+  // Breakout state
+  breakout_level: string
+  breakout_direction: string
+}
