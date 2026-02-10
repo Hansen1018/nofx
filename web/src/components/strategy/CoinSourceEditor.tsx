@@ -665,28 +665,28 @@ export function CoinSourceEditor({
                 )}
               </div>
               <div className="flex flex-wrap gap-1 mt-2">
-                {(config.static_coins || []).slice(0, 3).map((coin) => (
+                {(config.static_coins || []).slice(0, 8).map((coin) => (
                   <span
                     key={coin}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-nofx-bg-lighter text-nofx-text"
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-nofx-bg-lighter text-nofx-text"
                   >
-                    {coin}
+                    <span className="truncate max-w-[60px]">{coin}</span>
                     {!disabled && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleRemoveCoin(coin)
                         }}
-                        className="hover:text-red-400 transition-colors"
+                        className="hover:text-red-400 transition-colors flex-shrink-0"
                       >
                         <X className="w-2.5 h-2.5" />
                       </button>
                     )}
                   </span>
                 ))}
-                {(config.static_coins || []).length > 3 && (
-                  <span className="text-xs text-nofx-text-muted">
-                    +{(config.static_coins?.length || 0) - 3}
+                {(config.static_coins || []).length > 8 && (
+                  <span className="text-[10px] text-nofx-text-muted px-1">
+                    +{(config.static_coins?.length || 0) - 8}
                   </span>
                 )}
               </div>
