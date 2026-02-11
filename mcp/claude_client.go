@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,11 +62,16 @@ var minCacheableTokens = map[string]int{
 	"claude-sonnet-4-1": 1024,
 }
 
+var (
+	endpointCachingStatus   = make(map[string]bool)
+	endpointCachingStatusMu sync.RWMutex
+)
+
 type ClaudeClient struct {
 	*Client
 	endpointMode EndpointMode
-	detectedMode EndpointMode // 实际检测到的模式
-	cache        *claudeCache // 缓存状态跟踪
+	detectedMode EndpointMode
+	cache        *claudeCache
 }
 
 // claudeCache 跟踪缓存状态
@@ -343,16 +349,16 @@ func (c *ClaudeClient) IsPromptCachingEnabled() bool {
 	return c.GetEndpointMode() == EndpointModeNative && c.supportsPromptCaching()
 }
 
-// setAuthHeader Claude 使用 x-api-key header
 func (c *ClaudeClient) setAuthHeader(reqHeaders http.Header) {
 	mode := c.GetEndpointMode()
 
 	if mode == EndpointModeNative {
-		// Anthropic 原生格式
 		reqHeaders.Set("x-api-key", c.APIKey)
 		reqHeaders.Set("anthropic-version", AnthropicAPIVersion)
+		if c.isCachingEnabled() && c.supportsPromptCaching() {
+			reqHeaders.Set("anthropic-beta", "prompt-caching-2024-07-31")
+		}
 	} else {
-		// OpenAI 兼容格式
 		reqHeaders.Set("Authorization", "Bearer "+c.APIKey)
 	}
 }
@@ -379,13 +385,12 @@ func (c *ClaudeClient) buildUrl() string {
 	return baseURL + "/v1/chat/completions"
 }
 
-// buildMCPRequestBody 根据模式构建请求体
 func (c *ClaudeClient) buildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	mode := c.GetEndpointMode()
 
 	switch mode {
 	case EndpointModeNative:
-		return c.buildNativeRequest(systemPrompt, userPrompt)
+		return c.buildNativeRequest(systemPrompt, userPrompt, c.isCachingEnabled())
 	case EndpointModeCompatible:
 		return c.buildCompatibleRequest(systemPrompt, userPrompt)
 	default:
@@ -393,8 +398,24 @@ func (c *ClaudeClient) buildMCPRequestBody(systemPrompt, userPrompt string) map[
 	}
 }
 
-// buildNativeRequest Anthropic 原生格式 + Prompt Caching
-func (c *ClaudeClient) buildNativeRequest(systemPrompt, userPrompt string) map[string]any {
+func (c *ClaudeClient) isCachingEnabled() bool {
+	endpointCachingStatusMu.RLock()
+	supports, known := endpointCachingStatus[c.BaseURL]
+	endpointCachingStatusMu.RUnlock()
+	if known {
+		return supports
+	}
+	return true
+}
+
+func (c *ClaudeClient) markCachingUnsupported() {
+	endpointCachingStatusMu.Lock()
+	endpointCachingStatus[c.BaseURL] = false
+	endpointCachingStatusMu.Unlock()
+	c.logger.Warnf("⚠️  [MCP] Endpoint %s does not support prompt caching, disabled for future requests", c.BaseURL)
+}
+
+func (c *ClaudeClient) buildNativeRequest(systemPrompt, userPrompt string, useCaching bool) map[string]any {
 	requestBody := map[string]any{
 		"model":      c.Model,
 		"max_tokens": c.MaxTokens,
@@ -406,15 +427,12 @@ func (c *ClaudeClient) buildNativeRequest(systemPrompt, userPrompt string) map[s
 		},
 	}
 
-	// 添加 temperature
 	if c.config.Temperature > 0 {
 		requestBody["temperature"] = c.config.Temperature
 	}
 
-	// System prompt 使用 caching
 	if systemPrompt != "" {
-		if c.supportsPromptCaching() && c.shouldUseCaching(systemPrompt) {
-			// 使用 caching 格式
+		if useCaching && c.supportsPromptCaching() && c.shouldUseCaching(systemPrompt) {
 			requestBody["system"] = []map[string]any{
 				{
 					"type": "text",
@@ -426,8 +444,10 @@ func (c *ClaudeClient) buildNativeRequest(systemPrompt, userPrompt string) map[s
 			}
 			c.logger.Debugf("🚀 [MCP] Prompt caching enabled for system prompt")
 		} else {
-			// 不使用 caching
 			requestBody["system"] = systemPrompt
+			if useCaching && c.supportsPromptCaching() {
+				c.logger.Debugf("ℹ️  [MCP] Prompt caching disabled for this endpoint")
+			}
 		}
 	}
 
@@ -661,4 +681,97 @@ func (c *ClaudeClient) parseAutoResponse(body []byte) (string, error) {
 	}
 
 	return "", fmt.Errorf("unable to parse response: unknown format")
+}
+
+func (c *ClaudeClient) callWithCachingFallback(systemPrompt, userPrompt string) (string, error) {
+	useCaching := c.isCachingEnabled()
+
+	result, err := c.attemptCall(systemPrompt, userPrompt, useCaching)
+	if err != nil && useCaching && c.isCachingError(err) {
+		c.markCachingUnsupported()
+		c.logger.Warnf("🔄 [MCP] Retrying without prompt caching...")
+		result, err = c.attemptCall(systemPrompt, userPrompt, false)
+	}
+
+	return result, err
+}
+
+func (c *ClaudeClient) attemptCall(systemPrompt, userPrompt string, useCaching bool) (string, error) {
+	mode := c.GetEndpointMode()
+
+	var requestBody map[string]any
+	if mode == EndpointModeNative {
+		requestBody = c.buildNativeRequest(systemPrompt, userPrompt, useCaching)
+	} else {
+		requestBody = c.buildCompatibleRequest(systemPrompt, userPrompt)
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize request: %w", err)
+	}
+
+	url := c.buildUrl()
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	if mode == EndpointModeNative {
+		req.Header.Set("x-api-key", c.APIKey)
+		req.Header.Set("anthropic-version", AnthropicAPIVersion)
+		if useCaching && c.supportsPromptCaching() {
+			req.Header.Set("anthropic-beta", "prompt-caching-2024-07-31")
+		}
+	} else {
+		req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	limitedReader := io.LimitReader(resp.Body, MaxResponseBytes)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	return c.parseMCPResponse(body)
+}
+
+func (c *ClaudeClient) isCachingError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	cachingKeywords := []string{
+		"cache_control",
+		"cache control",
+		"prompt caching",
+		"caching",
+		"improperly formed request",
+		"cache",
+		"beta",
+		"anthropic-beta",
+	}
+	for _, keyword := range cachingKeywords {
+		if strings.Contains(errStr, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ClaudeClient) call(systemPrompt, userPrompt string) (string, error) {
+	return c.callWithCachingFallback(systemPrompt, userPrompt)
 }
