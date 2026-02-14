@@ -23,7 +23,7 @@ import (
 // Inherits TraderTestSuite and adds Binance Futures specific mock logic
 type BinanceFuturesTestSuite struct {
 	*testutil.TraderTestSuite // Embeds base test suite
-	mockServer              *httptest.Server
+	mockServer                *httptest.Server
 }
 
 // NewBinanceFuturesTestSuite Creates Binance Futures test suite
@@ -74,18 +74,20 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 				},
 			}
 
-		// Mock GetPositions - /fapi/v2/positionRisk
-		case path == "/fapi/v2/positionRisk":
+		// Mock GetPositions - /fapi/v3/positionRisk
+		case path == "/fapi/v3/positionRisk":
 			respBody = []map[string]interface{}{
 				{
-					"symbol":           "BTCUSDT",
-					"positionAmt":      "0.5",
-					"entryPrice":       "50000.00",
-					"markPrice":        "50500.00",
-					"unRealizedProfit": "250.00",
-					"liquidationPrice": "45000.00",
-					"leverage":         "10",
-					"positionSide":     "LONG",
+					"symbol":                "BTCUSDT",
+					"positionAmt":           "0.5",
+					"entryPrice":            "50000.00",
+					"markPrice":             "50500.00",
+					"unRealizedProfit":      "250.00",
+					"liquidationPrice":      "45000.00",
+					"positionSide":          "LONG",
+					"notional":              "25250.00",
+					"positionInitialMargin": "2525.00",
+					"updateTime":            1720736417660,
 				},
 			}
 

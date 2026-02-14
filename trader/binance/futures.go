@@ -176,7 +176,7 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	// Cache expired or doesn't exist, call API
 	logger.Infof("🔄 Cache expired, calling Binance API to get position information...")
-	positions, err := t.client.NewGetPositionRiskService().Do(context.Background())
+	positions, err := t.client.NewGetPositionRiskV3Service().Do(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
@@ -194,12 +194,20 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["entryPrice"], _ = strconv.ParseFloat(pos.EntryPrice, 64)
 		posMap["markPrice"], _ = strconv.ParseFloat(pos.MarkPrice, 64)
 		posMap["unRealizedProfit"], _ = strconv.ParseFloat(pos.UnRealizedProfit, 64)
-		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
-		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
+		posMap["createdTime"] = pos.UpdateTime
 
-		// Determine direction
-		if posAmt > 0 {
+		// Calculate leverage from notional and position initial margin
+		notional, _ := strconv.ParseFloat(pos.Notional, 64)
+		posInitialMargin, _ := strconv.ParseFloat(pos.PositionInitialMargin, 64)
+		if posInitialMargin > 0 {
+			posMap["leverage"] = notional / posInitialMargin
+		} else {
+			posMap["leverage"] = 1 // Default leverage
+		}
+
+		// Determine direction from PositionSide (V3 API)
+		if pos.PositionSide == "LONG" || (pos.PositionSide == "BOTH" && posAmt > 0) {
 			posMap["side"] = "long"
 		} else {
 			posMap["side"] = "short"
