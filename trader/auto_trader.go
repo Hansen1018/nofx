@@ -860,30 +860,12 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 				updateTime = createdTime
 			}
 		}
-		// Priority 3: Try to get from order history (fills table) - find earliest fill for this symbol
-		if updateTime == 0 && at.store != nil {
-			orderAction := "open_long"
-			if side == "short" {
-				orderAction = "open_short"
-			}
-			earliestFill, err := at.store.Order().GetEarliestFill(at.id, symbol, orderAction)
-			if err == nil && earliestFill != nil && earliestFill.CreatedAt > 0 {
-				updateTime = earliestFill.CreatedAt
-				logger.Infof("[%s] Got position open time from order history: %s (fill time: %d)",
-					at.name, symbol, updateTime)
-			}
-		}
+		// Priority 3: Fallback to local tracking (use current time for new positions)
 		if updateTime == 0 {
-			if existingTime, exists := at.positionFirstSeenTime[posKey]; exists {
-				updateTime = existingTime
-			} else {
-				updateTime = time.Now().UnixMilli()
-				at.positionFirstSeenTime[posKey] = updateTime
-				logger.Warnf("[%s] Cannot determine position open time for %s %s, using current time. "+
-					"This may indicate: 1) Position existed before order sync started, 2) Exchange doesn't provide createdTime, "+
-					"3) Order history not yet synced. Consider running order sync manually.",
-					at.name, symbol, side)
+			if _, exists := at.positionFirstSeenTime[posKey]; !exists {
+				at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 			}
+			updateTime = at.positionFirstSeenTime[posKey]
 		}
 
 		// Get peak profit rate for this position
