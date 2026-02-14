@@ -137,7 +137,7 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 
 	// Cache expired or doesn't exist, call API
 	logger.Infof("🔄 Cache expired, calling Binance API to get account balance...")
-	account, err := t.client.NewGetAccountService().Do(context.Background())
+	account, err := t.client.NewGetAccountV3Service().Do(context.Background())
 	if err != nil {
 		logger.Infof("❌ Binance API call failed: %v", err)
 		return nil, fmt.Errorf("failed to get account info: %w", err)

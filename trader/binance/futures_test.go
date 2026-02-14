@@ -36,21 +36,41 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 		var respBody interface{}
 
 		switch {
-		// Mock GetBalance - /fapi/v2/balance
-		case path == "/fapi/v2/balance":
-			respBody = []map[string]interface{}{
-				{
-					"accountAlias":       "test",
-					"asset":              "USDT",
-					"balance":            "10000.00",
-					"crossWalletBalance": "10000.00",
-					"crossUnPnl":         "100.50",
-					"availableBalance":   "8000.00",
-					"maxWithdrawAmount":  "8000.00",
+		// Mock GetBalance - /fapi/v3/account (GetBalance uses GetAccountV3Service)
+		case path == "/fapi/v3/account":
+			respBody = map[string]interface{}{
+				"totalWalletBalance":          "10000.00",
+				"availableBalance":            "8000.00",
+				"totalUnrealizedProfit":       "100.50",
+				"totalMarginBalance":          "10000.00",
+				"totalPositionInitialMargin":  "1000.00",
+				"totalOpenOrderInitialMargin": "1000.00",
+				"totalCrossWalletBalance":     "10000.00",
+				"totalCrossUnPnl":             "100.50",
+				"maxWithdrawAmount":           "8000.00",
+				"totalInitialMargin":          "1000.00",
+				"totalMaintMargin":            "500.00",
+				"assets": []map[string]interface{}{
+					{
+						"asset":                  "USDT",
+						"walletBalance":          "10000.00",
+						"unrealizedProfit":       "100.50",
+						"marginBalance":          "10000.00",
+						"maintMargin":            "500.00",
+						"initialMargin":          "1000.00",
+						"positionInitialMargin":  "1000.00",
+						"openOrderInitialMargin": "1000.00",
+						"crossWalletBalance":     "10000.00",
+						"crossUnPnl":             "100.50",
+						"availableBalance":       "8000.00",
+						"maxWithdrawAmount":      "8000.00",
+						"marginAvailable":        true,
+						"updateTime":             1234567890,
+					},
 				},
 			}
 
-		// Mock GetAccount - /fapi/v2/account
+		// Mock GetAccount - /fapi/v2/account (used by other methods if needed)
 		case path == "/fapi/v2/account":
 			respBody = map[string]interface{}{
 				"totalWalletBalance":    "10000.00",
