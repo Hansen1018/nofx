@@ -117,6 +117,7 @@ type Context struct {
 	PromptVariant      string                             `json:"prompt_variant,omitempty"`
 	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
 	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
+	Exchange           string                             `json:"exchange,omitempty"` // Trader's exchange type: "binance", "bybit", "okx", etc.
 	MarketDataMap      map[string]*market.Data            `json:"-"`
 	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap       map[string]*OITopData              `json:"-"`
@@ -1308,7 +1309,7 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[coin.Symbol]; hasQuant {
-				sb.WriteString(e.formatQuantData(quantData))
+				sb.WriteString(e.formatQuantData(quantData, ctx.Exchange))
 			}
 		}
 		sb.WriteString("\n")
@@ -1375,7 +1376,7 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
-				sb.WriteString(e.formatQuantData(quantData))
+				sb.WriteString(e.formatQuantData(quantData, ctx.Exchange))
 			}
 		}
 		sb.WriteString("\n")
@@ -1595,7 +1596,7 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	sb.WriteString("\n")
 }
 
-func (e *StrategyEngine) formatQuantData(data *QuantData) string {
+func (e *StrategyEngine) formatQuantData(data *QuantData, exchange string) string {
 	if data == nil {
 		return ""
 	}
@@ -1665,12 +1666,23 @@ func (e *StrategyEngine) formatQuantData(data *QuantData) string {
 	}
 
 	if indicators.EnableQuantOI && len(data.OI) > 0 {
-		for exchange, oiData := range data.OI {
-			if len(oiData.Delta) > 0 {
+		if exchange != "" {
+			if oiData, ok := data.OI[exchange]; ok && len(oiData.Delta) > 0 {
 				sb.WriteString(fmt.Sprintf("Open Interest (%s):\n", exchange))
 				for _, tf := range []string{"5m", "15m", "1h", "4h", "12h", "24h"} {
 					if d, ok := oiData.Delta[tf]; ok {
 						sb.WriteString(fmt.Sprintf("    %s: %+.4f%% (%s)\n", tf, d.OIDeltaPercent, formatFlowValue(d.OIDeltaValue)))
+					}
+				}
+			}
+		} else {
+			for ex, oiData := range data.OI {
+				if len(oiData.Delta) > 0 {
+					sb.WriteString(fmt.Sprintf("Open Interest (%s):\n", ex))
+					for _, tf := range []string{"5m", "15m", "1h", "4h", "12h", "24h"} {
+						if d, ok := oiData.Delta[tf]; ok {
+							sb.WriteString(fmt.Sprintf("    %s: %+.4f%% (%s)\n", tf, d.OIDeltaPercent, formatFlowValue(d.OIDeltaValue)))
+						}
 					}
 				}
 			}

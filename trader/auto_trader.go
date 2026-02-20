@@ -936,6 +936,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  btcEthLeverage,
 		AltcoinLeverage: altcoinLeverage,
+		Exchange:        at.exchange,
 		Account: kernel.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
