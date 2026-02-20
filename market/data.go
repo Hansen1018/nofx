@@ -24,7 +24,7 @@ type FundingRateCache struct {
 }
 
 var (
-	fundingRateMap sync.Map // map[string]*FundingRateCache
+	fundingRateMap sync.Map // map[exchange:symbol]*FundingRateCache
 	frCacheTTL     = 1 * time.Hour
 )
 
@@ -258,7 +258,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	fundingRate, _ := getFundingRate(symbol, exchange)
 
 	// Calculate intraday series data
 	intradayData := calculateIntradaySeries(klines3m)
@@ -285,8 +285,13 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
 // count: number of K-lines for each timeframe
-func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
+// exchange: exchange type (binance, bybit, okx, etc.), defaults to binance if empty
+func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int, exchange string) (*Data, error) {
 	symbol = Normalize(symbol)
+
+	if exchange == "" {
+		exchange = "binance"
+	}
 
 	if len(timeframes) == 0 {
 		return nil, fmt.Errorf("at least one timeframe is required")
@@ -370,7 +375,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data
@@ -380,7 +385,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	}
 
 	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	fundingRate, _ := getFundingRate(symbol, exchange)
 
 	return &Data{
 		Symbol:        symbol,
@@ -822,21 +827,49 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 	}, nil
 }
 
-// getFundingRate retrieves funding rate (optimized: uses 1-hour cache)
-func getFundingRate(symbol string) (float64, error) {
-	// Check cache (1-hour validity)
-	// Funding Rate only updates every 8 hours, 1-hour cache is very reasonable
-	if cached, ok := fundingRateMap.Load(symbol); ok {
+// getFundingRate retrieves funding rate for the specified exchange (optimized: uses 1-hour cache)
+func getFundingRate(symbol, exchange string) (float64, error) {
+	cacheKey := exchange + ":" + symbol
+
+	if cached, ok := fundingRateMap.Load(cacheKey); ok {
 		cache := cached.(*FundingRateCache)
 		if time.Since(cache.UpdatedAt) < frCacheTTL {
-			// Cache hit, return directly
 			return cache.Rate, nil
 		}
 	}
 
-	// Cache expired or doesn't exist, call API
-	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
+	var rate float64
+	var err error
 
+	switch strings.ToLower(exchange) {
+	case "binance":
+		rate, err = getBinanceFundingRate(symbol)
+	case "bybit":
+		rate, err = getBybitFundingRate(symbol)
+	case "okx":
+		rate, err = getOKXFundingRate(symbol)
+	case "bitget":
+		rate, err = getBitgetFundingRate(symbol)
+	case "gate":
+		rate, err = getGateFundingRate(symbol)
+	default:
+		rate, err = getBinanceFundingRate(symbol)
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	fundingRateMap.Store(cacheKey, &FundingRateCache{
+		Rate:      rate,
+		UpdatedAt: time.Now(),
+	})
+
+	return rate, nil
+}
+
+func getBinanceFundingRate(symbol string) (float64, error) {
+	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
 	apiClient := NewAPIClient()
 	resp, err := apiClient.client.Get(url)
 	if err != nil {
@@ -851,12 +884,7 @@ func getFundingRate(symbol string) (float64, error) {
 
 	var result struct {
 		Symbol          string `json:"symbol"`
-		MarkPrice       string `json:"markPrice"`
-		IndexPrice      string `json:"indexPrice"`
 		LastFundingRate string `json:"lastFundingRate"`
-		NextFundingTime int64  `json:"nextFundingTime"`
-		InterestRate    string `json:"interestRate"`
-		Time            int64  `json:"time"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -864,13 +892,129 @@ func getFundingRate(symbol string) (float64, error) {
 	}
 
 	rate, _ := strconv.ParseFloat(result.LastFundingRate, 64)
+	return rate, nil
+}
 
-	// Update cache
-	fundingRateMap.Store(symbol, &FundingRateCache{
-		Rate:      rate,
-		UpdatedAt: time.Now(),
-	})
+func getBybitFundingRate(symbol string) (float64, error) {
+	url := fmt.Sprintf("https://api.bybit.com/v5/market/tickers?category=linear&symbol=%s", symbol)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var result struct {
+		List []struct {
+			Symbol      string `json:"symbol"`
+			FundingRate string `json:"fundingRate"`
+		} `json:"list"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, err
+	}
+
+	if len(result.List) == 0 {
+		return 0, fmt.Errorf("no data returned from Bybit")
+	}
+
+	rate, _ := strconv.ParseFloat(result.List[0].FundingRate, 64)
+	return rate, nil
+}
+
+func getOKXFundingRate(symbol string) (float64, error) {
+	url := fmt.Sprintf("https://www.okx.com/api/v5/public/funding-rate-rate?instId=%s", symbol)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var result struct {
+		Data []struct {
+			FundingRate string `json:"fundingRate"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, err
+	}
+
+	if len(result.Data) == 0 {
+		return 0, fmt.Errorf("no data returned from OKX")
+	}
+
+	rate, _ := strconv.ParseFloat(result.Data[0].FundingRate, 64)
+	return rate, nil
+}
+
+func getBitgetFundingRate(symbol string) (float64, error) {
+	url := fmt.Sprintf("https://api.bitget.com/api/v2/market/current/funding-rate?symbol=%s", symbol)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var result struct {
+		Data struct {
+			FundingRate string `json:"fundingRate"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, err
+	}
+
+	rate, _ := strconv.ParseFloat(result.Data.FundingRate, 64)
+	return rate, nil
+}
+
+func getGateFundingRate(symbol string) (float64, error) {
+	url := fmt.Sprintf("https://api.gateio.ws/api/v4/futures/usdt/contracts/%s", symbol)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var result []struct {
+		FundingRate string `json:"funding_rate"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, err
+	}
+
+	if len(result) == 0 {
+		return 0, fmt.Errorf("no data returned from Gate")
+	}
+
+	rate, _ := strconv.ParseFloat(result[0].FundingRate, 64)
 	return rate, nil
 }
 
