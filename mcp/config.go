@@ -19,13 +19,6 @@ var ModelMaxTokens = map[string]int{
 	"claude-sonnet-4-6":  64000,
 	"claude-sonnet-4-5":  64000,
 	"claude-sonnet-4":    64000,
-	"claude-haiku-4-5":   8192,
-	"claude-haiku-4":     8192,
-	"claude-3-5-sonnet":  8192,
-	"claude-3-5-haiku":  8192,
-	"claude-3-opus":     4096,
-	"claude-3-sonnet":   4096,
-	"claude-3-haiku":    4096,
 
 	// OpenAI
 	"gpt-5.3-codex":     128000,
@@ -36,21 +29,11 @@ var ModelMaxTokens = map[string]int{
 	"gpt-5.1":           64000,
 	"gpt-5-codex":       64000,
 	"gpt-5":             64000,
-	"gpt-4o":            16384,
-	"gpt-4-turbo":       4096,
-	"gpt-4":             4096,
-	"gpt-4o-mini":       16384,
-	"o3":                100000,
-	"o3-mini":           100000,
-	"o1":                100000,
-	"o1-mini":           65000,
-	"o1-preview":        65000,
 
 	// Google Gemini
-	"gemini-2.0-pro":     8192,
-	"gemini-2.0-flash":   8192,
-	"gemini-1.5-pro":     8192,
-	"gemini-1.5-flash":   8192,
+	"gemini-3.1-pro-preview": 64000,
+	"gemini-3-pro-preview":   64000,
+	"gemini-3-flash-preview": 64000,
 
 	// DeepSeek
 	"deepseek-chat":      4096,
@@ -64,6 +47,37 @@ var ModelMaxTokens = map[string]int{
 
 	// Default fallback
 	"default":            4096,
+}
+
+// ModelAliases maps third-party/model variant names to canonical model IDs
+var ModelAliases = map[string]string{
+	// Anthropic Claude aliases
+	"opus":               "claude-opus-4",
+	"opus-4":             "claude-opus-4",
+	"claude-opus":        "claude-opus-4",
+	"sonnet":             "claude-sonnet-4",
+	"sonnet-4":           "claude-sonnet-4",
+	"claude-sonnet":      "claude-sonnet-4",
+
+	// OpenAI GPT aliases
+	"gpt5":               "gpt-5",
+	"gpt-5.0":           "gpt-5",
+	"gpt5-codex":        "gpt-5-codex",
+	"chatgpt-5":         "gpt-5",
+
+	// Google Gemini aliases
+	"gemini-3-pro":       "gemini-3-pro-preview",
+	"gemini-3-flash":     "gemini-3-flash-preview",
+	"gemini-3.1-pro":     "gemini-3.1-pro-preview",
+
+	// DeepSeek aliases
+	"deepseek":           "deepseek-chat",
+	"deepseek-v3":       "deepseek-chat",
+
+	// Qwen aliases
+	"qwen":               "qwen-turbo",
+	"qwen2.5":           "qwen-turbo",
+	"qwen2":             "qwen-turbo",
 }
 
 // GetMaxTokensForModel returns the appropriate MaxTokens for the given model
@@ -85,6 +99,13 @@ func GetMaxTokensForModel(model string) int {
 	// Try exact match first
 	if tokens, ok := ModelMaxTokens[modelLower]; ok {
 		return tokens
+	}
+
+	// Try alias resolution
+	if canonical, ok := ModelAliases[modelLower]; ok {
+		if tokens, ok := ModelMaxTokens[canonical]; ok {
+			return tokens
+		}
 	}
 
 	// Try prefix match (e.g., "claude-opus-4-6" matches "claude-opus")
