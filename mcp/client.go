@@ -114,6 +114,14 @@ func NewClient(opts ...ClientOption) AIClient {
 		config:     cfg,
 	}
 
+	// 4b. Set MaxTokens based on model (if not explicitly set)
+	if client.MaxTokens == 0 {
+		client.MaxTokens = GetMaxTokensForModel(client.Model)
+		if client.logger != nil {
+			client.logger.Infof("[MCP] Auto-set MaxTokens to %d for model: %s", client.MaxTokens, client.Model)
+		}
+	}
+
 	// 4. Set default Provider (if not set)
 	if client.Provider == "" {
 		client.Provider = ProviderDeepSeek

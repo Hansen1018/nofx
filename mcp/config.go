@@ -4,10 +4,98 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"nofx/logger"
 )
+
+// ModelMaxTokens defines official max output tokens for each model
+var ModelMaxTokens = map[string]int{
+	// Anthropic Claude
+	"claude-opus-4-6":   128000,
+	"claude-opus-4-5":   128000,
+	"claude-opus-4":     128000,
+	"claude-sonnet-4-6":  64000,
+	"claude-sonnet-4-5":  64000,
+	"claude-sonnet-4":    64000,
+	"claude-haiku-4-5":   8192,
+	"claude-haiku-4":     8192,
+	"claude-3-5-sonnet":  8192,
+	"claude-3-5-haiku":  8192,
+	"claude-3-opus":     4096,
+	"claude-3-sonnet":   4096,
+	"claude-3-haiku":    4096,
+
+	// OpenAI
+	"gpt-5.3-codex":     128000,
+	"gpt-5.3":           128000,
+	"gpt-5.2-codex":     64000,
+	"gpt-5.2":           64000,
+	"gpt-5.1-codex":     64000,
+	"gpt-5.1":           64000,
+	"gpt-5-codex":       64000,
+	"gpt-5":             64000,
+	"gpt-4o":            16384,
+	"gpt-4-turbo":       4096,
+	"gpt-4":             4096,
+	"gpt-4o-mini":       16384,
+	"o3":                100000,
+	"o3-mini":           100000,
+	"o1":                100000,
+	"o1-mini":           65000,
+	"o1-preview":        65000,
+
+	// Google Gemini
+	"gemini-2.0-pro":     8192,
+	"gemini-2.0-flash":   8192,
+	"gemini-1.5-pro":     8192,
+	"gemini-1.5-flash":   8192,
+
+	// DeepSeek
+	"deepseek-chat":      4096,
+	"deepseek-coder":    4096,
+	"deepseek-reasoner": 32000,
+
+	// Qwen
+	"qwen-turbo":         8192,
+	"qwen-plus":         32768,
+	"qwen-max":          32768,
+
+	// Default fallback
+	"default":            4096,
+}
+
+// GetMaxTokensForModel returns the appropriate MaxTokens for the given model
+// Priority: 1. Environment variable AI_MAX_TOKENS 2. Model-specific official limit 3. Default
+func GetMaxTokensForModel(model string) int {
+	// Check environment variable first (allows override)
+	if envVal := os.Getenv("AI_MAX_TOKENS"); envVal != "" {
+		if parsed, err := strconv.Atoi(envVal); err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+
+	if model == "" {
+		return ModelMaxTokens["default"]
+	}
+
+	modelLower := strings.ToLower(model)
+
+	// Try exact match first
+	if tokens, ok := ModelMaxTokens[modelLower]; ok {
+		return tokens
+	}
+
+	// Try prefix match (e.g., "claude-opus-4-6" matches "claude-opus")
+	for key, tokens := range ModelMaxTokens {
+		if strings.HasPrefix(modelLower, key) || strings.HasPrefix(key, modelLower) {
+			return tokens
+		}
+	}
+
+	return ModelMaxTokens["default"]
+}
 
 // Config client configuration (centralized management of all configurations)
 type Config struct {
@@ -39,7 +127,7 @@ type Config struct {
 // DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MaxTokens:       getEnvInt("AI_MAX_TOKENS", 128000),
+		MaxTokens:       getEnvInt("AI_MAX_TOKENS", 0), // Will be set per-model in client initialization
 		Temperature:     MCPClientTemperature,
 		MaxRetries:      MaxRetryTimes,
 		RetryWaitBase:   2 * time.Second,
