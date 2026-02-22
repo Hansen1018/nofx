@@ -261,7 +261,7 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	}
 
 	txReq := &types.CreateOrderTxReq{
-		MarketIndex:      marketIndex,
+		MarketIndex:      int16(marketIndex),
 		ClientOrderIndex: clientOrderIndex,
 		BaseAmount:       baseAmount,
 		Price:            priceValue,
@@ -651,7 +651,7 @@ func (t *LighterTraderV2) SetLeverage(symbol string, leverage int) error {
 
 	// Build UpdateLeverage request
 	txReq := &types.UpdateLeverageTxReq{
-		MarketIndex:           marketIndex,
+		MarketIndex:           int16(marketIndex),
 		InitialMarginFraction: initialMarginFraction,
 		MarginMode:            0, // 0 = cross margin (default)
 	}
@@ -717,7 +717,7 @@ func (t *LighterTraderV2) SetMarginMode(symbol string, isCrossMargin bool) error
 
 	// Build UpdateLeverage request (also updates margin mode)
 	txReq := &types.UpdateLeverageTxReq{
-		MarketIndex:           marketIndex,
+		MarketIndex:           int16(marketIndex),
 		InitialMarginFraction: initialMarginFraction,
 		MarginMode:            marginMode,
 	}
@@ -795,7 +795,7 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 	orderExpiry := time.Now().Add(30 * 24 * time.Hour).UnixMilli() // 30 days
 
 	txReq := &types.CreateOrderTxReq{
-		MarketIndex:      marketIndex,
+		MarketIndex:      int16(marketIndex),
 		ClientOrderIndex: clientOrderIndex,
 		BaseAmount:       baseAmount,
 		Price:            priceValue,

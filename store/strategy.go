@@ -230,6 +230,22 @@ type RiskControlConfig struct {
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
 	// Min AI confidence to open position (AI guided)
 	MinConfidence int `json:"min_confidence"`
+
+	// Position Management (AI guided)
+	// Breakeven threshold: when UnrealizedPnL% reaches this threshold, automatically adjust stop loss to entry price (breakeven)
+	BreakevenThreshold float64 `json:"breakeven_threshold,omitempty"`
+	// Update stop-loss enabled: enable dynamic stop-loss updates via update_stop_loss action (Binance only)
+	UpdateStopLossEnabled bool `json:"update_stop_loss_enabled,omitempty"`
+
+	// Exit Signals (AI guided)
+	// Hard stop loss: recommend stop-loss when single position loss reaches this % (AI guided, execute via stop_loss field)
+	HardStopLossPct float64 `json:"hard_stop_loss_pct,omitempty"`
+	// Trailing stop percentage: recommend partial/full profit-taking when PnL pulls back this % from peak (AI guided)
+	TrailingStopPct float64 `json:"trailing_stop_pct,omitempty"`
+	// Trailing stop minimum profit: minimum profit % required before trailing stop activates (CODE ENFORCED)
+	TrailingStopMinProfit float64 `json:"trailing_stop_min_profit,omitempty"`
+	// Trailing stop drawdown: auto-close position when drawdown from peak reaches this % (CODE ENFORCED)
+	TrailingStopDrawdown float64 `json:"trailing_stop_drawdown,omitempty"`
 }
 
 // NewStrategyStore creates a new StrategyStore
