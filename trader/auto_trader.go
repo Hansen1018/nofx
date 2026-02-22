@@ -44,13 +44,13 @@ type AutoTraderConfig struct {
 	BybitSecretKey string
 
 	// OKX API configuration
-	OKXAPIKey     string
-	OKXSecretKey  string
+	OKXAPIKey    string
+	OKXSecretKey string
 	OKXPassphrase string
 
 	// Bitget API configuration
-	BitgetAPIKey     string
-	BitgetSecretKey  string
+	BitgetAPIKey    string
+	BitgetSecretKey string
 	BitgetPassphrase string
 
 	// Gate API configuration
@@ -58,14 +58,15 @@ type AutoTraderConfig struct {
 	GateSecretKey string
 
 	// KuCoin API configuration
-	KuCoinAPIKey     string
-	KuCoinSecretKey  string
+	KuCoinAPIKey    string
+	KuCoinSecretKey string
 	KuCoinPassphrase string
 
 	// Hyperliquid configuration
-	HyperliquidPrivateKey string
-	HyperliquidWalletAddr string
-	HyperliquidTestnet    bool
+	HyperliquidPrivateKey  string
+	HyperliquidWalletAddr  string
+	HyperliquidTestnet     bool
+	HyperliquidUnifiedAcct bool // Unified Account mode: Spot USDC as Perp collateral
 
 	// Aster configuration
 	AsterUser       string // Aster main wallet address
@@ -121,9 +122,9 @@ type AutoTrader struct {
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
-	store                 *store.Store           // Data storage (decision records, etc.)
+	store                 *store.Store             // Data storage (decision records, etc.)
 	strategyEngine        *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
-	cycleNumber           int                    // Current cycle number
+	cycleNumber           int                      // Current cycle number
 	initialBalance        float64
 	dailyPnL              float64
 	customPrompt          string // Custom trading strategy prompt
@@ -142,11 +143,6 @@ type AutoTrader struct {
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
-
-	breakevenCache      map[string]bool
-	breakevenCacheMutex sync.RWMutex
-	lastBreakevenCheck  map[string]time.Time
-	lastBreakevenMutex  sync.RWMutex
 }
 
 // NewAutoTrader creates an automatic trader
@@ -176,18 +172,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 
 	switch aiModel {
 	case "claude":
-		mcpClient = mcp.NewClaudeClientWithOptions(
-			mcp.WithEndpointMode(mcp.EndpointModeNative),
-		)
+		mcpClient = mcp.NewClaudeClient()
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
-
-		if cc, ok := mcpClient.(*mcp.ClaudeClient); ok {
-			mode := cc.GetEndpointMode()
-			caching := cc.IsPromptCachingEnabled()
-			logger.Infof("🤖 [%s] Using Claude AI (mode: %s, caching: %v)", config.Name, mode, caching)
-		} else {
-			logger.Infof("🤖 [%s] Using Claude AI", config.Name)
-		}
+		logger.Infof("🤖 [%s] Using Claude AI", config.Name)
 
 	case "kimi":
 		mcpClient = mcp.NewKimiClient()
@@ -195,18 +182,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		logger.Infof("🤖 [%s] Using Kimi (Moonshot) AI", config.Name)
 
 	case "gemini":
-		mcpClient = mcp.NewGeminiClientWithOptions(
-			mcp.WithEndpointMode(mcp.EndpointModeAuto),
-		)
+		mcpClient = mcp.NewGeminiClient()
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
-
-		if gc, ok := mcpClient.(*mcp.GeminiClient); ok {
-			mode := gc.GetEndpointMode()
-			caching := gc.IsContextCachingEnabled()
-			logger.Infof("🤖 [%s] Using Google Gemini AI (mode: %s, caching: %v)", config.Name, mode, caching)
-		} else {
-			logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
-		}
+		logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
 
 	case "grok":
 		mcpClient = mcp.NewGrokClient()
@@ -283,7 +261,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		trader = kucoin.NewKuCoinTrader(config.KuCoinAPIKey, config.KuCoinSecretKey, config.KuCoinPassphrase)
 	case "hyperliquid":
 		logger.Infof("🏦 [%s] Using Hyperliquid trading", config.Name)
-		trader, err = hyperliquid.NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
+		trader, err = hyperliquid.NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet, config.HyperliquidUnifiedAcct)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize Hyperliquid trader: %w", err)
 		}
@@ -383,8 +361,6 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		stopMonitorCh:         make(chan struct{}),
 		monitorWg:             sync.WaitGroup{},
 		peakPnLCache:          make(map[string]float64),
-		breakevenCache:        make(map[string]bool),
-		lastBreakevenCheck:    make(map[string]time.Time),
 		peakPnLCacheMutex:     sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
@@ -860,7 +836,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 				updateTime = createdTime
 			}
 		}
-		// Priority 3: Fallback to local tracking (use current time for new positions)
+		// Priority 3: Fallback to local tracking
 		if updateTime == 0 {
 			if _, exists := at.positionFirstSeenTime[posKey]; !exists {
 				at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
@@ -936,7 +912,6 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  btcEthLeverage,
 		AltcoinLeverage: altcoinLeverage,
-		Exchange:        at.exchange,
 		Account: kernel.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
@@ -1074,8 +1049,6 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 		return at.executeCloseLongWithRecord(decision, actionRecord)
 	case "close_short":
 		return at.executeCloseShortWithRecord(decision, actionRecord)
-	case "update_stop_loss":
-		return at.executeUpdateStopLossWithRecord(decision, actionRecord)
 	case "hold", "wait":
 		// No execution needed, just record
 		return nil
@@ -1405,9 +1378,6 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, marketData.CurrentPrice, 0, entryPrice)
 
-	// Clear breakeven cache when position is closed
-	at.clearBreakevenCache(decision.Symbol, "long")
-
 	logger.Infof("  ✓ Position closed successfully")
 	return nil
 }
@@ -1472,146 +1442,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, marketData.CurrentPrice, 0, entryPrice)
 
-	// Clear breakeven cache when position is closed
-	at.clearBreakevenCache(decision.Symbol, "short")
-
 	logger.Infof("  ✓ Position closed successfully")
-	return nil
-}
-
-// executeUpdateStopLossWithRecord executes dynamic stop-loss update and records detailed information
-// This function updates stop-loss order using Algo Order API (Binance only)
-// CRITICAL: Only allows moving stop-loss in favorable direction (up for long, down for short)
-func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
-	logger.Infof("  🔄 Update stop-loss: %s (new stop-loss: %.4f)", decision.Symbol, decision.StopLoss)
-
-	// Only support Binance exchange (Algo Order API)
-	if at.exchange != "binance" {
-		return fmt.Errorf("update_stop_loss only supported for Binance exchange, current: %s", at.exchange)
-	}
-
-	// Validate stop-loss price is provided
-	if decision.StopLoss <= 0 {
-		return fmt.Errorf("stop_loss price must be greater than 0: %.4f", decision.StopLoss)
-	}
-
-	// Get current price
-	marketData, err := market.Get(decision.Symbol)
-	if err != nil {
-		return err
-	}
-	actionRecord.Price = marketData.CurrentPrice
-
-	// Normalize symbol for database lookup
-	normalizedSymbol := market.Normalize(decision.Symbol)
-
-	// Get position information to determine side
-	var positionSide string
-	var entryPrice float64
-	var currentQuantity float64
-
-	// First try to get from local database
-	if at.store != nil {
-		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "LONG"); err == nil && openPos != nil {
-			positionSide = "LONG"
-			entryPrice = openPos.EntryPrice
-			currentQuantity = openPos.Quantity
-			logger.Infof("  📊 Using local position data: side=LONG, qty=%.8f, entry=%.2f", currentQuantity, entryPrice)
-		} else if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "SHORT"); err == nil && openPos != nil {
-			positionSide = "SHORT"
-			entryPrice = openPos.EntryPrice
-			currentQuantity = openPos.Quantity
-			logger.Infof("  📊 Using local position data: side=SHORT, qty=%.8f, entry=%.2f", currentQuantity, entryPrice)
-		}
-	}
-
-	// Fallback to exchange API if local data not found
-	if positionSide == "" {
-		positions, err := at.trader.GetPositions()
-		if err == nil {
-			for _, pos := range positions {
-				if pos["symbol"] == decision.Symbol {
-					if side, ok := pos["side"].(string); ok {
-						if side == "long" {
-							positionSide = "LONG"
-						} else if side == "short" {
-							positionSide = "SHORT"
-						}
-					}
-					if ep, ok := pos["entryPrice"].(float64); ok {
-						entryPrice = ep
-					}
-					if amt, ok := pos["positionAmt"].(float64); ok {
-						if amt > 0 {
-							currentQuantity = amt
-						} else {
-							currentQuantity = -amt
-						}
-					}
-					break
-				}
-			}
-		}
-		if positionSide != "" {
-			logger.Infof("  📊 Using exchange position data: side=%s, qty=%.8f, entry=%.2f", positionSide, currentQuantity, entryPrice)
-		}
-	}
-
-	if positionSide == "" {
-		return fmt.Errorf("no open position found for %s", decision.Symbol)
-	}
-
-	// Get current stop-loss orders to check existing stop-loss price
-	futuresTrader, ok := at.trader.(*binance.FuturesTrader)
-	if !ok {
-		return fmt.Errorf("trader is not FuturesTrader, cannot update stop-loss")
-	}
-
-	// Get current stop-loss price for direction validation
-	currentStopLossPrice, err := futuresTrader.GetCurrentStopLossPrice(decision.Symbol, positionSide)
-	if err == nil && currentStopLossPrice > 0 {
-		logger.Infof("  📊 Found existing stop-loss: %.4f", currentStopLossPrice)
-
-		// CRITICAL: Validate stop-loss direction - only allow moving in favorable direction
-		// For LONG: new stop-loss must be >= current stop-loss (can only move up)
-		// For SHORT: new stop-loss must be <= current stop-loss (can only move down)
-		if positionSide == "LONG" {
-			if decision.StopLoss < currentStopLossPrice {
-				return fmt.Errorf("cannot move stop-loss down for LONG position: current=%.4f, requested=%.4f (only upward movement allowed)", currentStopLossPrice, decision.StopLoss)
-			}
-		} else { // SHORT
-			if decision.StopLoss > currentStopLossPrice {
-				return fmt.Errorf("cannot move stop-loss up for SHORT position: current=%.4f, requested=%.4f (only downward movement allowed)", currentStopLossPrice, decision.StopLoss)
-			}
-		}
-	} else {
-		// No existing stop-loss, validate against entry price
-		if positionSide == "LONG" {
-			if decision.StopLoss < entryPrice {
-				logger.Infof("  ⚠️ Warning: New stop-loss (%.4f) is below entry price (%.2f) for LONG position", decision.StopLoss, entryPrice)
-			}
-		} else { // SHORT
-			if decision.StopLoss > entryPrice {
-				logger.Infof("  ⚠️ Warning: New stop-loss (%.4f) is above entry price (%.2f) for SHORT position", decision.StopLoss, entryPrice)
-			}
-		}
-	}
-
-	// Cancel existing stop-loss orders first
-	if err := futuresTrader.CancelStopLossOrders(decision.Symbol); err != nil {
-		logger.Infof("  ⚠️ Failed to cancel existing stop-loss orders: %v (continuing anyway)", err)
-	}
-
-	// Set new stop-loss using Algo Order API
-	if err := futuresTrader.SetStopLoss(decision.Symbol, positionSide, currentQuantity, decision.StopLoss); err != nil {
-		return fmt.Errorf("failed to set stop-loss: %w", err)
-	}
-
-	// Record action (no order ID for Algo orders, use 0)
-	actionRecord.OrderID = 0
-	actionRecord.StopLoss = decision.StopLoss
-
-	logger.Infof("  ✓ Stop-loss updated successfully: %.4f (position: %s, qty: %.8f)", decision.StopLoss, positionSide, currentQuantity)
 	return nil
 }
 
@@ -1925,8 +1756,6 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 		switch action {
 		case "close_long", "close_short":
 			return 1 // Highest priority: close positions first
-		case "update_stop_loss":
-			return 1 // Highest priority: update stop-loss
 		case "open_long", "open_short":
 			return 2 // Second priority: open positions later
 		case "hold", "wait":
@@ -2030,117 +1859,25 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
-		// Check breakeven stop-loss condition
-		at.checkAndUpdateBreakevenStopLoss(symbol, side, entryPrice, currentPnLPct)
+		// Check close position condition: profit > 5% and drawdown >= 40%
+		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
+			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
+				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 
-		// Check trailing stop condition using strategy config
-		at.checkTrailingStop(symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+			// Execute close position
+			if err := at.emergencyClosePosition(symbol, side); err != nil {
+				logger.Infof("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
+			} else {
+				logger.Infof("✅ Drawdown close position succeeded: %s %s", symbol, side)
+				// Clear cache for this position after closing
+				at.ClearPeakPnLCache(symbol, side)
+			}
+		} else if currentPnLPct > 5.0 {
+			// Record situations close to close position condition (for debugging)
+			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
+				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+		}
 	}
-}
-
-// checkAndUpdateBreakevenStopLoss checks if breakeven threshold is reached and updates stop-loss order
-// Uses reasonable refresh interval (30 seconds) to avoid too frequent API calls
-func (at *AutoTrader) checkAndUpdateBreakevenStopLoss(symbol, side string, entryPrice, currentPnLPct float64) {
-	// Only check for Binance exchange (which supports Algo Order API)
-	if at.exchange != "binance" {
-		return
-	}
-
-	// Get breakeven threshold from strategy config
-	if at.strategyEngine == nil {
-		return
-	}
-
-	riskConfig := at.strategyEngine.GetRiskControlConfig()
-	breakevenThreshold := riskConfig.BreakevenThreshold
-
-	// If breakeven threshold is not configured, skip
-	if breakevenThreshold <= 0 {
-		return
-	}
-
-	// Construct unique position identifier
-	posKey := symbol + "_" + side
-
-	// Check if we should skip this check (rate limiting: at least 30 seconds between checks)
-	at.lastBreakevenMutex.RLock()
-	lastCheck, hasLastCheck := at.lastBreakevenCheck[posKey]
-	at.lastBreakevenMutex.RUnlock()
-
-	// Rate limiting: don't check too frequently (minimum 30 seconds between checks)
-	if hasLastCheck && time.Since(lastCheck) < 30*time.Second {
-		return
-	}
-
-	// Update last check time
-	at.lastBreakevenMutex.Lock()
-	at.lastBreakevenCheck[posKey] = time.Now()
-	at.lastBreakevenMutex.Unlock()
-
-	// Check if breakeven threshold is reached (current PnL >= threshold)
-	if currentPnLPct < breakevenThreshold {
-		// Not yet reached threshold
-		return
-	}
-
-	// Check if breakeven stop-loss is already set
-	at.breakevenCacheMutex.RLock()
-	breakevenSet, exists := at.breakevenCache[posKey]
-	at.breakevenCacheMutex.RUnlock()
-
-	if exists && breakevenSet {
-		// Breakeven stop-loss already set, no need to update
-		logger.Infof("  ℹ️ Breakeven stop-loss already set for %s %s (current PnL: %.2f%%)", symbol, side, currentPnLPct)
-		return
-	}
-
-	// Breakeven threshold reached, set breakeven stop-loss
-	logger.Infof("💰 Breakeven threshold reached for %s %s: %.2f%% >= %.2f%%, setting breakeven stop-loss at entry price %.4f",
-		symbol, side, currentPnLPct, breakevenThreshold, entryPrice)
-
-	// Cast trader to FuturesTrader to access SetBreakevenStopLoss method
-	futuresTrader, ok := at.trader.(*binance.FuturesTrader)
-	if !ok {
-		logger.Infof("  ⚠️ Trader is not FuturesTrader, cannot set breakeven stop-loss")
-		return
-	}
-
-	// First cancel existing stop-loss orders (to avoid conflicts)
-	positionSide := "LONG"
-	if side == "short" {
-		positionSide = "SHORT"
-	}
-
-	// Cancel existing stop-loss orders
-	if err := futuresTrader.CancelStopLossOrders(symbol); err != nil {
-		logger.Infof("  ⚠️ Failed to cancel existing stop-loss orders: %v", err)
-		// Continue anyway, try to set breakeven stop-loss
-	}
-
-	// Set breakeven stop-loss at entry price
-	if err := futuresTrader.SetBreakevenStopLoss(symbol, positionSide, entryPrice); err != nil {
-		logger.Infof("  ❌ Failed to set breakeven stop-loss: %v", err)
-		return
-	}
-
-	// Update cache
-	at.breakevenCacheMutex.Lock()
-	at.breakevenCache[posKey] = true
-	at.breakevenCacheMutex.Unlock()
-
-	logger.Infof("  ✅ Breakeven stop-loss set successfully for %s %s at entry price %.4f", symbol, side, entryPrice)
-}
-
-// clearBreakevenCache clears breakeven cache for specified position
-func (at *AutoTrader) clearBreakevenCache(symbol, side string) {
-	posKey := symbol + "_" + side
-	at.breakevenCacheMutex.Lock()
-	delete(at.breakevenCache, posKey)
-	at.breakevenCacheMutex.Unlock()
-
-	at.lastBreakevenMutex.Lock()
-	delete(at.lastBreakevenCheck, posKey)
-	at.lastBreakevenMutex.Unlock()
 }
 
 // emergencyClosePosition emergency close position function
@@ -2152,70 +1889,17 @@ func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
 			return err
 		}
 		logger.Infof("✅ Emergency close long position succeeded, order ID: %v", order["orderId"])
-		// Clear breakeven cache when position is closed
-		at.clearBreakevenCache(symbol, side)
 	case "short":
 		order, err := at.trader.CloseShort(symbol, 0) // 0 = close all
 		if err != nil {
 			return err
 		}
 		logger.Infof("✅ Emergency close short position succeeded, order ID: %v", order["orderId"])
-		// Clear breakeven cache when position is closed
-		at.clearBreakevenCache(symbol, side)
 	default:
 		return fmt.Errorf("unknown position direction: %s", side)
 	}
 
 	return nil
-}
-
-// checkTrailingStop checks if trailing stop condition is met and closes position
-// Uses TrailingStopDrawdown and TrailingStopMinProfit from strategy config
-func (at *AutoTrader) checkTrailingStop(symbol, side string, currentPnLPct, peakPnLPct, drawdownPct float64) {
-	// Get trailing stop config from strategy
-	if at.strategyEngine == nil {
-		return
-	}
-
-	riskConfig := at.strategyEngine.GetRiskControlConfig()
-	trailingStopDrawdown := riskConfig.TrailingStopDrawdown
-	trailingStopMinProfit := riskConfig.TrailingStopMinProfit
-
-	// If trailing stop is not configured, skip
-	if trailingStopDrawdown <= 0 {
-		return
-	}
-
-	// Use default minimum profit if not configured
-	minProfit := trailingStopMinProfit
-	if minProfit <= 0 {
-		minProfit = 2.0 // Default: require at least 2% profit before trailing stop activates
-	}
-
-	// Check if minimum profit requirement is met
-	if currentPnLPct < minProfit {
-		return
-	}
-
-	// Check if drawdown exceeds threshold
-	if drawdownPct >= trailingStopDrawdown {
-		logger.Infof("🚨 Trailing stop triggered: %s %s | Current: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%% (threshold: %.2f%%)",
-			symbol, side, currentPnLPct, peakPnLPct, drawdownPct, trailingStopDrawdown)
-
-		// Execute close position
-		if err := at.emergencyClosePosition(symbol, side); err != nil {
-			logger.Infof("❌ Trailing stop close failed (%s %s): %v", symbol, side, err)
-		} else {
-			logger.Infof("✅ Trailing stop close succeeded: %s %s", symbol, side)
-			// Clear cache for this position after closing
-			at.ClearPeakPnLCache(symbol, side)
-			at.clearBreakevenCache(symbol, side)
-		}
-	} else if currentPnLPct > minProfit {
-		// Log monitoring info when above minimum profit
-		logger.Infof("📊 Trailing stop monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%% (threshold: %.2f%%)",
-			symbol, side, currentPnLPct, peakPnLPct, drawdownPct, trailingStopDrawdown)
-	}
 }
 
 // GetPeakPnLCache gets peak profit cache
@@ -2258,7 +1942,7 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 }
 
 // recordAndConfirmOrder polls order status for actual fill data and records position
-// action: open_long, open_short, close_long, close_short, update_stop_loss
+// action: open_long, open_short, close_long, close_short
 // entryPrice: entry price when closing (0 when opening)
 func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, symbol, action string, quantity float64, price float64, leverage int, entryPrice float64) {
 	if at.store == nil {
@@ -2290,9 +1974,6 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 		positionSide = "LONG"
 	case "open_short", "close_short":
 		positionSide = "SHORT"
-	case "update_stop_loss":
-		// Position side determined from position data, not action
-		positionSide = "" // Will be determined from position
 	}
 
 	var actualPrice = price
@@ -2500,22 +2181,22 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 	normalizedSymbol := market.Normalize(symbol)
 
 	fill := &store.TraderFill{
-		TraderID:        at.id,
-		ExchangeID:      at.exchangeID,
-		ExchangeType:    at.exchange,
-		OrderID:         orderRecordID,
-		ExchangeOrderID: exchangeOrderID,
-		ExchangeTradeID: tradeID,
-		Symbol:          normalizedSymbol,
-		Side:            side,
-		Price:           price,
-		Quantity:        quantity,
-		QuoteQuantity:   price * quantity,
-		Commission:      fee,
-		CommissionAsset: "USDT",
-		RealizedPnL:     0,     // Will be calculated for close orders
-		IsMaker:         false, // Market orders are usually taker
-		CreatedAt:       time.Now().UTC().UnixMilli(),
+		TraderID:         at.id,
+		ExchangeID:       at.exchangeID,
+		ExchangeType:     at.exchange,
+		OrderID:          orderRecordID,
+		ExchangeOrderID:  exchangeOrderID,
+		ExchangeTradeID:  tradeID,
+		Symbol:           normalizedSymbol,
+		Side:             side,
+		Price:            price,
+		Quantity:         quantity,
+		QuoteQuantity:    price * quantity,
+		Commission:       fee,
+		CommissionAsset:  "USDT",
+		RealizedPnL:      0, // Will be calculated for close orders
+		IsMaker:          false, // Market orders are usually taker
+		CreatedAt:        time.Now().UTC().UnixMilli(),
 	}
 
 	// Calculate realized PnL for close orders
@@ -2643,3 +2324,4 @@ func getSideFromAction(action string) string {
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	return at.trader.GetOpenOrders(symbol)
 }
+

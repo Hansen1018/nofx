@@ -1,91 +1,21 @@
 import { useState } from 'react'
-import type { DecisionRecord, DecisionAction, PositionSnapshot } from '../types'
+import type { DecisionRecord, DecisionAction } from '../types'
 import { t, type Language } from '../i18n/translations'
 
 interface DecisionCardProps {
   decision: DecisionRecord
   language: Language
   onSymbolClick?: (symbol: string) => void
-  previousDecision?: DecisionRecord
 }
 
-function getAutoClosedPositions(
-  currentPositions: PositionSnapshot[] = [],
-  previousPositions: PositionSnapshot[] = [],
-  previousActions: DecisionAction[] = []
-): PositionSnapshot[] {
-  if (!previousPositions || previousPositions.length === 0) {
-    return []
-  }
-
-  const hadUpdateStopLoss = previousActions.some(
-    (action) => action.action === 'update_stop_loss'
-  )
-  if (!hadUpdateStopLoss) {
-    return []
-  }
-
-  const closed: PositionSnapshot[] = []
-  const currentSymbols = new Set(
-    currentPositions.map((p) => `${p.symbol}-${p.side}`)
-  )
-
-  for (const prevPos of previousPositions) {
-    const key = `${prevPos.symbol}-${prevPos.side}`
-    if (!currentSymbols.has(key)) {
-      closed.push(prevPos)
-    }
-  }
-
-  return closed
-}
-
-const ACTION_CONFIG: Record<
-  string,
-  { color: string; bg: string; icon: string; label: string }
-> = {
-  open_long: {
-    color: '#0ECB81',
-    bg: 'rgba(14, 203, 129, 0.15)',
-    icon: '📈',
-    label: 'LONG',
-  },
-  open_short: {
-    color: '#F6465D',
-    bg: 'rgba(246, 70, 93, 0.15)',
-    icon: '📉',
-    label: 'SHORT',
-  },
-  close_long: {
-    color: '#F0B90B',
-    bg: 'rgba(240, 185, 11, 0.15)',
-    icon: '💰',
-    label: 'CLOSE',
-  },
-  close_short: {
-    color: '#F0B90B',
-    bg: 'rgba(240, 185, 11, 0.15)',
-    icon: '💰',
-    label: 'CLOSE',
-  },
-  update_stop_loss: {
-    color: '#60a5fa',
-    bg: 'rgba(96, 165, 250, 0.15)',
-    icon: '🔄',
-    label: 'UPDATE SL',
-  },
-  hold: {
-    color: '#848E9C',
-    bg: 'rgba(132, 142, 156, 0.15)',
-    icon: '⏸️',
-    label: 'HOLD',
-  },
-  wait: {
-    color: '#848E9C',
-    bg: 'rgba(132, 142, 156, 0.15)',
-    icon: '⏳',
-    label: 'WAIT',
-  },
+// Action type configuration
+const ACTION_CONFIG: Record<string, { color: string; bg: string; icon: string; label: string }> = {
+  open_long: { color: '#0ECB81', bg: 'rgba(14, 203, 129, 0.15)', icon: '📈', label: 'LONG' },
+  open_short: { color: '#F6465D', bg: 'rgba(246, 70, 93, 0.15)', icon: '📉', label: 'SHORT' },
+  close_long: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
+  close_short: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
+  hold: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏸️', label: 'HOLD' },
+  wait: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏳', label: 'WAIT' },
 }
 
 // Format price with proper decimals
@@ -97,11 +27,7 @@ function formatPrice(price: number | undefined): string {
 }
 
 // Calculate percentage change
-function calcPctChange(
-  entry: number | undefined,
-  target: number | undefined,
-  isLong: boolean
-): string {
+function calcPctChange(entry: number | undefined, target: number | undefined, isLong: boolean): string {
   if (!entry || !target || entry === 0) return '-'
   const pct = ((target - entry) / entry) * 100
   const adjustedPct = isLong ? pct : -pct
@@ -117,19 +43,10 @@ function getConfidenceColor(confidence: number | undefined): string {
 }
 
 // Single Action Card Component
-function ActionCard({
-  action,
-  language,
-  onSymbolClick,
-}: {
-  action: DecisionAction
-  language: Language
-  onSymbolClick?: (symbol: string) => void
-}) {
+function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
-  const isUpdateSL = action.action === 'update_stop_loss'
 
   return (
     <div
@@ -141,11 +58,11 @@ function ActionCard({
       }}
     >
       {/* Header Row */}
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="text-xl flex-shrink-0">{config.icon}</span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{config.icon}</span>
           <span
-            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110 whitespace-nowrap"
+            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110"
             style={{ color: '#EAECEF' }}
             onClick={() => onSymbolClick?.(action.symbol)}
             title="Click to view chart"
@@ -153,26 +70,21 @@ function ActionCard({
             {action.symbol.replace('USDT', '')}
           </span>
           <span
-            className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex-shrink-0 whitespace-nowrap"
-            style={{
-              background: config.bg,
-              color: config.color,
-              border: `1px solid ${config.color}55`,
-              minWidth: 'fit-content',
-            }}
+            className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+            style={{ background: config.bg, color: config.color, border: `1px solid ${config.color}55` }}
           >
             {config.label}
           </span>
         </div>
 
         {/* Status Badge */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
           {action.confidence !== undefined && action.confidence > 0 && (
             <div
               className="px-2 py-1 rounded text-xs font-semibold"
               style={{
                 background: `${getConfidenceColor(action.confidence)}22`,
-                color: getConfidenceColor(action.confidence),
+                color: getConfidenceColor(action.confidence)
               }}
             >
               {action.confidence.toFixed(0)}%
@@ -186,23 +98,14 @@ function ActionCard({
       </div>
 
       {/* Trading Details Grid */}
-      {(isOpen || isUpdateSL) && (
-        <div
-          className="grid grid-cols-4 gap-3 mt-3 pt-3"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
+      {isOpen && (
+        <div className="grid grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
+          {/* Entry Price */}
           <div className="text-center">
             <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
-              {isUpdateSL
-                ? language === 'zh'
-                  ? '当前价'
-                  : 'Current'
-                : t('entryPrice', language)}
+              {t('entryPrice', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#EAECEF' }}
-            >
+            <div className="font-mono font-semibold" style={{ color: '#EAECEF' }}>
               {formatPrice(action.price)}
             </div>
           </div>
@@ -212,10 +115,7 @@ function ActionCard({
             <div className="text-xs mb-1" style={{ color: '#F6465D' }}>
               {t('stopLoss', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#F6465D' }}
-            >
+            <div className="font-mono font-semibold" style={{ color: '#F6465D' }}>
               {formatPrice(action.stop_loss)}
             </div>
             {action.stop_loss && action.price && (
@@ -230,10 +130,7 @@ function ActionCard({
             <div className="text-xs mb-1" style={{ color: '#0ECB81' }}>
               {t('takeProfit', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#0ECB81' }}
-            >
+            <div className="font-mono font-semibold" style={{ color: '#0ECB81' }}>
               {formatPrice(action.take_profit)}
             </div>
             {action.take_profit && action.price && (
@@ -248,36 +145,8 @@ function ActionCard({
             <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
               {t('leverage', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#F0B90B' }}
-            >
+            <div className="font-mono font-semibold" style={{ color: '#F0B90B' }}>
               {action.leverage}x
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isUpdateSL && action.stop_loss && action.price && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
-          <span
-            className="text-xs flex items-center gap-1"
-            style={{ color: '#60a5fa' }}
-          >
-            🔄 {language === 'zh' ? '新的止损价' : 'New Stop Loss'}
-          </span>
-          <div className="flex items-center gap-2">
-            <span
-              className="font-mono font-semibold"
-              style={{ color: '#60a5fa' }}
-            >
-              {formatPrice(action.stop_loss)}
-            </span>
-            <div className="text-xs" style={{ color: '#848E9C' }}>
-              ({calcPctChange(action.price, action.stop_loss, isLong)})
             </div>
           </div>
         </div>
@@ -285,20 +154,14 @@ function ActionCard({
 
       {/* Risk/Reward Ratio for open positions */}
       {isOpen && action.stop_loss && action.take_profit && action.price && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
-          <span className="text-xs" style={{ color: '#848E9C' }}>
-            {t('riskReward', language)}
-          </span>
+        <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid #2B3139' }}>
+          <span className="text-xs" style={{ color: '#848E9C' }}>{t('riskReward', language)}</span>
           <div className="flex items-center gap-2">
             {(() => {
               const slDist = Math.abs(action.price - action.stop_loss)
               const tpDist = Math.abs(action.take_profit - action.price)
-              const ratio = slDist > 0 ? tpDist / slDist : 0
-              const ratioColor =
-                ratio >= 3 ? '#0ECB81' : ratio >= 2 ? '#F0B90B' : '#F6465D'
+              const ratio = slDist > 0 ? (tpDist / slDist) : 0
+              const ratioColor = ratio >= 3 ? '#0ECB81' : ratio >= 2 ? '#F0B90B' : '#F6465D'
               return (
                 <>
                   <div className="flex gap-1">
@@ -316,8 +179,8 @@ function ActionCard({
                     <div
                       className="h-full rounded-full transition-all duration-300"
                       style={{
-                        width: `${Math.min((ratio / 5) * 100, 100)}%`,
-                        background: ratioColor,
+                        width: `${Math.min(ratio / 5 * 100, 100)}%`,
+                        background: ratioColor
                       }}
                     />
                   </div>
@@ -354,21 +217,10 @@ function ActionCard({
   )
 }
 
-export function DecisionCard({
-  decision,
-  language,
-  onSymbolClick,
-  previousDecision,
-}: DecisionCardProps) {
+export function DecisionCard({ decision, language, onSymbolClick }: DecisionCardProps) {
   const [showSystemPrompt, setShowSystemPrompt] = useState(false)
   const [showInputPrompt, setShowInputPrompt] = useState(false)
   const [showCoT, setShowCoT] = useState(false)
-
-  const autoClosedPositions = getAutoClosedPositions(
-    decision.positions,
-    previousDecision?.positions,
-    previousDecision?.decisions
-  )
 
   // Copy text to clipboard
   const copyToClipboard = async (text: string, label: string) => {
@@ -424,16 +276,8 @@ export function DecisionCard({
           className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider"
           style={
             decision.success
-              ? {
-                  background: 'rgba(14, 203, 129, 0.15)',
-                  color: '#0ECB81',
-                  border: '1px solid rgba(14, 203, 129, 0.3)',
-                }
-              : {
-                  background: 'rgba(246, 70, 93, 0.15)',
-                  color: '#F6465D',
-                  border: '1px solid rgba(246, 70, 93, 0.3)',
-                }
+              ? { background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81', border: '1px solid rgba(14, 203, 129, 0.3)' }
+              : { background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.3)' }
           }
         >
           {t(decision.success ? 'success' : 'failed', language)}
@@ -441,41 +285,10 @@ export function DecisionCard({
       </div>
 
       {/* Decision Actions - Beautiful Grid */}
-      {((decision.decisions && decision.decisions.length > 0) ||
-        autoClosedPositions.length > 0) && (
+      {decision.decisions && decision.decisions.length > 0 && (
         <div className="space-y-3 mb-4">
-          {autoClosedPositions.map((pos, index) => (
-            <ActionCard
-              key={`auto-close-${pos.symbol}-${index}`}
-              action={{
-                action: pos.side === 'long' ? 'close_long' : 'close_short',
-                symbol: pos.symbol,
-                quantity: pos.position_amt,
-                leverage: pos.leverage,
-                price: pos.mark_price,
-                stop_loss: 0,
-                take_profit: 0,
-                confidence: 0,
-                reasoning:
-                  language === 'zh'
-                    ? '止损自动平仓'
-                    : 'Auto-closed by stop-loss',
-                order_id: 0,
-                timestamp: '',
-                success: true,
-                error: '',
-              }}
-              language={language}
-              onSymbolClick={onSymbolClick}
-            />
-          ))}
           {decision.decisions.map((action, index) => (
-            <ActionCard
-              key={`${action.symbol}-${index}`}
-              action={action}
-              language={language}
-              onSymbolClick={onSymbolClick}
-            />
+            <ActionCard key={`${action.symbol}-${index}`} action={action} language={language} onSymbolClick={onSymbolClick} />
           ))}
         </div>
       )}
@@ -502,11 +315,7 @@ export function DecisionCard({
                     copyToClipboard(decision.system_prompt, 'System Prompt')
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{
-                    background: 'rgba(167, 139, 250, 0.2)',
-                    color: '#a78bfa',
-                    border: '1px solid rgba(167, 139, 250, 0.3)',
-                  }}
+                  style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.3)' }}
                   title="Copy to clipboard"
                 >
                   <span>📋</span>
@@ -514,31 +323,19 @@ export function DecisionCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    downloadAsFile(
-                      decision.system_prompt,
-                      `system-prompt-cycle-${decision.cycle_number}.txt`
-                    )
+                    downloadAsFile(decision.system_prompt, `system-prompt-cycle-${decision.cycle_number}.txt`)
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{
-                    background: 'rgba(167, 139, 250, 0.2)',
-                    color: '#a78bfa',
-                    border: '1px solid rgba(167, 139, 250, 0.3)',
-                  }}
+                  style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.3)' }}
                   title="Download as file"
                 >
                   <span>💾</span>
                 </button>
                 <span
                   className="text-xs px-2 py-0.5 rounded"
-                  style={{
-                    background: 'rgba(167, 139, 250, 0.15)',
-                    color: '#a78bfa',
-                  }}
+                  style={{ background: 'rgba(167, 139, 250, 0.15)', color: '#a78bfa' }}
                 >
-                  {showSystemPrompt
-                    ? t('collapse', language)
-                    : t('expand', language)}
+                  {showSystemPrompt ? t('collapse', language) : t('expand', language)}
                 </span>
               </div>
             </button>
@@ -577,11 +374,7 @@ export function DecisionCard({
                     copyToClipboard(decision.input_prompt, 'User Prompt')
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{
-                    background: 'rgba(96, 165, 250, 0.2)',
-                    color: '#60a5fa',
-                    border: '1px solid rgba(96, 165, 250, 0.3)',
-                  }}
+                  style={{ background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)' }}
                   title="Copy to clipboard"
                 >
                   <span>📋</span>
@@ -589,31 +382,19 @@ export function DecisionCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    downloadAsFile(
-                      decision.input_prompt,
-                      `user-prompt-cycle-${decision.cycle_number}.txt`
-                    )
+                    downloadAsFile(decision.input_prompt, `user-prompt-cycle-${decision.cycle_number}.txt`)
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{
-                    background: 'rgba(96, 165, 250, 0.2)',
-                    color: '#60a5fa',
-                    border: '1px solid rgba(96, 165, 250, 0.3)',
-                  }}
+                  style={{ background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)' }}
                   title="Download as file"
                 >
                   <span>💾</span>
                 </button>
                 <span
                   className="text-xs px-2 py-0.5 rounded"
-                  style={{
-                    background: 'rgba(96, 165, 250, 0.15)',
-                    color: '#60a5fa',
-                  }}
+                  style={{ background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' }}
                 >
-                  {showInputPrompt
-                    ? t('collapse', language)
-                    : t('expand', language)}
+                  {showInputPrompt ? t('collapse', language) : t('expand', language)}
                 </span>
               </div>
             </button>
@@ -647,10 +428,7 @@ export function DecisionCard({
               </div>
               <span
                 className="text-xs px-2 py-0.5 rounded"
-                style={{
-                  background: 'rgba(240, 185, 11, 0.15)',
-                  color: '#F0B90B',
-                }}
+                style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}
               >
                 {showCoT ? t('collapse', language) : t('expand', language)}
               </span>

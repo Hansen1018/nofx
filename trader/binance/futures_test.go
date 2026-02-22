@@ -23,7 +23,7 @@ import (
 // Inherits TraderTestSuite and adds Binance Futures specific mock logic
 type BinanceFuturesTestSuite struct {
 	*testutil.TraderTestSuite // Embeds base test suite
-	mockServer                *httptest.Server
+	mockServer              *httptest.Server
 }
 
 // NewBinanceFuturesTestSuite Creates Binance Futures test suite
@@ -36,41 +36,21 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 		var respBody interface{}
 
 		switch {
-		// Mock GetBalance - /fapi/v3/account (GetBalance uses GetAccountV3Service)
-		case path == "/fapi/v3/account":
-			respBody = map[string]interface{}{
-				"totalWalletBalance":          "10000.00",
-				"availableBalance":            "8000.00",
-				"totalUnrealizedProfit":       "100.50",
-				"totalMarginBalance":          "10000.00",
-				"totalPositionInitialMargin":  "1000.00",
-				"totalOpenOrderInitialMargin": "1000.00",
-				"totalCrossWalletBalance":     "10000.00",
-				"totalCrossUnPnl":             "100.50",
-				"maxWithdrawAmount":           "8000.00",
-				"totalInitialMargin":          "1000.00",
-				"totalMaintMargin":            "500.00",
-				"assets": []map[string]interface{}{
-					{
-						"asset":                  "USDT",
-						"walletBalance":          "10000.00",
-						"unrealizedProfit":       "100.50",
-						"marginBalance":          "10000.00",
-						"maintMargin":            "500.00",
-						"initialMargin":          "1000.00",
-						"positionInitialMargin":  "1000.00",
-						"openOrderInitialMargin": "1000.00",
-						"crossWalletBalance":     "10000.00",
-						"crossUnPnl":             "100.50",
-						"availableBalance":       "8000.00",
-						"maxWithdrawAmount":      "8000.00",
-						"marginAvailable":        true,
-						"updateTime":             1234567890,
-					},
+		// Mock GetBalance - /fapi/v2/balance
+		case path == "/fapi/v2/balance":
+			respBody = []map[string]interface{}{
+				{
+					"accountAlias":       "test",
+					"asset":              "USDT",
+					"balance":            "10000.00",
+					"crossWalletBalance": "10000.00",
+					"crossUnPnl":         "100.50",
+					"availableBalance":   "8000.00",
+					"maxWithdrawAmount":  "8000.00",
 				},
 			}
 
-		// Mock GetAccount - /fapi/v2/account (used by other methods if needed)
+		// Mock GetAccount - /fapi/v2/account
 		case path == "/fapi/v2/account":
 			respBody = map[string]interface{}{
 				"totalWalletBalance":    "10000.00",
@@ -94,20 +74,18 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 				},
 			}
 
-		// Mock GetPositions - /fapi/v3/positionRisk
-		case path == "/fapi/v3/positionRisk":
+		// Mock GetPositions - /fapi/v2/positionRisk
+		case path == "/fapi/v2/positionRisk":
 			respBody = []map[string]interface{}{
 				{
-					"symbol":                "BTCUSDT",
-					"positionAmt":           "0.5",
-					"entryPrice":            "50000.00",
-					"markPrice":             "50500.00",
-					"unRealizedProfit":      "250.00",
-					"liquidationPrice":      "45000.00",
-					"positionSide":          "LONG",
-					"notional":              "25250.00",
-					"positionInitialMargin": "2525.00",
-					"updateTime":            1720736417660,
+					"symbol":           "BTCUSDT",
+					"positionAmt":      "0.5",
+					"entryPrice":       "50000.00",
+					"markPrice":        "50500.00",
+					"unRealizedProfit": "250.00",
+					"liquidationPrice": "45000.00",
+					"leverage":         "10",
+					"positionSide":     "LONG",
 				},
 			}
 
