@@ -137,10 +137,14 @@ func GetMaxTokensForModel(model string) int {
 }
 
 // stripProviderPrefix removes provider prefix from model name
-// e.g., "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6"
-// e.g., "openai/gpt-5" -> "gpt-5"
-// e.g., "google/gemini-3-pro" -> "gemini-3-pro"
+// Priority: 1. Known providers (anthropic/, openai/, google/, deepseek/, qwen/)
+//          2. Generic: extract last segment after "/" (works for any prefix)
+// Examples:
+// - "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6"
+// - "custom/claude-opus-4" -> "claude-opus-4"
+// - "claude-opus-4-6" -> "claude-opus-4-6" (unchanged)
 func stripProviderPrefix(model string) string {
+	// First try known providers
 	providers := []string{"anthropic/", "openai/", "google/", "deepseek/", "qwen/"}
 	lower := strings.ToLower(model)
 	for _, p := range providers {
@@ -148,6 +152,12 @@ func stripProviderPrefix(model string) string {
 			return model[len(p):]
 		}
 	}
+
+	// Generic fallback: extract last segment after "/"
+	if idx := strings.LastIndex(model, "/"); idx >= 0 && idx < len(model)-1 {
+		return model[idx+1:]
+	}
+
 	return model
 }
 
