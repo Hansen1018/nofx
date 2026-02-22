@@ -1089,7 +1089,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- `close_short` - Close existing short position\n")
 	sb.WriteString("- `update_stop_loss` - Update stop loss price\n")
 	sb.WriteString("- `hold` - Keep current position\n")
-	sb.WriteString("- `wait` - No action, skip this trading cycle\n\n")
+	sb.WriteString("- `wait` - No action, skip this trading cycle (use this when NO_TRADE or no good opportunity)\n\n")
 
 	sb.WriteString("❌ **DO NOT USE**: `buy`, `sell`, `long`, `short`, `open`, `close`, `none`, `null`, empty string, or ANY other variations!\n")
 	sb.WriteString("❌ Any other action value will cause the decision to be rejected!\n\n")
