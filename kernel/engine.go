@@ -1081,6 +1081,19 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
+
+	sb.WriteString("⚠️ **CRITICAL ACTION REQUIREMENT**: You MUST use ONLY these exact action values:\n")
+	sb.WriteString("- `open_long` - Open long position (buy)\n")
+	sb.WriteString("- `open_short` - Open short position\n")
+	sb.WriteString("- `close_long` - Close existing long position\n")
+	sb.WriteString("- `close_short` - Close existing short position\n")
+	sb.WriteString("- `update_stop_loss` - Update stop loss price\n")
+	sb.WriteString("- `hold` - Keep current position\n")
+	sb.WriteString("- `wait` - No action, skip this trading cycle\n\n")
+
+	sb.WriteString("❌ **DO NOT USE**: `buy`, `sell`, `long`, `short`, `open`, `close`, `none`, `null`, empty string, or ANY other variations!\n")
+	sb.WriteString("❌ Any other action value will cause the decision to be rejected!\n\n")
+
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | update_stop_loss | hold | wait\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")

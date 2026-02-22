@@ -408,13 +408,16 @@ Then output your decisions in STRICT JSON ARRAY format (can include multiple coi
 ]
 </decision>
 
-### IMPORTANT: action field MUST be exactly one of:
-- "open_long" (做多/买入)
-- "open_short" (做空/卖出)
-- "close_long" (平多仓)
-- "close_short" (平空仓)
-- "hold" (持仓观望)
-- "wait" (空仓等待)
+### ⚠️ CRITICAL ACTION REQUIREMENT: You MUST use ONLY these exact action values:
+- open_long - 做多/买入
+- open_short - 做空/卖出
+- close_long - 平多仓
+- close_short - 平空仓
+- hold - 持仓观望
+- wait - 空仓等待
+
+❌ DO NOT USE: buy, sell, long, short, open, close, none, null, empty string, or ANY other variations!
+❌ Any other action value will cause the decision to be rejected!
 
 ### Field Requirements for each coin:
 - symbol: REQUIRED, the trading pair
@@ -687,13 +690,16 @@ You may vote differently from your earlier position if convinced by others' argu
 ]
 </final_vote>
 
-### IMPORTANT: action field MUST be exactly one of:
-- "open_long" (做多/买入)
-- "open_short" (做空/卖出)
-- "close_long" (平多仓)
-- "close_short" (平空仓)
-- "hold" (持仓观望)
-- "wait" (空仓等待)
+### ⚠️ CRITICAL ACTION REQUIREMENT: You MUST use ONLY these exact action values:
+- open_long - 做多/买入
+- open_short - 做空/卖出
+- close_long - 平多仓
+- close_short - 平空仓
+- hold - 持仓观望
+- wait - 空仓等待
+
+❌ DO NOT USE: buy, sell, long, short, open, close, none, null, empty string, or ANY other variations!
+❌ Any other action value will cause the decision to be rejected!
 
 ---
 
