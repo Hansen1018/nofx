@@ -115,7 +115,40 @@ func GetMaxTokensForModel(model string) int {
 		}
 	}
 
+	// Try stripping provider prefix (e.g., "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6")
+	modelName := stripProviderPrefix(modelLower)
+	if modelName != modelLower {
+		if tokens, ok := ModelMaxTokens[modelName]; ok {
+			return tokens
+		}
+		if canonical, ok := ModelAliases[modelName]; ok {
+			if tokens, ok := ModelMaxTokens[canonical]; ok {
+				return tokens
+			}
+		}
+		for key, tokens := range ModelMaxTokens {
+			if strings.HasPrefix(modelName, key) || strings.HasPrefix(key, modelName) {
+				return tokens
+			}
+		}
+	}
+
 	return ModelMaxTokens["default"]
+}
+
+// stripProviderPrefix removes provider prefix from model name
+// e.g., "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6"
+// e.g., "openai/gpt-5" -> "gpt-5"
+// e.g., "google/gemini-3-pro" -> "gemini-3-pro"
+func stripProviderPrefix(model string) string {
+	providers := []string{"anthropic/", "openai/", "google/", "deepseek/", "qwen/"}
+	lower := strings.ToLower(model)
+	for _, p := range providers {
+		if strings.HasPrefix(lower, p) {
+			return model[len(p):]
+		}
+	}
+	return model
 }
 
 // Config client configuration (centralized management of all configurations)
