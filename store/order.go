@@ -37,9 +37,9 @@ type TraderOrder struct {
 	PriceProtect      bool    `gorm:"column:price_protect;default:false" json:"price_protect"`
 	OrderAction       string  `gorm:"column:order_action;default:''" json:"order_action"`
 	RelatedPositionID int64   `gorm:"column:related_position_id;default:0" json:"related_position_id"`
-	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
-	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
-	FilledAt          int64   `gorm:"column:filled_at" json:"filled_at"`   // Unix milliseconds UTC
+	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"`         // Unix milliseconds UTC
+	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"`         // Unix milliseconds UTC
+	FilledAt          int64   `gorm:"column:filled_at" json:"filled_at"`           // Unix milliseconds UTC
 }
 
 // TableName returns the table name for TraderOrder
@@ -420,23 +420,4 @@ func (s *OrderStore) GetRecentFillSymbolsByExchange(exchangeID string, sinceMs i
 		return nil, err
 	}
 	return symbols, nil
-}
-
-// GetEarliestFill returns the earliest fill record for a trader, symbol and order action
-// Used to determine position open time when exchange doesn't provide createdTime
-func (s *OrderStore) GetEarliestFill(traderID, symbol, orderAction string) (*TraderFill, error) {
-	var fill TraderFill
-	err := s.db.Table("trader_fills").
-		Joins("JOIN trader_orders ON trader_fills.order_id = trader_orders.id").
-		Where("trader_fills.trader_id = ? AND trader_fills.symbol = ? AND trader_orders.order_action = ?",
-			traderID, symbol, orderAction).
-		Order("trader_fills.created_at ASC").
-		First(&fill).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get earliest fill: %w", err)
-	}
-	return &fill, nil
 }

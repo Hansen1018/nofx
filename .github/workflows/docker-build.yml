@@ -172,28 +172,12 @@ jobs:
             echo "✅ Created stable tag (release/stable branch)"
           fi
 
-          # release/stable branch gets the 'stable' tag
-          if [[ "${{ github.ref }}" == "refs/heads/release/stable" ]]; then
-            docker buildx imagetools create -t "${GHCR_IMAGE}:stable" \
-              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
-              "${GHCR_IMAGE}:${REF_NAME}-arm64"
-            echo "✅ Created stable tag (release/stable branch)"
-          fi
-
           # Individual branch gets the 'individual' tag
           if [[ "${{ github.ref }}" == "refs/heads/Individual" ]]; then
             docker buildx imagetools create -t "${GHCR_IMAGE}:individual" \
               "${GHCR_IMAGE}:${REF_NAME}-amd64" \
               "${GHCR_IMAGE}:${REF_NAME}-arm64"
             echo "✅ Created individual tag (Individual branch)"
-          fi
-
-          # release/stable branch gets the 'stable' tag
-          if [[ "${{ github.ref }}" == "refs/heads/release/stable" ]]; then
-            docker buildx imagetools create -t "${GHCR_IMAGE}:stable" \
-              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
-              "${GHCR_IMAGE}:${REF_NAME}-arm64"
-            echo "✅ Created stable tag (release/stable branch)"
           fi
 
           echo "🎉 Multi-arch manifest created successfully!"
