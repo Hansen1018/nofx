@@ -99,8 +99,8 @@ type TraderPosition struct {
 	Status             string  `gorm:"column:status;default:OPEN;index:idx_positions_status" json:"status"`
 	CloseReason        string  `gorm:"column:close_reason;default:''" json:"close_reason"`
 	Source             string  `gorm:"column:source;default:system" json:"source"`
-	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
-	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
+	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"`   // Unix milliseconds UTC
+	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"`   // Unix milliseconds UTC
 }
 
 // TableName returns the table name
@@ -181,14 +181,14 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID string, realizedPnL float64, fee float64, closeReason string) error {
 	nowMs := time.Now().UTC().UnixMilli()
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"exit_price":    exitPrice,
+		"exit_price":   exitPrice,
 		"exit_order_id": exitOrderID,
-		"exit_time":     nowMs,
-		"realized_pnl":  realizedPnL,
-		"fee":           fee,
-		"status":        "CLOSED",
-		"close_reason":  closeReason,
-		"updated_at":    nowMs,
+		"exit_time":    nowMs,
+		"realized_pnl": realizedPnL,
+		"fee":          fee,
+		"status":       "CLOSED",
+		"close_reason": closeReason,
+		"updated_at":   nowMs,
 	}).Error
 }
 
@@ -294,15 +294,15 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 	}
 
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"quantity":      quantity,
-		"exit_price":    exitPrice,
-		"exit_order_id": exitOrderID,
-		"exit_time":     exitTimeMs,
-		"realized_pnl":  totalRealizedPnL,
-		"fee":           totalFee,
-		"status":        "CLOSED",
-		"close_reason":  closeReason,
-		"updated_at":    time.Now().UTC().UnixMilli(),
+		"quantity":       quantity,
+		"exit_price":     exitPrice,
+		"exit_order_id":  exitOrderID,
+		"exit_time":      exitTimeMs,
+		"realized_pnl":   totalRealizedPnL,
+		"fee":            totalFee,
+		"status":         "CLOSED",
+		"close_reason":   closeReason,
+		"updated_at":     time.Now().UTC().UnixMilli(),
 	}).Error
 }
 
@@ -621,18 +621,12 @@ func calculateMaxDrawdownFromPnls(pnls []float64) float64 {
 		if equity > peak {
 			peak = equity
 		}
-		// Calculate drawdown: percentage drop from peak
 		if peak > 0 {
 			dd := (peak - equity) / peak * 100
 			if dd > maxDD {
 				maxDD = dd
 			}
 		}
-	}
-
-	// Ensure we return a non-negative value
-	if maxDD < 0 {
-		return 0
 	}
 
 	return maxDD
@@ -650,7 +644,6 @@ type SymbolStats struct {
 }
 
 // GetSymbolStats gets per-symbol trading statistics
-// Excludes symbols that currently have open positions
 func (s *PositionStore) GetSymbolStats(traderID string, limit int) ([]SymbolStats, error) {
 	var positions []TraderPosition
 	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").Find(&positions).Error
@@ -658,26 +651,11 @@ func (s *PositionStore) GetSymbolStats(traderID string, limit int) ([]SymbolStat
 		return nil, fmt.Errorf("failed to query symbol stats: %w", err)
 	}
 
-	// Get all symbols that currently have open positions - exclude these from stats
-	openPositions, err := s.GetOpenPositions(traderID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query open positions: %w", err)
-	}
-	openSymbols := make(map[string]bool)
-	for _, openPos := range openPositions {
-		openSymbols[openPos.Symbol] = true
-	}
-
 	// Group by symbol
 	symbolMap := make(map[string]*SymbolStats)
 	symbolHoldMins := make(map[string][]float64)
 
 	for _, pos := range positions {
-		// Skip symbols that currently have open positions
-		if openSymbols[pos.Symbol] {
-			continue
-		}
-
 		if _, ok := symbolMap[pos.Symbol]; !ok {
 			symbolMap[pos.Symbol] = &SymbolStats{Symbol: pos.Symbol}
 			symbolHoldMins[pos.Symbol] = []float64{}
@@ -744,8 +722,8 @@ func (s *PositionStore) GetHoldingTimeStats(traderID string) ([]HoldingTimeStats
 	}
 
 	rangeStats := map[string]*struct {
-		count    int
-		wins     int
+		count   int
+		wins    int
 		totalPnL float64
 	}{
 		"<1h":   {},
