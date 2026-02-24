@@ -3,7 +3,14 @@ import type { AIModel, Exchange, CreateTraderRequest, Strategy } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { toast } from 'sonner'
-import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
+import {
+  Pencil,
+  Plus,
+  X as IconX,
+  Sparkles,
+  ExternalLink,
+  UserPlus,
+} from 'lucide-react'
 import { httpClient } from '../lib/httpClient'
 
 // 提取下划线后面的名称部分
@@ -13,8 +20,14 @@ function getShortName(fullName: string): string {
 }
 
 // 交易所注册链接配置
-const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: boolean }> = {
-  binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
+const EXCHANGE_REGISTRATION_LINKS: Record<
+  string,
+  { url: string; hasReferral?: boolean }
+> = {
+  binance: {
+    url: 'https://www.binance.com/join?ref=NOFXENG',
+    hasReferral: true,
+  },
   okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
   bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
   hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
@@ -75,17 +88,25 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchStrategies = async () => {
       try {
-        const result = await httpClient.get<{ strategies: Strategy[] }>('/api/strategies')
+        const result = await httpClient.get<{ strategies: Strategy[] }>(
+          '/api/strategies'
+        )
         if (result.success && result.data?.strategies) {
           const strategyList = result.data.strategies
           setStrategies(strategyList)
           // 如果没有选择策略，默认选中激活的策略
           if (!formData.strategy_id && !isEditMode) {
-            const activeStrategy = strategyList.find(s => s.is_active)
+            const activeStrategy = strategyList.find((s) => s.is_active)
             if (activeStrategy) {
-              setFormData(prev => ({ ...prev, strategy_id: activeStrategy.id }))
+              setFormData((prev) => ({
+                ...prev,
+                strategy_id: activeStrategy.id,
+              }))
             } else if (strategyList.length > 0) {
-              setFormData(prev => ({ ...prev, strategy_id: strategyList[0].id }))
+              setFormData((prev) => ({
+                ...prev,
+                strategy_id: strategyList[0].id,
+              }))
             }
           }
         }
@@ -125,7 +146,7 @@ export function TraderConfigModal({
 
   const handleFetchCurrentBalance = async () => {
     if (!isEditMode || !traderData?.trader_id) {
-       setBalanceFetchError(t('fetchBalanceEditModeOnly', language))
+      setBalanceFetchError('只有在编辑模式下才能获取当前余额')
       return
     }
 
@@ -142,13 +163,13 @@ export function TraderConfigModal({
         const currentBalance =
           result.data.total_equity || result.data.balance || 0
         setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-        toast.success(t('balanceFetched', language))
+        toast.success('已获取当前余额')
       } else {
-        throw new Error(result.message || t('balanceFetchFailed', language))
+        throw new Error(result.message || '获取余额失败')
       }
     } catch (error) {
-      console.error(t('balanceFetchFailed', language) + ':', error)
-       setBalanceFetchError(t('balanceFetchNetworkError', language))
+      console.error('获取余额失败:', error)
+      setBalanceFetchError('获取余额失败，请检查网络连接')
     } finally {
       setIsFetchingBalance(false)
     }
@@ -175,19 +196,19 @@ export function TraderConfigModal({
       }
 
       await toast.promise(onSave(saveData), {
-        loading: t('saving', language),
-        success: t('saveSuccess', language),
-        error: t('saveFailed', language),
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
       })
       onClose()
     } catch (error) {
-       console.error(t('saveFailed', language) + ':', error)
+      console.error('保存失败:', error)
     } finally {
       setIsSaving(false)
     }
   }
 
-  const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
+  const selectedStrategy = strategies.find((s) => s.id === formData.strategy_id)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -208,10 +229,10 @@ export function TraderConfigModal({
             </div>
             <div>
               <h2 className="text-xl font-bold text-[#EAECEF]">
-                {isEditMode ? t('editTrader', language) : t('createTrader', language)}
+                {isEditMode ? '修改交易员' : '创建交易员'}
               </h2>
               <p className="text-sm text-[#848E9C] mt-1">
-                {isEditMode ? t('editTraderConfig', language) : t('selectStrategyAndConfigParams', language)}
+                {isEditMode ? '修改交易员配置' : '选择策略并配置基础参数'}
               </p>
             </div>
           </div>
@@ -231,12 +252,12 @@ export function TraderConfigModal({
           {/* Basic Info */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
-              <span className="text-[#F0B90B]">1</span> {t('basicConfig', language)}
+              <span className="text-[#F0B90B]">1</span> 基础配置
             </h3>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  {t('traderNameRequired', language)}
+                  交易员名称 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -245,13 +266,13 @@ export function TraderConfigModal({
                     handleInputChange('trader_name', e.target.value)
                   }
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                   placeholder={t('enterTraderNamePlaceholder', language)}
+                  placeholder="请输入交易员名称"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
-                  {t('aiModelRequired', language)}
+                    AI模型 <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.ai_model}
@@ -269,7 +290,7 @@ export function TraderConfigModal({
                 </div>
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
-                  {t('exchangeRequired', language)}
+                    交易所 <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.exchange_id}
@@ -300,10 +321,10 @@ export function TraderConfigModal({
                         className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#848E9C] hover:text-[#F0B90B] transition-colors"
                       >
                         <UserPlus className="w-3.5 h-3.5" />
-                        <span>{t('noExchangeAccount', language)}</span>
+                        <span>还没有交易所账号？点击注册</span>
                         {regLink.hasReferral && (
                           <span className="px-1.5 py-0.5 bg-[#F0B90B]/10 text-[#F0B90B] rounded text-[10px]">
-                            {t('discount', language)}
+                            折扣优惠
                           </span>
                         )}
                         <ExternalLink className="w-3 h-3" />
@@ -318,13 +339,13 @@ export function TraderConfigModal({
           {/* Strategy Selection */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
-              <span className="text-[#F0B90B]">2</span> {t('selectTradingStrategy', language)}
+              <span className="text-[#F0B90B]">2</span> 选择交易策略
               <Sparkles className="w-4 h-4 text-[#F0B90B]" />
             </h3>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  {t('useStrategy', language)}
+                  使用策略
                 </label>
                 <select
                   value={formData.strategy_id}
@@ -333,18 +354,18 @@ export function TraderConfigModal({
                   }
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                 >
-                  <option value="">{t('noStrategyManual', language)}</option>
+                  <option value="">-- 不使用策略（手动配置）--</option>
                   {strategies.map((strategy) => (
                     <option key={strategy.id} value={strategy.id}>
-                      {selectedStrategy.name}
-                      {selectedStrategy.is_active ? t('active', language) : ''}
-                      {selectedStrategy.is_default ? t('default', language) : ''}
+                      {strategy.name}
+                      {strategy.is_active ? ' (当前激活)' : ''}
+                      {strategy.is_default ? ' [默认]' : ''}
                     </option>
                   ))}
                 </select>
                 {strategies.length === 0 && (
-                    <p className="text-xs text-[#848E9C] mt-2">
-                      {t('noStrategyHint', language)}
+                  <p className="text-xs text-[#848E9C] mt-2">
+                    暂无策略，请先在策略工作室创建策略
                   </p>
                 )}
               </div>
@@ -354,25 +375,30 @@ export function TraderConfigModal({
                 <div className="mt-3 p-4 bg-[#1E2329] border border-[#2B3139] rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-[#F0B90B] text-sm font-medium">
-                      {t('strategyDetails', language)}
+                      策略详情
                     </span>
                     {selectedStrategy.is_active && (
                       <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
-                        {t('activating', language)}
+                        激活中
                       </span>
                     )}
                   </div>
                   <p className="text-sm text-[#848E9C] mb-2">
-                    {selectedStrategy.description || (language === 'zh' ? '无描述' : 'No description')}
+                    {selectedStrategy.description || '无描述'}
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
                     <div>
-                      {t('coinSource', language)}: {selectedStrategy.config.coin_source.source_type === 'static' ? '固定币种' :
+                      币种来源: {selectedStrategy.config.coin_source.source_type === 'static' ? '固定币种' :
                         selectedStrategy.config.coin_source.source_type === 'ai500' ? 'AI500' :
                         selectedStrategy.config.coin_source.source_type === 'oi_top' ? 'OI Top' : '混合'}
                     </div>
                     <div>
-                      {t('marginLimit', language)}: {((selectedStrategy.config.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%
+                      保证金上限:{' '}
+                      {(
+                        (selectedStrategy.config.risk_control
+                          ?.max_margin_usage || 0.9) * 100
+                      ).toFixed(0)}
+                      %
                     </div>
                   </div>
                 </div>
@@ -383,13 +409,13 @@ export function TraderConfigModal({
           {/* Trading Parameters */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
-              <span className="text-[#F0B90B]">3</span> {t('tradingParams', language)}
+              <span className="text-[#F0B90B]">3</span> 交易参数
             </h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
-                    {t('marginMode', language)}
+                    保证金模式
                   </label>
                   <div className="flex gap-2">
                     <button
@@ -401,7 +427,7 @@ export function TraderConfigModal({
                           : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                       }`}
                     >
-                      {t('crossMargin', language)}
+                      全仓
                     </button>
                     <button
                       type="button"
@@ -414,7 +440,7 @@ export function TraderConfigModal({
                           : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                       }`}
                     >
-                      {t('isolatedMargin', language)}
+                      逐仓
                     </button>
                   </div>
                 </div>
@@ -446,7 +472,7 @@ export function TraderConfigModal({
               {/* Competition visibility */}
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  {t('competitionDisplay', language)}
+                  竞技场显示
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -458,7 +484,7 @@ export function TraderConfigModal({
                         : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                     }`}
                   >
-                    {t('show', language)}
+                    显示
                   </button>
                   <button
                     type="button"
@@ -469,11 +495,11 @@ export function TraderConfigModal({
                         : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                     }`}
                   >
-                    {t('hide', language)}
+                    隐藏
                   </button>
                 </div>
-                  <p className="text-xs text-[#848E9C] mt-1">
-                    {t('hiddenInCompetition', language)}
+                <p className="text-xs text-[#848E9C] mt-1">
+                  隐藏后将不在竞技场页面显示此交易员
                 </p>
               </div>
 
@@ -482,7 +508,7 @@ export function TraderConfigModal({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-[#EAECEF]">
-                      {t('initialBalanceLabel', language)}
+                      初始余额 ($)
                     </label>
                     <button
                       type="button"
@@ -490,7 +516,7 @@ export function TraderConfigModal({
                       disabled={isFetchingBalance}
                       className="px-3 py-1 text-xs bg-[#F0B90B] text-black rounded hover:bg-[#E1A706] transition-colors disabled:bg-[#848E9C] disabled:cursor-not-allowed"
                     >
-                      {isFetchingBalance ? t('fetching', language) : t('fetchCurrentBalance', language)}
+                      {isFetchingBalance ? '获取中...' : '获取当前余额'}
                     </button>
                   </div>
                   <input
@@ -506,8 +532,8 @@ export function TraderConfigModal({
                     min="100"
                     step="0.01"
                   />
-                    <p className="text-xs text-[#848E9C] mt-1">
-                      {t('balanceUpdateHint', language)}
+                  <p className="text-xs text-[#848E9C] mt-1">
+                    用于手动更新初始余额基准（例如充值/提现后）
                   </p>
                   {balanceFetchError && (
                     <p className="text-xs text-red-500 mt-1">
@@ -535,13 +561,12 @@ export function TraderConfigModal({
                     <line x1="12" x2="12.01" y1="16" y2="16" />
                   </svg>
                   <span className="text-sm text-[#848E9C]">
-                    {t('autoFetchBalanceInfo', language)}
+                    系统将自动获取您的账户净值作为初始余额
                   </span>
                 </div>
               )}
             </div>
           </div>
-
         </div>
 
         {/* Footer */}
@@ -550,7 +575,7 @@ export function TraderConfigModal({
             onClick={onClose}
             className="px-6 py-3 bg-[#2B3139] text-[#EAECEF] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#404750]"
           >
-            {t('cancel', language)}
+            取消
           </button>
           {onSave && (
             <button
@@ -563,7 +588,7 @@ export function TraderConfigModal({
               }
               className="px-8 py-3 bg-gradient-to-r from-[#F0B90B] to-[#E1A706] text-black rounded-lg hover:from-[#E1A706] hover:to-[#D4951E] transition-all duration-200 disabled:bg-[#848E9C] disabled:cursor-not-allowed font-medium shadow-lg"
             >
-              {isSaving ? t('saving', language) : isEditMode ? t('editTrader', language) : t('createTraderButton', language)}
+              {isSaving ? '保存中...' : isEditMode ? '保存修改' : '创建交易员'}
             </button>
           )}
         </div>
