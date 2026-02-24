@@ -180,7 +180,6 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 		return fmt.Errorf("store is nil")
 	}
 
-<<<<<<< HEAD
 	// Get last sync time - try database first, then use last closed position time, then default to 30 days
 	orderStore := st.Order()
 	positionStore := st.Position()
@@ -206,10 +205,6 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			logger.Infof("📅 First sync, starting from 30 days ago: %s (UTC)", startTime.Format("2006-01-02 15:04:05"))
 		}
 	}
-=======
-	// Get recent trades (last 24 hours)
-	startTime := time.Now().Add(-24 * time.Hour)
->>>>>>> dev
 
 	logger.Infof("🔄 Syncing Bybit trades from: %s", startTime.Format(time.RFC3339))
 
@@ -227,11 +222,6 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 	})
 
 	// Process trades one by one (no transaction to avoid deadlock)
-<<<<<<< HEAD
-=======
-	orderStore := st.Order()
-	positionStore := st.Position()
->>>>>>> dev
 	posBuilder := store.NewPositionBuilder(positionStore)
 	syncedCount := 0
 

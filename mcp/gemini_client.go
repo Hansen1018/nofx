@@ -1,7 +1,6 @@
 package mcp
 
 import (
-<<<<<<< HEAD
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,15 +8,11 @@ import (
 	"net/http"
 	"strings"
 	"time"
-=======
-	"net/http"
->>>>>>> dev
 )
 
 const (
 	ProviderGemini       = "gemini"
 	DefaultGeminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
-<<<<<<< HEAD
 
 	DefaultGeminiModel = "gemini-3-pro-preview"
 	Gemini3Pro         = "gemini-3-pro-preview"
@@ -50,32 +45,15 @@ type geminiCache struct {
 	systemPromptHash string
 }
 
-=======
-	DefaultGeminiModel   = "gemini-3-pro-preview"
-)
-
-type GeminiClient struct {
-	*Client
-}
-
-// NewGeminiClient creates Gemini client (backward compatible)
->>>>>>> dev
 func NewGeminiClient() AIClient {
 	return NewGeminiClientWithOptions()
 }
 
-<<<<<<< HEAD
 func NewGeminiClientWithOptions(opts ...ClientOption) AIClient {
-=======
-// NewGeminiClientWithOptions creates Gemini client (supports options pattern)
-func NewGeminiClientWithOptions(opts ...ClientOption) AIClient {
-	// 1. Create Gemini preset options
->>>>>>> dev
 	geminiOpts := []ClientOption{
 		WithProvider(ProviderGemini),
 		WithModel(DefaultGeminiModel),
 		WithBaseURL(DefaultGeminiBaseURL),
-<<<<<<< HEAD
 		WithEndpointMode(EndpointModeAuto),
 	}
 
@@ -93,22 +71,6 @@ func NewGeminiClientWithOptions(opts ...ClientOption) AIClient {
 		geminiClient.endpointMode = EndpointMode(baseClient.config.EndpointMode)
 	}
 
-=======
-	}
-
-	// 2. Merge user options (user options have higher priority)
-	allOpts := append(geminiOpts, opts...)
-
-	// 3. Create base client
-	baseClient := NewClient(allOpts...).(*Client)
-
-	// 4. Create Gemini client
-	geminiClient := &GeminiClient{
-		Client: baseClient,
-	}
-
-	// 5. Set hooks to point to GeminiClient (implement dynamic dispatch)
->>>>>>> dev
 	baseClient.hooks = geminiClient
 
 	return geminiClient
@@ -120,7 +82,6 @@ func (c *GeminiClient) SetAPIKey(apiKey string, customURL string, customModel st
 	if len(apiKey) > 8 {
 		c.logger.Infof("🔧 [MCP] Gemini API Key: %s...%s", apiKey[:4], apiKey[len(apiKey)-4:])
 	}
-<<<<<<< HEAD
 
 	if customURL != "" {
 		c.BaseURL = customURL
@@ -135,21 +96,12 @@ func (c *GeminiClient) SetAPIKey(apiKey string, customURL string, customModel st
 		c.logger.Infof("🔧 [MCP] Gemini using default OpenAI-compatible endpoint")
 	}
 
-=======
-	if customURL != "" {
-		c.BaseURL = customURL
-		c.logger.Infof("🔧 [MCP] Gemini using custom BaseURL: %s", customURL)
-	} else {
-		c.logger.Infof("🔧 [MCP] Gemini using default BaseURL: %s", c.BaseURL)
-	}
->>>>>>> dev
 	if customModel != "" {
 		c.Model = customModel
 		c.logger.Infof("🔧 [MCP] Gemini using custom Model: %s", customModel)
 	} else {
 		c.logger.Infof("🔧 [MCP] Gemini using default Model: %s", c.Model)
 	}
-<<<<<<< HEAD
 
 	mode := c.endpointMode
 	if mode == EndpointModeAuto {
@@ -577,11 +529,4 @@ func (c *GeminiClient) parseCompatibleResponse(body []byte) (string, error) {
 	}
 
 	return response.Choices[0].Message.Content, nil
-=======
-}
-
-// Gemini OpenAI-compatible API uses standard Bearer auth
-func (c *GeminiClient) setAuthHeader(reqHeaders http.Header) {
-	c.Client.setAuthHeader(reqHeaders)
->>>>>>> dev
 }

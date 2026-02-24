@@ -137,7 +137,7 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 
 	// Cache expired or doesn't exist, call API
 	logger.Infof("🔄 Cache expired, calling Binance API to get account balance...")
-	account, err := t.client.NewGetAccountService().Do(context.Background())
+	account, err := t.client.NewGetAccountV3Service().Do(context.Background())
 	if err != nil {
 		logger.Infof("❌ Binance API call failed: %v", err)
 		return nil, fmt.Errorf("failed to get account info: %w", err)
@@ -176,7 +176,7 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	// Cache expired or doesn't exist, call API
 	logger.Infof("🔄 Cache expired, calling Binance API to get position information...")
-	positions, err := t.client.NewGetPositionRiskService().Do(context.Background())
+	positions, err := t.client.NewGetPositionRiskV3Service().Do(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
@@ -194,12 +194,20 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["entryPrice"], _ = strconv.ParseFloat(pos.EntryPrice, 64)
 		posMap["markPrice"], _ = strconv.ParseFloat(pos.MarkPrice, 64)
 		posMap["unRealizedProfit"], _ = strconv.ParseFloat(pos.UnRealizedProfit, 64)
-		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
-		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
+		posMap["createdTime"] = pos.UpdateTime
 
-		// Determine direction
-		if posAmt > 0 {
+		// Calculate leverage from notional and position initial margin
+		notional, _ := strconv.ParseFloat(pos.Notional, 64)
+		posInitialMargin, _ := strconv.ParseFloat(pos.PositionInitialMargin, 64)
+		if posInitialMargin > 0 {
+			posMap["leverage"] = notional / posInitialMargin
+		} else {
+			posMap["leverage"] = 1 // Default leverage
+		}
+
+		// Determine direction from PositionSide (V3 API)
+		if pos.PositionSide == "LONG" || (pos.PositionSide == "BOTH" && posAmt > 0) {
 			posMap["side"] = "long"
 		} else {
 			posMap["side"] = "short"
@@ -608,6 +616,51 @@ func (t *FuturesTrader) CancelStopLossOrders(symbol string) error {
 	}
 
 	return nil
+}
+
+// GetCurrentStopLossPrice gets the current stop-loss price for a symbol and position side
+// Returns 0 if no stop-loss order is found
+func (t *FuturesTrader) GetCurrentStopLossPrice(symbol string, positionSide string) (float64, error) {
+	var currentStopLossPrice float64
+
+	// 1. Check legacy stop-loss orders
+	orders, err := t.client.NewListOpenOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err == nil {
+		for _, order := range orders {
+			orderType := string(order.Type)
+			// Check if it's a stop-loss order
+			if (orderType == "STOP_MARKET" || orderType == "STOP") &&
+				string(order.PositionSide) == positionSide {
+				if stopPrice, parseErr := strconv.ParseFloat(order.StopPrice, 64); parseErr == nil && stopPrice > 0 {
+					currentStopLossPrice = stopPrice
+					return currentStopLossPrice, nil
+				}
+			}
+		}
+	}
+
+	// 2. Check Algo stop-loss orders
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err == nil {
+		for _, algoOrder := range algoOrders {
+			// Check if it's a stop-loss order
+			if (algoOrder.OrderType == futures.AlgoOrderTypeStopMarket || algoOrder.OrderType == futures.AlgoOrderTypeStop) &&
+				string(algoOrder.PositionSide) == positionSide {
+				if triggerPrice, parseErr := strconv.ParseFloat(algoOrder.TriggerPrice, 64); parseErr == nil && triggerPrice > 0 {
+					currentStopLossPrice = triggerPrice
+					return currentStopLossPrice, nil
+				}
+			}
+		}
+	}
+
+	return currentStopLossPrice, nil
 }
 
 // CancelTakeProfitOrders cancels only take-profit orders (doesn't affect stop-loss orders)
@@ -1046,6 +1099,92 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 	}
 
 	logger.Infof("  Take-profit price set (Algo Order): %.4f", takeProfitPrice)
+	return nil
+}
+
+// SetBreakevenStopLoss sets breakeven stop-loss order using Algo Order API
+// When unrealized profit reaches breakeven threshold, adjusts stop-loss to entry price
+func (t *FuturesTrader) SetBreakevenStopLoss(symbol string, positionSide string, entryPrice float64) error {
+	var side futures.SideType
+	var posSide futures.PositionSideType
+
+	if positionSide == "LONG" {
+		side = futures.SideTypeSell
+		posSide = futures.PositionSideTypeLong
+	} else {
+		side = futures.SideTypeBuy
+		posSide = futures.PositionSideTypeShort
+	}
+
+	// Use entry price as stop-loss price (breakeven protection)
+	breakevenPrice := entryPrice
+
+	// Use new Algo Order API for breakeven stop-loss
+	_, err := t.client.NewCreateAlgoOrderService().
+		Symbol(symbol).
+		Side(side).
+		PositionSide(posSide).
+		Type(futures.AlgoOrderTypeStopMarket).
+		TriggerPrice(fmt.Sprintf("%.8f", breakevenPrice)).
+		WorkingType(futures.WorkingTypeContractPrice).
+		ClosePosition(true).
+		ClientAlgoId(getBrOrderID()).
+		Do(context.Background())
+
+	if err != nil {
+		return fmt.Errorf("failed to set breakeven stop-loss: %w", err)
+	}
+
+	logger.Infof("  ✓ Breakeven stop-loss set (Algo Order): %.4f (entry price)", breakevenPrice)
+	return nil
+}
+
+// CancelBreakevenStopLoss cancels breakeven stop-loss orders for a symbol
+// Uses Algo Order API to cancel stop-loss orders at entry price
+func (t *FuturesTrader) CancelBreakevenStopLoss(symbol string) error {
+	canceledCount := 0
+	var cancelErrors []error
+
+	// Get all Algo orders for this symbol
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err != nil {
+		logger.Infof("  ⚠ Failed to list Algo orders: %v", err)
+		return fmt.Errorf("failed to list Algo orders: %w", err)
+	}
+
+	// Cancel stop-loss Algo orders (breakeven stop-loss uses STOP_MARKET type)
+	for _, algoOrder := range algoOrders {
+		if algoOrder.OrderType == futures.AlgoOrderTypeStopMarket || algoOrder.OrderType == futures.AlgoOrderTypeStop {
+			_, err := t.client.NewCancelAlgoOrderService().
+				AlgoID(algoOrder.AlgoId).
+				Do(context.Background())
+
+			if err != nil {
+				errMsg := fmt.Sprintf("Algo ID %d: %v", algoOrder.AlgoId, err)
+				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
+				logger.Infof("  ⚠ Failed to cancel breakeven stop-loss order: %s", errMsg)
+				continue
+			}
+
+			canceledCount++
+			logger.Infof("  ✓ Canceled breakeven stop-loss order (Algo ID: %d)", algoOrder.AlgoId)
+		}
+	}
+
+	if canceledCount == 0 && len(cancelErrors) == 0 {
+		logger.Infof("  ℹ %s has no breakeven stop-loss orders to cancel", symbol)
+	} else if canceledCount > 0 {
+		logger.Infof("  ✓ Canceled %d breakeven stop-loss order(s) for %s", canceledCount, symbol)
+	}
+
+	// If all cancellations failed, return error
+	if len(cancelErrors) > 0 && canceledCount == 0 {
+		return fmt.Errorf("failed to cancel breakeven stop-loss orders: %v", cancelErrors)
+	}
+
 	return nil
 }
 

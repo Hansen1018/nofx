@@ -313,11 +313,7 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 	// Fetch market data for each candidate
 	marketDataMap := make(map[string]*market.Data)
 	for _, coin := range candidates {
-<<<<<<< HEAD
 		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount, "")
-=======
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
->>>>>>> dev
 		if err != nil {
 			logger.Warnf("Failed to get market data for %s: %v", coin.Symbol, err)
 			continue
@@ -412,7 +408,6 @@ Then output your decisions in STRICT JSON ARRAY format (can include multiple coi
 ]
 </decision>
 
-<<<<<<< HEAD
 ### ⚠️ CRITICAL ACTION REQUIREMENT: You MUST use ONLY these exact action values:
 - open_long - 做多/买入
 - open_short - 做空/卖出
@@ -423,15 +418,6 @@ Then output your decisions in STRICT JSON ARRAY format (can include multiple coi
 
 ❌ DO NOT USE: buy, sell, long, short, open, close, none, null, empty string, or ANY other variations!
 ❌ Any other action value will cause the decision to be rejected!
-=======
-### IMPORTANT: action field MUST be exactly one of:
-- "open_long" (做多/买入)
-- "open_short" (做空/卖出)
-- "close_long" (平多仓)
-- "close_short" (平空仓)
-- "hold" (持仓观望)
-- "wait" (空仓等待)
->>>>>>> dev
 
 ### Field Requirements for each coin:
 - symbol: REQUIRED, the trading pair
@@ -637,17 +623,10 @@ func (e *DebateEngine) getParticipantVote(
 	// If no valid decisions, create a default one with session symbol
 	if primaryDecision == nil && session.Symbol != "" {
 		primaryDecision = &store.DebateDecision{
-<<<<<<< HEAD
 			Action:      "hold",
 			Symbol:      session.Symbol,
 			Confidence:  50,
 			Leverage:    5,
-=======
-			Action:     "hold",
-			Symbol:     session.Symbol,
-			Confidence: 50,
-			Leverage:   5,
->>>>>>> dev
 			PositionPct: 0.2,
 		}
 		decisions = []*store.DebateDecision{primaryDecision}
@@ -711,7 +690,6 @@ You may vote differently from your earlier position if convinced by others' argu
 ]
 </final_vote>
 
-<<<<<<< HEAD
 ### ⚠️ CRITICAL ACTION REQUIREMENT: You MUST use ONLY these exact action values:
 - open_long - 做多/买入
 - open_short - 做空/卖出
@@ -722,15 +700,6 @@ You may vote differently from your earlier position if convinced by others' argu
 
 ❌ DO NOT USE: buy, sell, long, short, open, close, none, null, empty string, or ANY other variations!
 ❌ Any other action value will cause the decision to be rejected!
-=======
-### IMPORTANT: action field MUST be exactly one of:
-- "open_long" (做多/买入)
-- "open_short" (做空/卖出)
-- "close_long" (平多仓)
-- "close_short" (平空仓)
-- "hold" (持仓观望)
-- "wait" (空仓等待)
->>>>>>> dev
 
 ---
 
@@ -1142,7 +1111,6 @@ func parseDecisions(response string) ([]*store.DebateDecision, int) {
 	if jsonContent != "" {
 		// Intermediate struct to handle both field naming conventions
 		type rawDecision struct {
-<<<<<<< HEAD
 			Action        string  `json:"action"`
 			Symbol        string  `json:"symbol"`
 			Confidence    int     `json:"confidence"`
@@ -1153,18 +1121,6 @@ func parseDecisions(response string) ([]*store.DebateDecision, int) {
 			StopLossPct   float64 `json:"stop_loss_pct"`   // Alternative field name
 			TakeProfitPct float64 `json:"take_profit_pct"` // Alternative field name
 			Reasoning     string  `json:"reasoning"`
-=======
-			Action       string  `json:"action"`
-			Symbol       string  `json:"symbol"`
-			Confidence   int     `json:"confidence"`
-			Leverage     int     `json:"leverage"`
-			PositionPct  float64 `json:"position_pct"`
-			StopLoss     float64 `json:"stop_loss"`
-			TakeProfit   float64 `json:"take_profit"`
-			StopLossPct  float64 `json:"stop_loss_pct"`  // Alternative field name
-			TakeProfitPct float64 `json:"take_profit_pct"` // Alternative field name
-			Reasoning    string  `json:"reasoning"`
->>>>>>> dev
 		}
 
 		convertRawDecision := func(r *rawDecision) *store.DebateDecision {
