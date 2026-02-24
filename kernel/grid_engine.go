@@ -124,6 +124,7 @@ func buildGridSystemPromptZh(config *store.GridStrategyConfig) string {
 - **趋势市场** (暂停网格): 布林带宽度 > 4%%, EMA20/50 距离 > 2%%, 价格持续突破布林带
 - **高波动市场** (谨慎): ATR异常放大, 价格剧烈波动
 
+<<<<<<< HEAD
 ### ⚠️ CRITICAL ACTION REQUIREMENT: You MUST use ONLY these exact action values:
 - place_buy_limit - 在指定价格下买入限价单
 - place_sell_limit - 在指定价格下卖出限价单
@@ -136,6 +137,17 @@ func buildGridSystemPromptZh(config *store.GridStrategyConfig) string {
 
 ❌ DO NOT USE: buy, sell, long, short, open, close, none, null, empty string, or ANY other variations!
 ❌ Any other action value will cause the decision to be rejected!
+=======
+### 可执行的操作
+- place_buy_limit: 在指定价格下买入限价单
+- place_sell_limit: 在指定价格下卖出限价单
+- cancel_order: 取消指定订单
+- cancel_all_orders: 取消所有订单
+- pause_grid: 暂停网格交易（趋势市场时）
+- resume_grid: 恢复网格交易（震荡市场时）
+- adjust_grid: 调整网格边界
+- hold: 保持当前状态不操作
+>>>>>>> dev
 
 ## 输出格式
 输出JSON数组，每个决策包含:

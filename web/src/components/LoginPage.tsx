@@ -25,15 +25,13 @@ export function LoginPage() {
   const adminMode = false
   const { config: systemConfig } = useSystemConfig()
   const registrationEnabled = systemConfig?.registration_enabled !== false
-  const [expiredToastId, setExpiredToastId] = useState<string | number | null>(
-    null
-  )
+  const [expiredToastId, setExpiredToastId] = useState<string | number | null>(null)
 
   // Show notification if user was redirected here due to 401
   useEffect(() => {
     if (sessionStorage.getItem('from401') === 'true') {
       const id = toast.warning(t('sessionExpired', language), {
-        duration: Infinity, // Keep showing until user dismisses or logs in
+        duration: Infinity // Keep showing until user dismisses or logs in
       })
       setExpiredToastId(id)
       sessionStorage.removeItem('from401')
@@ -146,7 +144,7 @@ export function LoginPage() {
   return (
     <DeepVoidBackground className="min-h-screen flex items-center justify-center py-12 font-mono" disableAnimation>
 
-      <div className="w-full max-w-md mx-auto relative z-10 px-6">
+      <div className="w-full max-w-md relative z-10 px-6">
         {/* Navigation - Top Bar (Mobile/Desktop Friendly) */}
         <div className="flex justify-between items-center mb-8">
           <button

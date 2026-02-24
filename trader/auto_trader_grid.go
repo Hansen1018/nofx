@@ -32,6 +32,7 @@ type GridState struct {
 	GridSpacing float64
 
 	// State flags
+<<<<<<< HEAD
 	IsPaused      bool
 	IsInitialized bool
 
@@ -42,6 +43,18 @@ type GridState struct {
 	MaxDrawdown    float64
 	PeakEquity     float64
 	DailyPnL       float64
+=======
+	IsPaused    bool
+	IsInitialized bool
+
+	// Performance tracking
+	TotalProfit   float64
+	TotalTrades   int
+	WinningTrades int
+	MaxDrawdown   float64
+	PeakEquity    float64
+	DailyPnL      float64
+>>>>>>> dev
 	LastDailyReset time.Time
 
 	// Order tracking
@@ -67,9 +80,15 @@ type GridState struct {
 	CurrentRegimeLevel string
 
 	// Grid direction adjustment
+<<<<<<< HEAD
 	CurrentDirection     market.GridDirection
 	DirectionChangedAt   time.Time
 	DirectionChangeCount int
+=======
+	CurrentDirection       market.GridDirection
+	DirectionChangedAt     time.Time
+	DirectionChangeCount   int
+>>>>>>> dev
 }
 
 // NewGridState creates a new grid state
@@ -522,7 +541,11 @@ func (at *AutoTrader) InitializeGrid() error {
 	// Calculate grid bounds
 	if gridConfig.UseATRBounds {
 		// Get ATR for bound calculation
+<<<<<<< HEAD
 		mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"4h"}, "4h", 20, at.exchange)
+=======
+		mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"4h"}, "4h", 20)
+>>>>>>> dev
 		if err != nil {
 			logger.Warnf("Failed to get market data for ATR: %v, using default bounds", err)
 			at.calculateDefaultBounds(price, gridConfig)
@@ -872,7 +895,11 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	gridConfig := at.config.StrategyConfig.GridConfig
 
 	// Get market data
+<<<<<<< HEAD
 	mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"5m", "4h"}, "5m", 50, at.exchange)
+=======
+	mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"5m", "4h"}, "5m", 50)
+>>>>>>> dev
 	if err != nil {
 		return nil, fmt.Errorf("failed to get market data: %w", err)
 	}
@@ -1432,7 +1459,11 @@ func (at *AutoTrader) autoAdjustGrid() {
 	// Use the same logic as InitializeGrid() - either ATR-based or default percentage
 	if gridConfig.UseATRBounds {
 		// Try to get ATR for bound calculation
+<<<<<<< HEAD
 		mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"4h"}, "4h", 20, at.exchange)
+=======
+		mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"4h"}, "4h", 20)
+>>>>>>> dev
 		if err != nil {
 			logger.Warnf("[Grid] Failed to get market data for ATR during adjust: %v, using default bounds", err)
 			at.calculateDefaultBoundsLocked(currentPrice, gridConfig)
@@ -1661,9 +1692,15 @@ type GridRiskInfo struct {
 	BreakoutDirection string `json:"breakout_direction"`
 
 	// Grid direction
+<<<<<<< HEAD
 	CurrentGridDirection  string `json:"current_grid_direction"`
 	DirectionChangeCount  int    `json:"direction_change_count"`
 	EnableDirectionAdjust bool   `json:"enable_direction_adjust"`
+=======
+	CurrentGridDirection    string `json:"current_grid_direction"`
+	DirectionChangeCount    int    `json:"direction_change_count"`
+	EnableDirectionAdjust   bool   `json:"enable_direction_adjust"`
+>>>>>>> dev
 }
 
 // GetGridRiskInfo returns current risk information for frontend display

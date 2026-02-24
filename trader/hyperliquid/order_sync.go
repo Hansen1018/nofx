@@ -19,6 +19,7 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 		return fmt.Errorf("store is nil")
 	}
 
+<<<<<<< HEAD
 	// Get last sync time - try database first, then use last closed position time, then default to 30 days
 	orderStore := st.Order()
 	positionStore := st.Position()
@@ -44,6 +45,10 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 			logger.Infof("📅 First sync, starting from 30 days ago: %s (UTC)", startTime.Format("2006-01-02 15:04:05"))
 		}
 	}
+=======
+	// Get recent trades (last 24 hours)
+	startTime := time.Now().Add(-24 * time.Hour)
+>>>>>>> dev
 
 	logger.Infof("🔄 Syncing Hyperliquid trades from: %s", startTime.Format(time.RFC3339))
 
@@ -61,10 +66,16 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 	})
 
 	// Process trades one by one (no transaction to avoid deadlock)
+<<<<<<< HEAD
+=======
+	orderStore := st.Order()
+	positionStore := st.Position()
+>>>>>>> dev
 	posBuilder := store.NewPositionBuilder(positionStore)
 	syncedCount := 0
 
 	for _, trade := range trades {
+<<<<<<< HEAD
 		// Check if trade already exists (use exchangeID which is UUID, not exchange type)
 		existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
 		if err == nil && existing != nil {
@@ -146,6 +157,89 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 		} else {
 			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, orderAction, trade.Quantity)
 		}
+=======
+			// Check if trade already exists (use exchangeID which is UUID, not exchange type)
+			existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
+			if err == nil && existing != nil {
+				continue // Order already exists, skip
+			}
+
+			// Normalize symbol
+			symbol := market.Normalize(trade.Symbol)
+
+			// Use order action from trade (parsed from Hyperliquid Dir field)
+			// Dir field values: "Open Long", "Open Short", "Close Long", "Close Short"
+			orderAction := trade.OrderAction
+			positionSide := "LONG"
+			if strings.Contains(orderAction, "short") {
+				positionSide = "SHORT"
+			}
+
+			// Create order record - use Unix milliseconds UTC
+			tradeTimeMs := trade.Time.UTC().UnixMilli()
+			orderRecord := &store.TraderOrder{
+				TraderID:        traderID,
+				ExchangeID:      exchangeID,   // UUID
+				ExchangeType:    exchangeType, // Exchange type
+				ExchangeOrderID: trade.TradeID,
+				Symbol:          symbol,
+				Side:            trade.Side,
+				PositionSide:    "BOTH", // Hyperliquid uses one-way position mode
+				Type:            "MARKET",
+				OrderAction:     orderAction,
+				Quantity:        trade.Quantity,
+				Price:           trade.Price,
+				Status:          "FILLED",
+				FilledQuantity:  trade.Quantity,
+				AvgFillPrice:    trade.Price,
+				Commission:      trade.Fee,
+				FilledAt:        tradeTimeMs,
+				CreatedAt:       tradeTimeMs,
+				UpdatedAt:       tradeTimeMs,
+			}
+
+			// Insert order record
+			if err := orderStore.CreateOrder(orderRecord); err != nil {
+				logger.Infof("  ⚠️ Failed to sync trade %s: %v", trade.TradeID, err)
+				continue
+			}
+
+			// Create fill record - use Unix milliseconds UTC
+			fillRecord := &store.TraderFill{
+				TraderID:        traderID,
+				ExchangeID:      exchangeID,   // UUID
+				ExchangeType:    exchangeType, // Exchange type
+				OrderID:         orderRecord.ID,
+				ExchangeOrderID: trade.TradeID,
+				ExchangeTradeID: trade.TradeID,
+				Symbol:          symbol,
+				Side:            trade.Side,
+				Price:           trade.Price,
+				Quantity:        trade.Quantity,
+				QuoteQuantity:   trade.Price * trade.Quantity,
+				Commission:      trade.Fee,
+				CommissionAsset: "USDT",
+				RealizedPnL:     trade.RealizedPnL,
+				IsMaker:         false, // Hyperliquid GetTrades doesn't provide maker/taker info
+				CreatedAt:       tradeTimeMs,
+			}
+
+			if err := orderStore.CreateFill(fillRecord); err != nil {
+				logger.Infof("  ⚠️ Failed to sync fill for trade %s: %v", trade.TradeID, err)
+			}
+
+			// Create/update position record using PositionBuilder
+			if err := posBuilder.ProcessTrade(
+				traderID, exchangeID, exchangeType,
+				symbol, positionSide, orderAction,
+				trade.Quantity, trade.Price, trade.Fee, trade.RealizedPnL,
+				tradeTimeMs, trade.TradeID,
+			); err != nil {
+				logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
+			} else {
+				logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, orderAction, trade.Quantity)
+			}
+>>>>>>> dev
 
 		syncedCount++
 		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f pnl=%.2f fee=%.6f action=%s",

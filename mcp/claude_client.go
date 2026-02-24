@@ -1,6 +1,7 @@
 package mcp
 
 import (
+<<<<<<< HEAD
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -21,11 +22,17 @@ const (
 	EndpointModeCompatible EndpointMode = "compatible"
 	// EndpointModeNative Anthropic 原生模式
 	EndpointModeNative EndpointMode = "native"
+=======
+	"encoding/json"
+	"fmt"
+	"net/http"
+>>>>>>> dev
 )
 
 const (
 	ProviderClaude       = "claude"
 	DefaultClaudeBaseURL = "https://api.anthropic.com/v1"
+<<<<<<< HEAD
 
 	DefaultClaudeModel  = "claude-opus-4-6"
 	ClaudeSonnet45Alias = "claude-sonnet-4-5"
@@ -65,10 +72,14 @@ var minCacheableTokens = map[string]int{
 var (
 	endpointCachingStatus   = make(map[string]bool)
 	endpointCachingStatusMu sync.RWMutex
+=======
+	DefaultClaudeModel   = "claude-opus-4-6"
+>>>>>>> dev
 )
 
 type ClaudeClient struct {
 	*Client
+<<<<<<< HEAD
 	endpointMode EndpointMode
 	detectedMode EndpointMode
 	cache        *claudeCache
@@ -78,6 +89,8 @@ type ClaudeClient struct {
 type claudeCache struct {
 	lastCacheCreation time.Time
 	hasValidCache     bool
+=======
+>>>>>>> dev
 }
 
 // NewClaudeClient creates Claude client (backward compatible)
@@ -85,13 +98,20 @@ func NewClaudeClient() AIClient {
 	return NewClaudeClientWithOptions()
 }
 
+<<<<<<< HEAD
 // NewClaudeClientWithOptions creates Claude client with options
 func NewClaudeClientWithOptions(opts ...ClientOption) AIClient {
 	// 默认选项
+=======
+// NewClaudeClientWithOptions creates Claude client (supports options pattern)
+func NewClaudeClientWithOptions(opts ...ClientOption) AIClient {
+	// 1. Create Claude preset options
+>>>>>>> dev
 	claudeOpts := []ClientOption{
 		WithProvider(ProviderClaude),
 		WithModel(DefaultClaudeModel),
 		WithBaseURL(DefaultClaudeBaseURL),
+<<<<<<< HEAD
 		WithEndpointMode(EndpointModeAuto), // 默认自动检测
 	}
 
@@ -115,18 +135,38 @@ func NewClaudeClientWithOptions(opts ...ClientOption) AIClient {
 	}
 
 	// 设置 hooks
+=======
+	}
+
+	// 2. Merge user options (user options have higher priority)
+	allOpts := append(claudeOpts, opts...)
+
+	// 3. Create base client
+	baseClient := NewClient(allOpts...).(*Client)
+
+	// 4. Create Claude client
+	claudeClient := &ClaudeClient{
+		Client: baseClient,
+	}
+
+	// 5. Set hooks to point to ClaudeClient (implement dynamic dispatch)
+>>>>>>> dev
 	baseClient.hooks = claudeClient
 
 	return claudeClient
 }
 
+<<<<<<< HEAD
 // SetAPIKey 设置 API Key，同时进行端点检测
+=======
+>>>>>>> dev
 func (c *ClaudeClient) SetAPIKey(apiKey string, customURL string, customModel string) {
 	c.APIKey = apiKey
 
 	if len(apiKey) > 8 {
 		c.logger.Infof("🔧 [MCP] Claude API Key: %s...%s", apiKey[:4], apiKey[len(apiKey)-4:])
 	}
+<<<<<<< HEAD
 
 	if customURL != "" {
 		c.BaseURL = customURL
@@ -142,12 +182,21 @@ func (c *ClaudeClient) SetAPIKey(apiKey string, customURL string, customModel st
 		c.logger.Infof("🔧 [MCP] Claude using official Anthropic endpoint (native mode)")
 	}
 
+=======
+	if customURL != "" {
+		c.BaseURL = customURL
+		c.logger.Infof("🔧 [MCP] Claude using custom BaseURL: %s", customURL)
+	} else {
+		c.logger.Infof("🔧 [MCP] Claude using default BaseURL: %s", c.BaseURL)
+	}
+>>>>>>> dev
 	if customModel != "" {
 		c.Model = customModel
 		c.logger.Infof("🔧 [MCP] Claude using custom Model: %s", customModel)
 	} else {
 		c.logger.Infof("🔧 [MCP] Claude using default Model: %s", c.Model)
 	}
+<<<<<<< HEAD
 
 	// 记录最终模式
 	mode := c.endpointMode
@@ -547,16 +596,52 @@ func (c *ClaudeClient) parseMCPResponse(body []byte) (string, error) {
 
 // parseNativeResponse 解析 Anthropic 原生响应
 func (c *ClaudeClient) parseNativeResponse(body []byte) (string, error) {
+=======
+}
+
+// setAuthHeader Claude uses x-api-key header instead of Authorization Bearer
+func (c *ClaudeClient) setAuthHeader(reqHeaders http.Header) {
+	reqHeaders.Set("x-api-key", c.APIKey)
+	reqHeaders.Set("anthropic-version", "2023-06-01")
+}
+
+// buildUrl Claude uses /messages endpoint
+func (c *ClaudeClient) buildUrl() string {
+	return fmt.Sprintf("%s/messages", c.BaseURL)
+}
+
+// buildMCPRequestBody Claude has different request format
+func (c *ClaudeClient) buildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
+	requestBody := map[string]any{
+		"model":      c.Model,
+		"max_tokens": c.MaxTokens,
+		"system":     systemPrompt,
+		"messages": []map[string]string{
+			{"role": "user", "content": userPrompt},
+		},
+	}
+
+	return requestBody
+}
+
+// parseMCPResponse Claude has different response format
+func (c *ClaudeClient) parseMCPResponse(body []byte) (string, error) {
+>>>>>>> dev
 	var response struct {
 		Content []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
 		Usage struct {
+<<<<<<< HEAD
 			InputTokens              int `json:"input_tokens"`
 			OutputTokens             int `json:"output_tokens"`
 			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+=======
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+>>>>>>> dev
 		} `json:"usage"`
 		Error *struct {
 			Type    string `json:"type"`
@@ -565,13 +650,18 @@ func (c *ClaudeClient) parseNativeResponse(body []byte) (string, error) {
 	}
 
 	if err := json.Unmarshal(body, &response); err != nil {
+<<<<<<< HEAD
 		return "", fmt.Errorf("failed to parse Claude native response: %w", err)
+=======
+		return "", fmt.Errorf("failed to parse Claude response: %w, body: %s", err, string(body))
+>>>>>>> dev
 	}
 
 	if response.Error != nil {
 		return "", fmt.Errorf("Claude API error: %s - %s", response.Error.Type, response.Error.Message)
 	}
 
+<<<<<<< HEAD
 	// 记录缓存使用情况
 	if response.Usage.CacheReadInputTokens > 0 {
 		// 计算节省的成本（缓存命中只需 10% 价格）
@@ -585,6 +675,13 @@ func (c *ClaudeClient) parseNativeResponse(body []byte) (string, error) {
 	}
 
 	// 报告 token 使用
+=======
+	if len(response.Content) == 0 {
+		return "", fmt.Errorf("Claude returned empty content, body: %s", string(body))
+	}
+
+	// Report token usage if callback is set
+>>>>>>> dev
 	totalTokens := response.Usage.InputTokens + response.Usage.OutputTokens
 	if TokenUsageCallback != nil && totalTokens > 0 {
 		TokenUsageCallback(TokenUsage{
@@ -596,6 +693,10 @@ func (c *ClaudeClient) parseNativeResponse(body []byte) (string, error) {
 		})
 	}
 
+<<<<<<< HEAD
+=======
+	// Find text content
+>>>>>>> dev
 	for _, content := range response.Content {
 		if content.Type == "text" {
 			return content.Text, nil
@@ -604,6 +705,7 @@ func (c *ClaudeClient) parseNativeResponse(body []byte) (string, error) {
 
 	return "", fmt.Errorf("no text content in Claude response")
 }
+<<<<<<< HEAD
 
 // parseCompatibleResponse 解析 OpenAI 兼容响应
 func (c *ClaudeClient) parseCompatibleResponse(body []byte) (string, error) {
@@ -775,3 +877,5 @@ func (c *ClaudeClient) isCachingError(err error) bool {
 func (c *ClaudeClient) call(systemPrompt, userPrompt string) (string, error) {
 	return c.callWithCachingFallback(systemPrompt, userPrompt)
 }
+=======
+>>>>>>> dev
