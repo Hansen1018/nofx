@@ -68,31 +68,10 @@ export function ChartWithOrders({
       // 判断是毫秒还是秒：如果大于 10^12 则认为是毫秒（2001年之后的毫秒时间戳）
       if (time > 1000000000000) {
         const seconds = Math.floor(time / 1000)
-<<<<<<< HEAD
-        console.log(
-          '[ChartWithOrders] ✅ Unix timestamp (ms→s):',
-          time,
-          '→',
-          seconds,
-          '(',
-          new Date(time).toISOString(),
-          ')'
-        )
-        return seconds
-      }
-      console.log(
-        '[ChartWithOrders] ✅ Unix timestamp (s):',
-        time,
-        '(',
-        new Date(time * 1000).toISOString(),
-        ')'
-      )
-=======
         console.log('[ChartWithOrders] ✅ Unix timestamp (ms→s):', time, '→', seconds, '(', new Date(time).toISOString(), ')')
         return seconds
       }
       console.log('[ChartWithOrders] ✅ Unix timestamp (s):', time, '(', new Date(time * 1000).toISOString(), ')')
->>>>>>> dev
       return time
     }
 
@@ -103,19 +82,7 @@ export function ChartWithOrders({
     const isoTime = new Date(timeStr).getTime()
     if (!isNaN(isoTime) && isoTime > 0) {
       const timestamp = Math.floor(isoTime / 1000)
-<<<<<<< HEAD
-      console.log(
-        '[ChartWithOrders] ✅ Parsed as ISO:',
-        timeStr,
-        '→',
-        timestamp,
-        '(',
-        new Date(timestamp * 1000).toISOString(),
-        ')'
-      )
-=======
       console.log('[ChartWithOrders] ✅ Parsed as ISO:', timeStr, '→', timestamp, '(', new Date(timestamp * 1000).toISOString(), ')')
->>>>>>> dev
       return timestamp
     }
 
@@ -124,27 +91,6 @@ export function ChartWithOrders({
     if (match) {
       const currentYear = new Date().getFullYear()
       const [_, month, day, hour, minute] = match
-<<<<<<< HEAD
-      const date = new Date(
-        Date.UTC(
-          currentYear,
-          parseInt(month) - 1,
-          parseInt(day),
-          parseInt(hour),
-          parseInt(minute)
-        )
-      )
-      const timestamp = Math.floor(date.getTime() / 1000)
-      console.log(
-        '[ChartWithOrders] ✅ Parsed as custom format:',
-        timeStr,
-        '→',
-        timestamp,
-        '(',
-        new Date(timestamp * 1000).toISOString(),
-        ')'
-      )
-=======
       const date = new Date(Date.UTC(
         currentYear,
         parseInt(month) - 1,
@@ -154,7 +100,6 @@ export function ChartWithOrders({
       ))
       const timestamp = Math.floor(date.getTime() / 1000)
       console.log('[ChartWithOrders] ✅ Parsed as custom format:', timeStr, '→', timestamp, '(', new Date(timestamp * 1000).toISOString(), ')')
->>>>>>> dev
       return timestamp
     }
 
@@ -163,14 +108,7 @@ export function ChartWithOrders({
   }
 
   // 从我们的服务获取K线数据
-<<<<<<< HEAD
-  const fetchKlineData = async (
-    symbol: string,
-    interval: string
-  ): Promise<KlineData[]> => {
-=======
   const fetchKlineData = async (symbol: string, interval: string): Promise<KlineData[]> => {
->>>>>>> dev
     try {
       const limit = 2000 // 获取最近2000根K线 (更多历史数据)
       const klineUrl = `/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}&exchange=${exchange}`
@@ -200,22 +138,10 @@ export function ChartWithOrders({
   }
 
   // 获取订单数据
-<<<<<<< HEAD
-  const fetchOrders = async (
-    traderID: string,
-    symbol: string
-  ): Promise<OrderMarker[]> => {
-    try {
-      // 从后端 API 获取该 trader 的订单记录（只获取已成交的订单）
-      const result = await httpClient.get(
-        `/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=50`
-      )
-=======
   const fetchOrders = async (traderID: string, symbol: string): Promise<OrderMarker[]> => {
     try {
       // 从后端 API 获取该 trader 的订单记录（只获取已成交的订单）
       const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=50`)
->>>>>>> dev
 
       if (!result.success || !result.data) {
         console.warn('Failed to fetch orders:', result.message)
@@ -257,13 +183,7 @@ export function ChartWithOrders({
         })
       })
 
-<<<<<<< HEAD
-      console.log(
-        `[ChartWithOrders] Loaded ${markers.length} order markers for ${symbol}`
-      )
-=======
       console.log(`[ChartWithOrders] Loaded ${markers.length} order markers for ${symbol}`)
->>>>>>> dev
       return markers
     } catch (err) {
       console.error('Error fetching orders:', err)
@@ -283,65 +203,6 @@ export function ChartWithOrders({
     try {
       // 创建图表
       const chart = createChart(chartContainerRef.current, {
-<<<<<<< HEAD
-        width: chartContainerRef.current.clientWidth,
-        height: height,
-        layout: {
-          background: { color: '#0B0E11' },
-          textColor: '#EAECEF',
-        },
-        grid: {
-          vertLines: { color: 'rgba(43, 49, 57, 0.5)' },
-          horzLines: { color: 'rgba(43, 49, 57, 0.5)' },
-        },
-        crosshair: {
-          mode: 1, // Normal crosshair
-        },
-        rightPriceScale: {
-          borderColor: '#2B3139',
-        },
-        timeScale: {
-          borderColor: '#2B3139',
-          timeVisible: true,
-          secondsVisible: false,
-        },
-        localization: {
-          timeFormatter: (time: number) => {
-            const date = new Date(time * 1000)
-            return date.toLocaleString('zh-CN', {
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-            })
-          },
-        },
-      })
-
-      chartRef.current = chart
-
-      // 创建K线系列 (使用 v5 API)
-      const candlestickSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#0ECB81',
-        downColor: '#F6465D',
-        borderUpColor: '#0ECB81',
-        borderDownColor: '#F6465D',
-        wickUpColor: '#0ECB81',
-        wickDownColor: '#F6465D',
-      })
-
-      candlestickSeriesRef.current = candlestickSeries as any
-
-      // 响应式调整
-      const handleResize = () => {
-        if (chartContainerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({
-            width: chartContainerRef.current.clientWidth,
-          })
-        }
-      }
-=======
       width: chartContainerRef.current.clientWidth,
       height: height,
       layout: {
@@ -399,7 +260,6 @@ export function ChartWithOrders({
         })
       }
     }
->>>>>>> dev
 
       window.addEventListener('resize', handleResize)
 
@@ -446,17 +306,7 @@ export function ChartWithOrders({
         return
       }
 
-<<<<<<< HEAD
-      console.log(
-        '[ChartWithOrders] Loading data for',
-        symbol,
-        interval,
-        'trader:',
-        traderID
-      )
-=======
       console.log('[ChartWithOrders] Loading data for', symbol, interval, 'trader:', traderID)
->>>>>>> dev
       setLoading(true)
       setError(null)
 
@@ -464,28 +314,6 @@ export function ChartWithOrders({
         // 1. 获取K线数据
         console.log('[ChartWithOrders] Fetching kline data...')
         const klineData = await fetchKlineData(symbol, interval)
-<<<<<<< HEAD
-        console.log(
-          '[ChartWithOrders] Kline data received:',
-          klineData.length,
-          'candles'
-        )
-        candlestickSeriesRef.current.setData(klineData)
-
-        // 构建 K 线时间集合，用于快速查找
-        const klineTimeSet = new Set(klineData.map((k) => k.time as number))
-        const klineMinTime = klineData.length > 0 ? klineData[0].time : 0
-        const klineMaxTime =
-          klineData.length > 0 ? klineData[klineData.length - 1].time : 0
-        console.log(
-          '[ChartWithOrders] Kline time range:',
-          klineMinTime,
-          '-',
-          klineMaxTime,
-          'candles:',
-          klineData.length
-        )
-=======
         console.log('[ChartWithOrders] Kline data received:', klineData.length, 'candles')
         candlestickSeriesRef.current.setData(klineData)
 
@@ -494,7 +322,6 @@ export function ChartWithOrders({
         const klineMinTime = klineData.length > 0 ? klineData[0].time : 0
         const klineMaxTime = klineData.length > 0 ? klineData[klineData.length - 1].time : 0
         console.log('[ChartWithOrders] Kline time range:', klineMinTime, '-', klineMaxTime, 'candles:', klineData.length)
->>>>>>> dev
 
         // 计算时间周期的秒数
         const getIntervalSeconds = (interval: string): number => {
@@ -503,43 +330,6 @@ export function ChartWithOrders({
           const [, num, unit] = match
           const n = parseInt(num)
           switch (unit) {
-<<<<<<< HEAD
-            case 's':
-              return n
-            case 'm':
-              return n * 60
-            case 'h':
-              return n * 3600
-            case 'd':
-              return n * 86400
-            default:
-              return 60
-          }
-        }
-        const intervalSeconds = getIntervalSeconds(interval)
-        console.log(
-          '[ChartWithOrders] Interval:',
-          interval,
-          '=',
-          intervalSeconds,
-          'seconds'
-        )
-
-        // 2. 获取订单数据并添加标记
-        if (traderID) {
-          console.log(
-            '[ChartWithOrders] Fetching orders for trader:',
-            traderID,
-            'symbol:',
-            symbol
-          )
-          const orders = await fetchOrders(traderID, symbol)
-          console.log(
-            '[ChartWithOrders] Received orders:',
-            orders.length,
-            'orders'
-          )
-=======
             case 's': return n
             case 'm': return n * 60
             case 'h': return n * 3600
@@ -555,7 +345,6 @@ export function ChartWithOrders({
           console.log('[ChartWithOrders] Fetching orders for trader:', traderID, 'symbol:', symbol)
           const orders = await fetchOrders(traderID, symbol)
           console.log('[ChartWithOrders] Received orders:', orders.length, 'orders')
->>>>>>> dev
 
           if (orders.length === 0) {
             console.log('[ChartWithOrders] No orders to display')
@@ -574,29 +363,12 @@ export function ChartWithOrders({
 
           orders.forEach((order) => {
             // 将订单时间对齐到 K 线周期（向下取整）
-<<<<<<< HEAD
-            const alignedTime =
-              Math.floor(order.time / intervalSeconds) * intervalSeconds
-
-            // 检查对齐后的时间是否在 K 线数据中存在
-            if (!klineTimeSet.has(alignedTime)) {
-              console.warn(
-                '[ChartWithOrders] ⚠️ Skipping order - no matching kline:',
-                order.time,
-                '→',
-                alignedTime,
-                '(',
-                new Date(order.time * 1000).toISOString(),
-                ')'
-              )
-=======
             const alignedTime = Math.floor(order.time / intervalSeconds) * intervalSeconds
 
             // 检查对齐后的时间是否在 K 线数据中存在
             if (!klineTimeSet.has(alignedTime)) {
               console.warn('[ChartWithOrders] ⚠️ Skipping order - no matching kline:',
                 order.time, '→', alignedTime, '(', new Date(order.time * 1000).toISOString(), ')')
->>>>>>> dev
               return
             }
 
@@ -612,24 +384,9 @@ export function ChartWithOrders({
             })
           })
 
-<<<<<<< HEAD
-          console.log(
-            '[ChartWithOrders] Valid markers (with matching klines):',
-            markers.length,
-            'out of',
-            orders.length
-          )
-
-          console.log(
-            '[ChartWithOrders] Setting',
-            markers.length,
-            'markers on chart'
-          )
-=======
           console.log('[ChartWithOrders] Valid markers (with matching klines):', markers.length, 'out of', orders.length)
 
           console.log('[ChartWithOrders] Setting', markers.length, 'markers on chart')
->>>>>>> dev
 
           try {
             // 使用 v5 API: createSeriesMarkers
@@ -638,14 +395,7 @@ export function ChartWithOrders({
               seriesMarkersRef.current.setMarkers(markers)
             } else {
               // 首次创建标记
-<<<<<<< HEAD
-              seriesMarkersRef.current = createSeriesMarkers(
-                candlestickSeriesRef.current,
-                markers
-              )
-=======
               seriesMarkersRef.current = createSeriesMarkers(candlestickSeriesRef.current, markers)
->>>>>>> dev
             }
             console.log('[ChartWithOrders] ✅ Markers set successfully!')
           } catch (err) {
@@ -659,13 +409,7 @@ export function ChartWithOrders({
         setLoading(false)
       } catch (err) {
         console.error('Error loading chart data:', err)
-<<<<<<< HEAD
-        setError(
-          language === 'zh' ? '加载图表数据失败' : 'Failed to load chart data'
-        )
-=======
         setError(language === 'zh' ? '加载图表数据失败' : 'Failed to load chart data')
->>>>>>> dev
         setLoading(false)
       }
     }
@@ -683,21 +427,9 @@ export function ChartWithOrders({
   }, [symbol, interval, traderID, language])
 
   return (
-<<<<<<< HEAD
-    <div
-      className="relative"
-      style={{ background: '#0B0E11', borderRadius: '8px', overflow: 'hidden' }}
-    >
-      {/* 标题栏 */}
-      <div
-        className="flex items-center justify-between p-4"
-        style={{ borderBottom: '1px solid #2B3139' }}
-      >
-=======
     <div className="relative" style={{ background: '#0B0E11', borderRadius: '8px', overflow: 'hidden' }}>
       {/* 标题栏 */}
       <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #2B3139' }}>
->>>>>>> dev
         <div className="flex items-center gap-3">
           <span className="text-xl">📈</span>
           <h3 className="text-lg font-bold" style={{ color: '#EAECEF' }}>
@@ -736,59 +468,6 @@ export function ChartWithOrders({
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
             }}
           >
-<<<<<<< HEAD
-            <div
-              style={{
-                marginBottom: '6px',
-                color: '#F0B90B',
-                fontWeight: 'bold',
-                fontSize: '11px',
-              }}
-            >
-              {new Date((tooltipData.time as number) * 1000).toLocaleString(
-                language === 'zh' ? 'zh-CN' : 'en-US',
-                {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }
-              )}
-            </div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'auto 1fr',
-                gap: '4px 12px',
-                fontSize: '11px',
-              }}
-            >
-              <span style={{ color: '#848E9C' }}>O:</span>
-              <span style={{ color: '#EAECEF', fontWeight: '500' }}>
-                {tooltipData.open?.toFixed(2)}
-              </span>
-
-              <span style={{ color: '#848E9C' }}>H:</span>
-              <span style={{ color: '#0ECB81', fontWeight: '500' }}>
-                {tooltipData.high?.toFixed(2)}
-              </span>
-
-              <span style={{ color: '#848E9C' }}>L:</span>
-              <span style={{ color: '#F6465D', fontWeight: '500' }}>
-                {tooltipData.low?.toFixed(2)}
-              </span>
-
-              <span style={{ color: '#848E9C' }}>C:</span>
-              <span
-                style={{
-                  color:
-                    tooltipData.close >= tooltipData.open
-                      ? '#0ECB81'
-                      : '#F6465D',
-                  fontWeight: 'bold',
-                }}
-              >
-=======
             <div style={{ marginBottom: '6px', color: '#F0B90B', fontWeight: 'bold', fontSize: '11px' }}>
               {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
                 month: 'short',
@@ -812,7 +491,6 @@ export function ChartWithOrders({
                 color: tooltipData.close >= tooltipData.open ? '#0ECB81' : '#F6465D',
                 fontWeight: 'bold'
               }}>
->>>>>>> dev
                 {tooltipData.close?.toFixed(2)}
               </span>
             </div>
@@ -834,22 +512,6 @@ export function ChartWithOrders({
       )}
 
       {/* 图例说明 */}
-<<<<<<< HEAD
-      <div
-        className="flex items-center gap-4 p-4 text-xs"
-        style={{ borderTop: '1px solid #2B3139', color: '#848E9C' }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-bold" style={{ color: '#0ECB81' }}>
-            B
-          </span>
-          <span>{language === 'zh' ? 'BUY (买入)' : 'BUY'}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-bold" style={{ color: '#F6465D' }}>
-            S
-          </span>
-=======
       <div className="flex items-center gap-4 p-4 text-xs" style={{ borderTop: '1px solid #2B3139', color: '#848E9C' }}>
         <div className="flex items-center gap-2">
           <span className="font-bold" style={{ color: '#0ECB81' }}>B</span>
@@ -857,7 +519,6 @@ export function ChartWithOrders({
         </div>
         <div className="flex items-center gap-2">
           <span className="font-bold" style={{ color: '#F6465D' }}>S</span>
->>>>>>> dev
           <span>{language === 'zh' ? 'SELL (卖出)' : 'SELL'}</span>
         </div>
       </div>

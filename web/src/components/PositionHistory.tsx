@@ -655,60 +655,6 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
           border: '1px solid #2B3139',
         }}
       >
-<<<<<<< HEAD
-        <div
-          className="flex flex-col sm:flex-row sm:items-center gap-4 p-4"
-          style={{ borderBottom: '1px solid #2B3139' }}
-        >
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
-                {t('positionHistory.symbol', language)}:
-              </span>
-              <select
-                value={filterSymbol}
-                onChange={(e) => setFilterSymbol(e.target.value)}
-                className="rounded px-3 py-1.5 text-sm min-w-[100px]"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-              >
-                <option value="all">{t('positionHistory.allSymbols', language)}</option>
-                {uniqueSymbols.map((symbol) => (
-                  <option key={symbol} value={symbol}>
-                    {(symbol || '').replace('USDT', '')}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
-                {t('positionHistory.side', language)}:
-              </span>
-              <div className="flex rounded overflow-hidden" style={{ border: '1px solid #2B3139' }}>
-                {['all', 'LONG', 'SHORT'].map((side) => (
-                  <button
-                    key={side}
-                    onClick={() => setFilterSide(side)}
-                    className="px-3 py-1.5 text-sm capitalize transition-colors whitespace-nowrap"
-                    style={{
-                      background: filterSide === side ? '#2B3139' : 'transparent',
-                      color: filterSide === side ? '#EAECEF' : '#848E9C',
-                    }}
-                  >
-                    {side === 'all' ? t('positionHistory.all', language) : side}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:ml-auto">
-            <span className="text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
-=======
         {/* Filters */}
         <div
           className="flex flex-wrap items-center gap-4 p-4"
@@ -760,7 +706,6 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
 
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-sm" style={{ color: '#848E9C' }}>
->>>>>>> dev
               {t('positionHistory.sort', language)}:
             </span>
             <select
@@ -773,11 +718,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
                 setSortBy(by)
                 setSortOrder(order)
               }}
-<<<<<<< HEAD
-              className="rounded px-3 py-1.5 text-sm min-w-[120px]"
-=======
               className="rounded px-3 py-1.5 text-sm"
->>>>>>> dev
               style={{
                 background: '#0B0E11',
                 border: '1px solid #2B3139',
