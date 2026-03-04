@@ -1,7 +1,16 @@
 {
-  "name": "nofx-web",
+  "name": "@hansen1018/nofx-web",
   "version": "1.0.0",
+  "description": "NOFX AI Trading System - Frontend",
   "type": "module",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hansen1018/nofx.git",
+    "directory": "web"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
