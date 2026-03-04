@@ -1,0 +1,75 @@
+name: Publish Frontend to GitHub Packages (npm)
+
+on:
+  push:
+    branches:
+      - main
+      - Individual
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.0)'
+        required: false
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: 'https://npm.pkg.github.com'
+  SCOPE: '@hansen1018'
+
+jobs:
+  publish:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: ${{ env.REGISTRY }}
+          scope: ${{ env.SCOPE }}
+
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "@hansen1018:registry=${{ env.REGISTRY }}" >> .npmrc
+          echo "${{ env.REGISTRY }}/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+
+      - name: Install dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Build package
+        working-directory: ./web
+        run: npm run build
+
+      - name: Update version (if tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: ./web
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version
+
+      - name: Update version (if manual input)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
+        working-directory: ./web
+        run: |
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
+
+      - name: Publish to GitHub Packages
+        working-directory: ./web
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package info
+        run: |
+          echo "✅ Published: @hansen1018/nofx-web"
+          echo "📦 Registry: ${{ env.REGISTRY }}"
+          echo "🔗 Package: https://github.com/${{ github.repository }}/pkgs/npm/nofx-web"

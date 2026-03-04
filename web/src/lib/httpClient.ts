@@ -148,10 +148,18 @@ export class HttpClient {
 
     // Handle 500+ Server Error - system error
     if (status >= 500) {
+      const errorData = error.response?.data as any
+      const errorMessage =
+        errorData?.error || errorData?.message || 'Server error occurred'
+
+      // Show toast notification
       toast.error('Server Error', {
-        description: 'Please try again later or contact support',
+        description: errorMessage,
       })
-      throw new Error('Server error')
+
+      // Reject with error details so caller can handle it
+      // This allows the request() method to catch it and return proper error response
+      return Promise.reject(error)
     }
 
     // 4xx errors (except 401/403/404) are business logic errors
@@ -190,12 +198,29 @@ export class HttpClient {
       }
     } catch (error) {
       // If we get here, it's a business logic error (4xx except 401/403/404)
-      // System errors were already intercepted and toasted
-      if (axios.isAxiosError(error) && error.response) {
-        const errorData = error.response.data as any
-        return {
-          success: false,
-          message: errorData?.error || errorData?.message || 'Operation failed',
+      // System errors (500+) were intercepted and rejected with error details
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          const errorData = error.response.data as any
+          const status = error.response.status
+
+          // For 500+ errors, return error response so caller can handle it
+          if (status >= 500) {
+            return {
+              success: false,
+              message:
+                errorData?.error ||
+                errorData?.message ||
+                'Server error occurred',
+            }
+          }
+
+          // For 4xx errors, return error response
+          return {
+            success: false,
+            message:
+              errorData?.error || errorData?.message || 'Operation failed',
+          }
         }
       }
 
