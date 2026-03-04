@@ -292,7 +292,7 @@ func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 
 	// Build cancel order request
 	txReq := &types.CancelOrderTxReq{
-		MarketIndex: marketIndex,
+		MarketIndex: int16(marketIndex),
 		Index:       orderIndex,
 	}
 
