@@ -221,8 +221,9 @@ start() {
     fi
 
     if [ "$1" == "--build" ]; then
-        print_info "重新构建镜像..."
-        $COMPOSE_CMD up -d --build
+        print_info "重新构建镜像（清除缓存）..."
+        $COMPOSE_CMD build --no-cache
+        $COMPOSE_CMD up -d
     else
         print_info "启动容器..."
         $COMPOSE_CMD up -d

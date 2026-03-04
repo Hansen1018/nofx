@@ -84,6 +84,9 @@ type GridContext struct {
 
 	// Box indicators (Donchian Channels)
 	BoxData *market.BoxData `json:"box_data,omitempty"`
+
+	// Grid direction (neutral, long, short, long_bias, short_bias)
+	CurrentDirection string `json:"current_direction,omitempty"`
 }
 
 // ============================================================================
@@ -121,15 +124,18 @@ func buildGridSystemPromptZh(config *store.GridStrategyConfig) string {
 - **趋势市场** (暂停网格): 布林带宽度 > 4%%, EMA20/50 距离 > 2%%, 价格持续突破布林带
 - **高波动市场** (谨慎): ATR异常放大, 价格剧烈波动
 
-### 可执行的操作
-- place_buy_limit: 在指定价格下买入限价单
-- place_sell_limit: 在指定价格下卖出限价单
-- cancel_order: 取消指定订单
-- cancel_all_orders: 取消所有订单
-- pause_grid: 暂停网格交易（趋势市场时）
-- resume_grid: 恢复网格交易（震荡市场时）
-- adjust_grid: 调整网格边界
-- hold: 保持当前状态不操作
+### ⚠️ CRITICAL ACTION REQUIREMENT: You MUST use ONLY these exact action values:
+- place_buy_limit - 在指定价格下买入限价单
+- place_sell_limit - 在指定价格下卖出限价单
+- cancel_order - 取消指定订单
+- cancel_all_orders - 取消所有订单
+- pause_grid - 暂停网格交易（趋势市场时）
+- resume_grid - 恢复网格交易（震荡市场时）
+- adjust_grid - 调整网格边界
+- hold - 保持当前状态不操作
+
+❌ DO NOT USE: buy, sell, long, short, open, close, none, null, empty string, or ANY other variations!
+❌ Any other action value will cause the decision to be rejected!
 
 ## 输出格式
 输出JSON数组，每个决策包含:
@@ -279,6 +285,20 @@ func buildGridUserPromptZh(ctx *GridContext) string {
 	sb.WriteString(fmt.Sprintf("- 活跃订单数: %d\n", ctx.ActiveOrderCount))
 	sb.WriteString(fmt.Sprintf("- 已成交层数: %d\n", ctx.FilledLevelCount))
 	sb.WriteString(fmt.Sprintf("- 网格已暂停: %v\n", ctx.IsPaused))
+	if ctx.CurrentDirection != "" {
+		directionDescZh := map[string]string{
+			"neutral":    "中性 (50%买+50%卖)",
+			"long":       "做多 (100%买)",
+			"short":      "做空 (100%卖)",
+			"long_bias":  "偏多 (70%买+30%卖)",
+			"short_bias": "偏空 (30%买+70%卖)",
+		}
+		desc := directionDescZh[ctx.CurrentDirection]
+		if desc == "" {
+			desc = ctx.CurrentDirection
+		}
+		sb.WriteString(fmt.Sprintf("- 网格方向: %s\n", desc))
+	}
 	sb.WriteString("\n")
 
 	// Grid levels detail
@@ -376,6 +396,20 @@ func buildGridUserPromptEn(ctx *GridContext) string {
 	sb.WriteString(fmt.Sprintf("- Active Orders: %d\n", ctx.ActiveOrderCount))
 	sb.WriteString(fmt.Sprintf("- Filled Levels: %d\n", ctx.FilledLevelCount))
 	sb.WriteString(fmt.Sprintf("- Grid Paused: %v\n", ctx.IsPaused))
+	if ctx.CurrentDirection != "" {
+		directionDescEn := map[string]string{
+			"neutral":    "Neutral (50% buy + 50% sell)",
+			"long":       "Long (100% buy)",
+			"short":      "Short (100% sell)",
+			"long_bias":  "Long Bias (70% buy + 30% sell)",
+			"short_bias": "Short Bias (30% buy + 70% sell)",
+		}
+		desc := directionDescEn[ctx.CurrentDirection]
+		if desc == "" {
+			desc = ctx.CurrentDirection
+		}
+		sb.WriteString(fmt.Sprintf("- Grid Direction: %s\n", desc))
+	}
 	sb.WriteString("\n")
 
 	// Grid levels detail

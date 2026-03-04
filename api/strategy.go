@@ -377,9 +377,9 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	var req struct {
-		Config          store.StrategyConfig `json:"config" binding:"required"`
-		AccountEquity   float64              `json:"account_equity"`
-		PromptVariant   string               `json:"prompt_variant"`
+		Config        store.StrategyConfig `json:"config" binding:"required"`
+		AccountEquity float64              `json:"account_equity"`
+		PromptVariant string               `json:"prompt_variant"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -408,11 +408,21 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 		"system_prompt":  systemPrompt,
 		"prompt_variant": req.PromptVariant,
 		"config_summary": gin.H{
-			"coin_source":      req.Config.CoinSource.SourceType,
-			"primary_tf":       req.Config.Indicators.Klines.PrimaryTimeframe,
-			"btc_eth_leverage": req.Config.RiskControl.BTCETHMaxLeverage,
-			"altcoin_leverage": req.Config.RiskControl.AltcoinMaxLeverage,
-			"max_positions":    req.Config.RiskControl.MaxPositions,
+			"coin_source":              req.Config.CoinSource.SourceType,
+			"primary_tf":               req.Config.Indicators.Klines.PrimaryTimeframe,
+			"btc_eth_leverage":         req.Config.RiskControl.BTCETHMaxLeverage,
+			"altcoin_leverage":         req.Config.RiskControl.AltcoinMaxLeverage,
+			"max_positions":            req.Config.RiskControl.MaxPositions,
+			"max_margin_usage":         req.Config.RiskControl.MaxMarginUsage,
+			"min_position_size":        req.Config.RiskControl.MinPositionSize,
+			"min_risk_reward_ratio":    req.Config.RiskControl.MinRiskRewardRatio,
+			"min_confidence":           req.Config.RiskControl.MinConfidence,
+			"breakeven_threshold":      req.Config.RiskControl.BreakevenThreshold,
+			"update_stop_loss_enabled": req.Config.RiskControl.UpdateStopLossEnabled,
+			"hard_stop_loss_pct":       req.Config.RiskControl.HardStopLossPct,
+			"trailing_stop_pct":        req.Config.RiskControl.TrailingStopPct,
+			"trailing_stop_min_profit": req.Config.RiskControl.TrailingStopMinProfit,
+			"trailing_stop_drawdown":   req.Config.RiskControl.TrailingStopDrawdown,
 		},
 	})
 }
@@ -484,7 +494,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	// Get real market data (using multiple timeframes)
 	marketDataMap := make(map[string]*market.Data)
 	for _, coin := range candidates {
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount, "")
 		if err != nil {
 			// If getting data for a coin fails, log but continue
 			fmt.Printf("⚠️  Failed to get market data for %s: %v\n", coin.Symbol, err)
@@ -639,4 +649,3 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 
 	return response, nil
 }
-
