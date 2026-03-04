@@ -81,7 +81,10 @@ export default function FooterSection({ language }: FooterSectionProps) {
 
           {/* Links */}
           <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
+            <h4
+              className="text-sm font-semibold mb-4"
+              style={{ color: '#EAECEF' }}
+            >
               {t('links', language)}
             </h4>
             <ul className="space-y-3">
@@ -103,7 +106,10 @@ export default function FooterSection({ language }: FooterSectionProps) {
 
           {/* Resources */}
           <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
+            <h4
+              className="text-sm font-semibold mb-4"
+              style={{ color: '#EAECEF' }}
+            >
               {t('resources', language)}
             </h4>
             <ul className="space-y-3">
@@ -126,7 +132,10 @@ export default function FooterSection({ language }: FooterSectionProps) {
 
           {/* Supporters */}
           <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
+            <h4
+              className="text-sm font-semibold mb-4"
+              style={{ color: '#EAECEF' }}
+            >
               {t('supporters', language)}
             </h4>
             <div className="flex flex-wrap gap-2">
@@ -149,7 +158,10 @@ export default function FooterSection({ language }: FooterSectionProps) {
         {/* Bottom Section */}
         <div
           className="pt-6 text-center text-xs"
-          style={{ color: '#5E6673', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
+          style={{
+            color: '#5E6673',
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+          }}
         >
           <p className="mb-2">{t('footerTitle', language)}</p>
           <p style={{ color: '#3C4249' }}>{t('footerWarning', language)}</p>
