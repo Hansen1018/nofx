@@ -415,6 +415,7 @@ Then output your decisions in STRICT JSON ARRAY format (can include multiple coi
 - "close_short" (平空仓)
 - "hold" (持仓观望)
 - "wait" (空仓等待)
+	- **IMPORTANT**: Use "action" field (NOT "decision") for the action type
 
 - **update_stop_loss**: Update existing stop loss price (use with existing position)
 
@@ -697,6 +698,7 @@ You may vote differently from your earlier position if convinced by others' argu
 - "close_short" (平空仓)
 - "hold" (持仓观望)
 - "wait" (空仓等待)
+	- **IMPORTANT**: Use "action" field (NOT "decision") for the action type
 
 ---
 
