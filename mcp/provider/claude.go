@@ -26,7 +26,7 @@ import (
 
 const (
 	DefaultClaudeBaseURL = "https://api.anthropic.com/v1"
-	DefaultClaudeModel   = "claude-opus-4-7"
+	DefaultClaudeModel   = "claude-opus-4-6"
 )
 
 func init() {
