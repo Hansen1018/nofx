@@ -669,7 +669,7 @@ console.log('🔥 handleSaveEditTrader - data:', data)
   const handleToggleCompetition = async (
     traderId: string,
     currentShowInCompetition: boolean
-) => {
+  ) => {
     try {
       const newValue = !currentShowInCompetition
       await toast.promise(api.toggleCompetition(traderId, newValue), {
@@ -966,7 +966,7 @@ await toast.promise(api.updateExchangeConfigsEncrypted(request), {
           lighter_api_key_index: lighterApiKeyIndex || 0,
         }
 
-        await toast.promise(api.createExchangeEncrypted(createRequest), {
+await toast.promise(api.createExchangeEncrypted(createRequest), {
           loading: t('aiTradersToast.creatingExchange', language),
           success: t('aiTradersToast.exchangeCreated', language),
           error: t('aiTradersToast.exchangeCreateFailed', language),

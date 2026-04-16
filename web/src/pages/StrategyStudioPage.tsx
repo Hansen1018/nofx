@@ -473,7 +473,7 @@ export function StrategyStudioPage() {
       ? gridConfigCacheRef.current[selectedStrategy.id]
       : null
 
-    setEditingConfig((prev) => {
+setEditingConfig((prev) => {
       if (!prev) return prev
 
       if (strategyType === 'ai_trading') {
@@ -481,11 +481,10 @@ export function StrategyStudioPage() {
           gridConfigCacheRef.current[selectedStrategy.id] = { ...prev.grid_config }
         }
 
+        const { grid_config: _ignore, ...rest } = prev
         return {
-          ...prev,
-          strategy_type: 'ai_trading',
-          // Use null so the field is preserved in JSON and backend merge can actually clear it.
-          grid_config: null,
+          ...rest,
+          strategy_type: 'ai_trading' as const,
         }
       }
 
