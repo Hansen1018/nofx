@@ -114,6 +114,7 @@ export interface AIModel {
   name: string
   provider: string
   enabled: boolean
+  has_api_key?: boolean
   apiKey?: string
   customApiUrl?: string
   customModelName?: string
@@ -158,6 +159,9 @@ export interface Exchange {
   name: string                   // Display name
   type: 'cex' | 'dex'
   enabled: boolean
+  has_api_key?: boolean
+  has_secret_key?: boolean
+  has_passphrase?: boolean
   apiKey?: string
   secretKey?: string
   passphrase?: string            // OKX specific
