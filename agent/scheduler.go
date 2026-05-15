@@ -6,15 +6,13 @@ import (
 	"log/slog"
 	"nofx/safe"
 	"strings"
-	"sync"
 	"time"
 )
 
 type Scheduler struct {
-	agent    *Agent
-	logger   *slog.Logger
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	agent  *Agent
+	logger *slog.Logger
+	stopCh chan struct{}
 }
 
 func NewScheduler(a *Agent, l *slog.Logger) *Scheduler {
@@ -53,7 +51,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	})
 }
 
-func (s *Scheduler) Stop() { s.stopOnce.Do(func() { close(s.stopCh) }) }
+func (s *Scheduler) Stop() { close(s.stopCh) }
 
 func (s *Scheduler) dailyReport() {
 	if s.agent.traderManager == nil { return }

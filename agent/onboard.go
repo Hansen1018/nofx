@@ -64,32 +64,19 @@ func (a *Agent) saveSetupState(userID int64, s *SetupState) {
 	a.store.SetSystemConfig(fmt.Sprintf("setup_step_%d", userID), s.Step)
 	setConfig(a.store, userID, "exchange", s.Exchange)
 	setConfig(a.store, userID, "exchange_id", s.ExchangeID)
-	// Store only a masked marker for secrets — full values stay in memory only.
-	// This prevents plaintext credentials from lingering in the config store
-	// if the setup flow is interrupted before clearSetupState runs.
-	if s.APIKey != "" {
-		setConfig(a.store, userID, "api_key", "****")
-	}
-	if s.APISecret != "" {
-		setConfig(a.store, userID, "api_secret", "****")
-	}
-	if s.Passphrase != "" {
-		setConfig(a.store, userID, "passphrase", "****")
-	}
+	setConfig(a.store, userID, "api_key", s.APIKey)
+	setConfig(a.store, userID, "api_secret", s.APISecret)
+	setConfig(a.store, userID, "passphrase", s.Passphrase)
 	setConfig(a.store, userID, "ai_provider", s.AIProvider)
 	setConfig(a.store, userID, "ai_model", s.AIModel)
 	setConfig(a.store, userID, "ai_model_id", s.AIModelID)
-	if s.AIKey != "" {
-		setConfig(a.store, userID, "ai_key", "****")
-	}
+	setConfig(a.store, userID, "ai_key", s.AIKey)
 	setConfig(a.store, userID, "ai_base_url", s.AIBaseURL)
 }
 
 func (a *Agent) clearSetupState(userID int64) {
 	for _, k := range []string{"step", "exchange", "exchange_id", "api_key", "api_secret", "passphrase", "ai_provider", "ai_model", "ai_model_id", "ai_key", "ai_base_url"} {
-		if err := a.store.SetSystemConfig(fmt.Sprintf("setup_%s_%d", k, userID), ""); err != nil {
-			a.log().Warn("clearSetupState: failed to clear key", "key", k, "error", err)
-		}
+		a.store.SetSystemConfig(fmt.Sprintf("setup_%s_%d", k, userID), "")
 	}
 }
 
@@ -226,7 +213,7 @@ func isDirectSetupCommand(text string) bool {
 		return false
 	}
 	switch text {
-	case "setup", "/setup", "开始配置", "配置", "开始设置":
+	case "setup", "/setup":
 		return true
 	default:
 		return false
@@ -502,7 +489,9 @@ func (a *Agent) saveSetupAIModel(storeUserID string, state *SetupState) (string,
 		return "", err
 	}
 
-	modelID = fmt.Sprintf("%s_%s", storeUserID, state.AIProvider)
+	if modelID == state.AIProvider {
+		modelID = fmt.Sprintf("%s_%s", storeUserID, state.AIProvider)
+	}
 	return modelID, nil
 }
 

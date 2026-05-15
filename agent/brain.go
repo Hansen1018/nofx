@@ -17,7 +17,6 @@ type Brain struct {
 	logger        *slog.Logger
 	http          *http.Client
 	stopCh        chan struct{}
-	stopOnce      sync.Once
 	recentSignals sync.Map // debounce
 }
 
@@ -30,7 +29,7 @@ func NewBrain(agent *Agent, logger *slog.Logger) *Brain {
 	}
 }
 
-func (b *Brain) Stop() { b.stopOnce.Do(func() { close(b.stopCh) }) }
+func (b *Brain) Stop() { close(b.stopCh) }
 
 // cleanStaleSignals removes debounce entries older than 30 minutes.
 func (b *Brain) cleanStaleSignals() {

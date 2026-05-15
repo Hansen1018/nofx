@@ -43,7 +43,7 @@ export function AgentStepPanel({ steps, visible }: AgentStepPanelProps) {
           marginBottom: 10,
         }}
       >
-        Live Run
+        Agent Steps
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {steps.map((step) => {

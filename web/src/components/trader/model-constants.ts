@@ -7,7 +7,6 @@ export interface Claw402Model {
   desc: string
   icon: string
   price: number  // USD per call
-  isNew?: boolean
 }
 
 export interface AIProviderConfig {
@@ -42,12 +41,8 @@ export function getShortName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : fullName
 }
 
-export const DEFAULT_CLAW402_MODEL = 'deepseek-v4-flash'
-
 // Models available through Claw402 (x402 USDC payment protocol)
 export const CLAW402_MODELS: Claw402Model[] = [
-  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'DeepSeek', desc: '$0.003/call', icon: '⚡', price: 0.003, isNew: true },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'DeepSeek', desc: '$0.01/call', icon: '🧠', price: 0.01, isNew: true },
   { id: 'deepseek', name: 'DeepSeek V3', provider: 'DeepSeek', desc: '$0.003/call', icon: '🔥', price: 0.003 },
   { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'DeepSeek', desc: '$0.005/call', icon: '🤔', price: 0.005 },
   { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', desc: '$0.005/call', icon: '🚀', price: 0.005 },
@@ -59,7 +54,6 @@ export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'qwen-max', name: 'Qwen Max', provider: 'Alibaba', desc: '$0.01/call', icon: '🌟', price: 0.01 },
   { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'Google', desc: '$0.03/call', icon: '💎', price: 0.03 },
   { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', desc: '$0.05/call', icon: '⚡', price: 0.05 },
-  { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', desc: '$0.15/call', icon: '💫', price: 0.15 },
   { id: 'grok-4.1', name: 'Grok 4.1', provider: 'xAI', desc: '$0.06/call', icon: '⚡', price: 0.06 },
   { id: 'claude-opus', name: 'Claude Opus', provider: 'Anthropic', desc: '$0.12/call', icon: '🎯', price: 0.12 },
   { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'OpenAI', desc: '$0.50/call', icon: '🧠', price: 0.50 },
@@ -69,11 +63,6 @@ export const BLOCKRUN_MODELS: BlockrunModel[] = [
   {
     id: 'gpt-5.2',
     name: 'GPT-5.2',
-    desc: 'Base wallet payment',
-  },
-  {
-    id: 'gpt-5.5',
-    name: 'GPT-5.5',
     desc: 'Base wallet payment',
   },
   {
@@ -136,7 +125,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'MiniMax',
   },
   claw402: {
-    defaultModel: DEFAULT_CLAW402_MODEL,
+    defaultModel: 'glm-5',
     apiUrl: 'https://claw402.ai',
     apiName: 'Claw402',
   },

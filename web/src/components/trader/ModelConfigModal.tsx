@@ -4,12 +4,11 @@ import { Trash2, Brain, ExternalLink } from 'lucide-react'
 import type { AIModel } from '../../types'
 import type { Language } from '../../i18n/translations'
 import { t } from '../../i18n/translations'
-import { api } from '../../lib/api'
-import { getBeginnerWalletAddress } from '../../lib/onboarding'
 import { getModelIcon } from '../common/ModelIcons'
 import { ModelStepIndicator } from './ModelStepIndicator'
 import { ModelCard } from './ModelCard'
 import {
+  BLOCKRUN_MODELS,
   CLAW402_MODELS,
   AI_PROVIDER_CONFIG,
   getShortName,
@@ -50,8 +49,6 @@ export function ModelConfigModal({
   const selectedModel =
     allModels?.find((m) => m.id === selectedModelId) ||
     configuredModels?.find((m) => m.id === selectedModelId)
-  const configuredModel =
-    configuredModels?.find((m) => m.id === selectedModelId) || null
 
   useEffect(() => {
     if (editingModelId && selectedModel) {
@@ -193,14 +190,6 @@ function ModelSelectionStep({
   onSelectModel: (modelId: string) => void
   language: Language
 }) {
-  const [showOtherProviders, setShowOtherProviders] = useState(false)
-  const claw402Model =
-    availableModels.find((model) => model.provider === 'claw402') || null
-  const otherProviders = availableModels.filter(
-    (model) =>
-      model.provider !== 'claw402' && !model.provider?.startsWith('blockrun')
-  )
-
   return (
     <div className="space-y-4">
       <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
@@ -208,11 +197,12 @@ function ModelSelectionStep({
       </div>
 
       {/* Claw402 Featured Card */}
-      {claw402Model && (
+      {availableModels.some(m => m.provider === 'claw402') && (
         <button
           type="button"
           onClick={() => {
-            onSelectModel(claw402Model.id)
+            const claw = availableModels.find(m => m.provider === 'claw402')
+            if (claw) onSelectModel(claw.id)
           }}
           className="w-full p-5 rounded-xl text-left transition-all hover:scale-[1.01]"
           style={{ background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%)', border: '1.5px solid rgba(37, 99, 235, 0.4)' }}
@@ -292,7 +282,6 @@ function ModelSelectionStep({
 function Claw402ConfigForm({
   apiKey,
   modelName,
-  configuredModel,
   editingModelId,
   onApiKeyChange,
   onModelNameChange,
@@ -302,7 +291,6 @@ function Claw402ConfigForm({
 }: {
   apiKey: string
   modelName: string
-  configuredModel: AIModel | null
   editingModelId: string | null
   onApiKeyChange: (value: string) => void
   onModelNameChange: (value: string) => void
@@ -511,46 +499,31 @@ function Claw402ConfigForm({
               type="password"
               value={apiKey}
               onChange={(e) => onApiKeyChange(e.target.value)}
-              placeholder={
-                hasExistingWallet
-                  ? language === 'zh'
-                    ? '已保存，如需更换钱包请重新输入私钥'
-                    : 'Already saved. Enter a new private key only to replace the wallet.'
-                  : '0x...'
-              }
+              placeholder="0x..."
               className="flex-1 px-4 py-3 rounded-xl font-mono text-sm"
               style={{
                 background: '#0B0E11',
                 border: keyError ? '1px solid #EF4444' : walletAddress ? '1px solid #00E096' : '1px solid #2B3139',
                 color: '#EAECEF',
               }}
-              required={!hasExistingWallet}
+              required
             />
             {!apiKey && (
               <button
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch('/api/wallet/generate', {
-                      method: 'POST',
-                    })
+                    const res = await fetch('/api/wallet/generate', { method: 'POST' })
                     const data = await res.json()
                     if (data.private_key) {
                       onApiKeyChange(data.private_key)
                       setShowNewWalletBackup(true)
                       setNewWalletKey(data.private_key)
                     }
-                  } catch {
-                    /* ignore */
-                  }
+                  } catch { /* ignore */ }
                 }}
                 className="shrink-0 px-3 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
-                style={{
-                  background: 'linear-gradient(135deg, #2563EB, #7C3AED)',
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
+                style={{ background: 'linear-gradient(135deg, #2563EB, #7C3AED)', color: '#fff', border: 'none', cursor: 'pointer' }}
               >
                 {language === 'zh' ? '🔑 创建钱包' : '🔑 Create Wallet'}
               </button>
@@ -559,21 +532,9 @@ function Claw402ConfigForm({
 
           {/* New wallet backup warning */}
           {showNewWalletBackup && newWalletKey && (
-            <div
-              className="p-3 rounded-xl"
-              style={{
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-              }}
-            >
-              <div
-                className="text-xs font-bold mb-2"
-                style={{ color: '#EF4444' }}
-              >
-                🚨{' '}
-                {language === 'zh'
-                  ? '重要：请立即备份私钥！'
-                  : 'Important: Backup your private key NOW!'}
+            <div className="p-3 rounded-xl" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+              <div className="text-xs font-bold mb-2" style={{ color: '#EF4444' }}>
+                🚨 {language === 'zh' ? '重要：请立即备份私钥！' : 'Important: Backup your private key NOW!'}
               </div>
               <div className="text-[11px] mb-2" style={{ color: '#F87171' }}>
                 {language === 'zh'
@@ -581,10 +542,7 @@ function Claw402ConfigForm({
                   : 'This is your wallet private key. If lost, it cannot be recovered and all assets will be permanently lost. Copy and save it securely.'}
               </div>
               <div className="flex items-center gap-2 mb-2">
-                <code
-                  className="text-[10px] font-mono break-all select-all flex-1 p-2 rounded"
-                  style={{ background: '#0B0E11', color: '#F87171' }}
-                >
+                <code className="text-[10px] font-mono break-all select-all flex-1 p-2 rounded" style={{ background: '#0B0E11', color: '#F87171' }}>
                   {newWalletKey}
                 </code>
                 <button
@@ -595,38 +553,15 @@ function Claw402ConfigForm({
                     setTimeout(() => setCopiedAddr(false), 2000)
                   }}
                   className="shrink-0 text-[10px] px-2 py-1 rounded"
-                  style={{
-                    background: 'rgba(239,68,68,0.15)',
-                    color: '#F87171',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
+                  style={{ background: 'rgba(239,68,68,0.15)', color: '#F87171', border: 'none', cursor: 'pointer' }}
                 >
                   {copiedAddr ? '✅ Copied' : '📋 Copy Key'}
                 </button>
               </div>
-              <div
-                className="text-[10px] space-y-1"
-                style={{ color: '#848E9C' }}
-              >
-                <div>
-                  ✅{' '}
-                  {language === 'zh'
-                    ? '建议保存到密码管理器（1Password / Bitwarden）'
-                    : 'Save to a password manager (1Password / Bitwarden)'}
-                </div>
-                <div>
-                  ✅{' '}
-                  {language === 'zh'
-                    ? '或抄在纸上放安全的地方'
-                    : 'Or write it down and store it safely'}
-                </div>
-                <div>
-                  ❌{' '}
-                  {language === 'zh'
-                    ? '不要截图发给别人'
-                    : 'Do NOT screenshot or share with anyone'}
-                </div>
+              <div className="text-[10px] space-y-1" style={{ color: '#848E9C' }}>
+                <div>✅ {language === 'zh' ? '建议保存到密码管理器（1Password / Bitwarden）' : 'Save to a password manager (1Password / Bitwarden)'}</div>
+                <div>✅ {language === 'zh' ? '或抄在纸上放安全的地方' : 'Or write it down and store it safely'}</div>
+                <div>❌ {language === 'zh' ? '不要截图发给别人' : 'Do NOT screenshot or share with anyone'}</div>
               </div>
             </div>
           )}
@@ -750,7 +685,7 @@ function Claw402ConfigForm({
             )}
 
             {/* Test Connection button */}
-            {(isKeyValid || hasExistingWallet) && !validating && (
+            {isKeyValid && !validating && (
               <button
                 type="button"
                 onClick={handleTestConnection}
@@ -802,7 +737,7 @@ function Claw402ConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!isKeyValid && !hasExistingWallet}
+          disabled={!isKeyValid}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: isKeyValid ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
         >
@@ -889,14 +824,9 @@ function StandardProviderConfigForm({
       {editingModelId && selectedModel && 'has_api_key' in selectedModel && (
         <div
           className="p-3 rounded-xl text-xs"
-          style={{
-            background: 'rgba(14, 203, 129, 0.08)',
-            border: '1px solid rgba(14, 203, 129, 0.2)',
-            color: '#9FE8C5',
-          }}
+          style={{ background: 'rgba(14, 203, 129, 0.08)', border: '1px solid rgba(14, 203, 129, 0.2)', color: '#9FE8C5' }}
         >
-          当前模型密钥状态：
-          {selectedModel.has_api_key ? '已配置 API Key' : '未配置 API Key'}
+          当前模型密钥状态：{selectedModel.has_api_key ? '已配置 API Key' : '未配置 API Key'}
         </div>
       )}
 
@@ -917,10 +847,10 @@ function StandardProviderConfigForm({
             editingModelId && selectedModel.has_api_key
               ? '已保存，如需更换请重新输入'
               : selectedModel.provider === 'blockrun-base'
-                ? '0x... (EVM private key)'
-                : selectedModel.provider === 'blockrun-sol'
-                  ? 'bs58 encoded key (Solana)'
-                  : t('enterAPIKey', language)
+              ? '0x... (EVM private key)'
+              : selectedModel.provider === 'blockrun-sol'
+              ? 'bs58 encoded key (Solana)'
+              : t('enterAPIKey', language)
           }
           className="w-full px-4 py-3 rounded-xl"
           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
