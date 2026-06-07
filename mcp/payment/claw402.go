@@ -61,8 +61,7 @@ var claw402ModelEndpoints = map[string]string{
 	"gpt-5.3":     "/api/v1/ai/openai/chat/5.3",
 	"gpt-5-mini":  "/api/v1/ai/openai/chat/5-mini",
 	// Anthropic
-	"claude-opus":     "/api/v1/ai/anthropic/messages/opus",
-	"claude-opus-4-8": "/api/v1/ai/anthropic/messages/opus-4-8",
+	"claude-opus": "/api/v1/ai/anthropic/messages/opus",
 	// DeepSeek
 	"deepseek":          "/api/v1/ai/deepseek/chat",
 	"deepseek-reasoner": "/api/v1/ai/deepseek/chat/reasoner",
