@@ -57,6 +57,7 @@ export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', desc: '$0.15/call', icon: '💫', price: 0.15 },
   { id: 'grok-4.1', name: 'Grok 4.1', provider: 'xAI', desc: '$0.06/call', icon: '⚡', price: 0.06 },
   { id: 'claude-opus', name: 'Claude Opus', provider: 'Anthropic', desc: '$0.12/call', icon: '🎯', price: 0.12 },
+  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'Anthropic', desc: '$0.18/call', icon: '🚀', price: 0.18 },
   { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'OpenAI', desc: '$0.50/call', icon: '🧠', price: 0.50 },
 ]
 
@@ -74,6 +75,11 @@ export const BLOCKRUN_MODELS: BlockrunModel[] = [
   {
     id: 'claude-opus-4-6',
     name: 'Claude Opus 4.6',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'claude-opus-4-8',
+    name: 'Claude Opus 4.8',
     desc: 'Base wallet payment',
   },
   {
@@ -106,7 +112,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'OpenAI',
   },
   claude: {
-    defaultModel: 'claude-opus-4-6',
+    defaultModel: 'claude-opus-4-8',
     apiUrl: 'https://console.anthropic.com/settings/keys',
     apiName: 'Anthropic',
   },

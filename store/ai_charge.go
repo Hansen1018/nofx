@@ -31,6 +31,7 @@ var modelPrices = map[string]float64{
 	"gpt-5-mini":        0.005,
 	"claude-opus":       0.12,
 	"MiniMax-M3":         0.20,
+	"claude-opus-4-8":   0.18,
 	"qwen-max":          0.01,
 	"qwen-plus":         0.005,
 	"qwen-turbo":        0.002,
