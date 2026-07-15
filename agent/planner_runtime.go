@@ -1833,3 +1833,28 @@ func (a *Agent) thinkAndActLegacy(ctx context.Context, userID int64, lang, text 
 	}
 	return finalResp, nil
 }
+
+func isExplicitFlowAbort(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if isCancelSkillReply(text) {
+		return true
+	}
+	return containsAny(lower, []string{
+		"算了", "先不", "不配了", "别弄了", "不搞了", "先停", "换个话题", "换话题", "聊点别的", "聊别的",
+		"stop this", "drop it", "never mind", "forget it", "skip this",
+	})
+}
+
+func wantsStrategyDetails(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	return containsAny(lower, []string{
+		"什么样", "怎么样", "详情", "详细", "参数", "配置", "prompt", "提示词",
+		"what kind", "details", "detail", "config", "configuration", "parameter", "prompt",
+	})
+}
