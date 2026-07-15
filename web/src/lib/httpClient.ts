@@ -22,24 +22,29 @@ export interface ApiResponse<T = any> {
   errorKey?: string
   errorParams?: Record<string, string>
   statusCode?: number
+  /** Full error response body for endpoints that return structured details. */
+  errorData?: Record<string, any>
 }
 
 export class ApiError extends Error {
   errorKey?: string
   errorParams?: Record<string, string>
   statusCode?: number
+  errorData?: Record<string, any>
 
   constructor(
     message: string,
     errorKey?: string,
     errorParams?: Record<string, string>,
-    statusCode?: number
+    statusCode?: number,
+    errorData?: Record<string, any>
   ) {
     super(message)
     this.name = 'ApiError'
     this.errorKey = errorKey
     this.errorParams = errorParams
     this.statusCode = statusCode
+    this.errorData = errorData
   }
 }
 
@@ -108,23 +113,31 @@ export class HttpClient {
    */
   private async handleError(error: AxiosError): Promise<any> {
     const isSilent = (error.config as any)?.silentError === true
-    const errorData = error.response?.data as {
-      error?: string
-      message?: string
-      error_key?: string
-      error_params?: Record<string, string>
-    } | undefined
+    const errorData = error.response?.data as
+      | {
+          error?: string
+          message?: string
+          error_key?: string
+          error_params?: Record<string, string>
+        }
+      | undefined
     const serverMessage = errorData?.error || errorData?.message
 
     // Network error (no response from server)
     if (!error.response) {
+      const isTimeout = error.code === 'ECONNABORTED'
+      const message = isTimeout
+        ? 'Request timed out'
+        : error.message || 'Network error'
       if (!isSilent) {
-        toast.error('Network error - Please check your connection', {
+        toast.error(isTimeout ? 'Request timed out' : 'Network error', {
           id: 'network-error',
-          description: 'Unable to reach the server',
+          description: isTimeout
+            ? 'The upstream service took too long to respond'
+            : 'Unable to reach the server',
         })
       }
-      throw new Error('Network error')
+      throw new Error(message)
     }
 
     const status = error.response?.status ?? 0
@@ -215,6 +228,7 @@ export class HttpClient {
       params?: any
       headers?: Record<string, string>
       silent?: boolean
+      timeout?: number
     } = {}
   ): Promise<ApiResponse<T>> {
     try {
@@ -224,6 +238,7 @@ export class HttpClient {
         data: options.data,
         params: options.params,
         headers: options.headers,
+        timeout: options.timeout,
         ...(options.silent && { silentError: true }),
       })
 
@@ -244,6 +259,8 @@ export class HttpClient {
           errorKey: errorData?.error_key,
           errorParams: errorData?.error_params,
           statusCode: error.response.status,
+          errorData:
+            errorData && typeof errorData === 'object' ? errorData : undefined,
         }
       }
 

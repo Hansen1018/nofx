@@ -2,7 +2,10 @@ package trader
 
 import (
 	"fmt"
+	"nofx/kernel"
 	"nofx/logger"
+	"nofx/market"
+	"nofx/store"
 	"strings"
 	"time"
 )
@@ -183,6 +186,18 @@ func isBTCETH(symbol string) bool {
 	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
 }
 
+// isMajorAsset returns true for assets that should use the BTC/ETH higher
+// position-value tier rather than the altcoin (1x equity) tier. This covers
+// BTC/ETH crypto perps AND Hyperliquid XYZ assets (US equities, commodities,
+// forex) — none of which are "altcoins" and all of which deserve the higher
+// per-position cap so the AI can actually take meaningful positions.
+func isMajorAsset(symbol string) bool {
+	if isBTCETH(symbol) {
+		return true
+	}
+	return market.IsXyzDexAsset(symbol)
+}
+
 // enforcePositionValueRatio checks and enforces position value ratio limits (CODE ENFORCED)
 // Returns the adjusted position size (capped if necessary) and whether the position was capped
 // positionSizeUSD: the original position size in USD
@@ -195,12 +210,14 @@ func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity 
 
 	riskControl := at.config.StrategyConfig.RiskControl
 
-	// Get the appropriate position value ratio limit
+	// Get the appropriate position value ratio limit. BTC/ETH AND Hyperliquid
+	// XYZ assets (US stocks etc.) use the higher tier; pure altcoins use the
+	// lower tier.
 	var maxPositionValueRatio float64
-	if isBTCETH(symbol) {
+	if isMajorAsset(symbol) {
 		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
 		if maxPositionValueRatio <= 0 {
-			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH
+			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH and XYZ assets
 		}
 	} else {
 		maxPositionValueRatio = riskControl.AltcoinMaxPositionValueRatio
@@ -220,6 +237,46 @@ func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity 
 	}
 
 	return positionSizeUSD, false
+}
+
+func (at *AutoTrader) applyAutopilotFullSizeOpen(decision *kernel.Decision, equity float64) {
+	if at == nil || decision == nil || at.config.StrategyConfig == nil || equity <= 0 {
+		return
+	}
+
+	cfg := at.config.StrategyConfig
+	if cfg.CoinSource.SourceType != "vergex_signal" {
+		return
+	}
+
+	riskControl := cfg.RiskControl
+	leverage := riskControl.AltcoinMaxLeverage
+	positionValueRatio := riskControl.AltcoinMaxPositionValueRatio
+	if isMajorAsset(decision.Symbol) {
+		leverage = riskControl.BTCETHMaxLeverage
+		positionValueRatio = riskControl.BTCETHMaxPositionValueRatio
+	}
+	if leverage < store.MinLeverage {
+		leverage = store.MinLeverage
+	}
+	if leverage > store.MaxAltLeverage {
+		leverage = store.MaxAltLeverage
+	}
+	if positionValueRatio <= 0 {
+		positionValueRatio = 1.0
+	}
+
+	fullPositionSize := equity * positionValueRatio
+	if fullPositionSize <= 0 {
+		return
+	}
+
+	if decision.Leverage != leverage || decision.PositionSizeUSD != fullPositionSize {
+		logger.Infof("  📏 [AUTOPILOT] Full-size open enforced for %s: leverage %dx → %dx, notional %.2f → %.2f USDT",
+			decision.Symbol, decision.Leverage, leverage, decision.PositionSizeUSD, fullPositionSize)
+	}
+	decision.Leverage = leverage
+	decision.PositionSizeUSD = fullPositionSize
 }
 
 // enforceMinPositionSize checks minimum position size (CODE ENFORCED)

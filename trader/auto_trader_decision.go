@@ -3,11 +3,11 @@ package trader
 import (
 	"fmt"
 	"math"
-	"nofx/telemetry"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/telemetry"
 	"time"
 )
 
@@ -18,13 +18,14 @@ func (at *AutoTrader) saveEquitySnapshot(ctx *kernel.Context) {
 	}
 
 	snapshot := &store.EquitySnapshot{
-		TraderID:      at.id,
-		Timestamp:     time.Now().UTC(),
-		TotalEquity:   ctx.Account.TotalEquity,
-		Balance:       ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
-		UnrealizedPnL: ctx.Account.UnrealizedPnL,
-		PositionCount: ctx.Account.PositionCount,
-		MarginUsedPct: ctx.Account.MarginUsedPct,
+		TraderID:         at.id,
+		Timestamp:        time.Now().UTC(),
+		TotalEquity:      ctx.Account.TotalEquity,
+		Balance:          ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
+		AvailableBalance: ctx.Account.AvailableBalance,
+		UnrealizedPnL:    ctx.Account.UnrealizedPnL,
+		PositionCount:    ctx.Account.PositionCount,
+		MarginUsedPct:    ctx.Account.MarginUsedPct,
 	}
 
 	if err := at.store.Equity().Save(snapshot); err != nil {
@@ -88,6 +89,19 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		if at.config.StrategyConfig.GridConfig != nil {
 			result["grid_symbol"] = at.config.StrategyConfig.GridConfig.Symbol
 		}
+	}
+
+	// Runtime health: safe mode + AI fee wallet, so the dashboard can show a
+	// persistent banner instead of the user digging through logs.
+	safeMode, safeModeReason := at.safeModeState()
+	result["safe_mode"] = safeMode
+	if safeModeReason != "" {
+		result["safe_mode_reason"] = safeModeReason
+	}
+	if status, balance, checkedAt := at.aiWalletHealth(); status != "" {
+		result["ai_wallet_status"] = status
+		result["ai_wallet_balance_usdc"] = balance
+		result["ai_wallet_checked_at"] = checkedAt.Format(time.RFC3339)
 	}
 
 	return result

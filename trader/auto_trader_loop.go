@@ -2,9 +2,13 @@ package trader
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/market"
+	"nofx/mcp/payment"
+	"nofx/provider/hyperliquid"
 	"nofx/store"
 	"nofx/wallet"
 	"strings"
@@ -28,6 +32,10 @@ func (at *AutoTrader) runCycle() error {
 		return nil
 	}
 
+	if err := at.reloadStrategyConfigIfChanged(); err != nil {
+		at.logWarnf("⚠️ Strategy refresh failed, using current in-memory config: %v", err)
+	}
+
 	// Check USDC balance periodically for claw402 users (every 10 cycles)
 	if at.callCount%10 == 0 && store.IsClaw402Config(at.config.AIModel) {
 		at.checkClaw402Balance()
@@ -45,7 +53,9 @@ func (at *AutoTrader) runCycle() error {
 		at.logWarnf("⏸ Risk control: Trading paused, remaining %.0f minutes", remaining.Minutes())
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Risk control paused, remaining %.0f minutes", remaining.Minutes())
-		at.saveDecision(record)
+		if err := at.saveDecision(record); err != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", err)
+		}
 		return nil
 	}
 
@@ -62,7 +72,9 @@ func (at *AutoTrader) runCycle() error {
 		at.logErrorf("failed to build trading context: %v", err)
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Failed to build trading context: %v", err)
-		at.saveDecision(record)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
 		return fmt.Errorf("failed to build trading context: %w", err)
 	}
 
@@ -82,7 +94,9 @@ func (at *AutoTrader) runCycle() error {
 			PositionCount:         ctx.Account.PositionCount,
 			InitialBalance:        at.initialBalance,
 		}
-		at.saveDecision(record)
+		if err := at.saveDecision(record); err != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", err)
+		}
 		return nil
 	}
 
@@ -129,10 +143,21 @@ func (at *AutoTrader) runCycle() error {
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Failed to get AI decision: %v", err)
 
+		// Payment-layer rejection means the AI fee wallet is definitively out
+		// of funds — surface it as structured health state (GetStatus), not
+		// just a log line.
+		var insufficientFunds *payment.ErrInsufficientFunds
+		if errors.As(err, &insufficientFunds) {
+			at.markAIWalletEmptyFromPayment(insufficientFunds.Balance)
+			record.ErrorMessage = fmt.Sprintf(
+				"AI fee wallet out of funds: balance $%.2f USDC, next call needs ~$%.2f. Top up the Base USDC wallet.",
+				insufficientFunds.Balance, insufficientFunds.Needed,
+			)
+		}
+
 		// Activate safe mode after 3 consecutive failures
-		if at.consecutiveAIFailures >= 3 && !at.safeMode {
-			at.safeMode = true
-			at.safeModeReason = fmt.Sprintf("AI failed %d consecutive times: %v", at.consecutiveAIFailures, err)
+		if at.consecutiveAIFailures >= 3 && !at.isSafeMode() {
+			at.setSafeMode(true, fmt.Sprintf("AI failed %d consecutive times: %v", at.consecutiveAIFailures, err))
 			at.logErrorf("🛡️ SAFE MODE ACTIVATED — AI failed %d times in a row. No new positions will be opened. Existing positions are protected with current stop-loss settings.", at.consecutiveAIFailures)
 			at.logErrorf("🛡️ Reason: %v", err)
 			at.logErrorf("🛡️ Action: Will keep trying AI each cycle. Safe mode auto-deactivates when AI recovers.")
@@ -155,10 +180,12 @@ func (at *AutoTrader) runCycle() error {
 			}
 		}
 
-		at.saveDecision(record)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
-		if at.safeMode {
+		if at.isSafeMode() {
 			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry in %v", at.config.ScanInterval)
 			return nil
 		}
@@ -171,10 +198,9 @@ func (at *AutoTrader) runCycle() error {
 		at.logInfof("✅ AI recovered after %d consecutive failures", at.consecutiveAIFailures)
 	}
 	at.consecutiveAIFailures = 0
-	if at.safeMode {
+	if at.isSafeMode() {
 		at.logInfof("🛡️ SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.")
-		at.safeMode = false
-		at.safeModeReason = ""
+		at.setSafeMode(false, "")
 	}
 
 	// // 5. Print system prompt
@@ -207,6 +233,10 @@ func (at *AutoTrader) runCycle() error {
 
 	// 8. Sort decisions: ensure close positions first, then open positions (prevent position stacking overflow)
 	sortedDecisions := sortDecisionsByPriority(aiDecision.Decisions)
+	sortedDecisions = at.filterDecisionsToStrategyUniverse(sortedDecisions, ctx)
+	// Per-cycle long/short coverage: if the AI left a direction uncovered, force
+	// the strongest bullish/bearish candidate (account-sized, risk-enforced).
+	sortedDecisions = at.ensureLongShortCoverage(sortedDecisions, ctx, ctx.Account.TotalEquity)
 
 	logger.Info("🔄 Execution order (optimized): Close positions first → Open positions later")
 	for i, d := range sortedDecisions {
@@ -224,7 +254,7 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	// Safe mode: filter out open positions, only allow close/hold
-	if at.safeMode {
+	if at.isSafeMode() {
 		filtered := make([]kernel.Decision, 0)
 		for _, d := range sortedDecisions {
 			if d.Action == "open_long" || d.Action == "open_short" {
@@ -239,7 +269,9 @@ func (at *AutoTrader) runCycle() error {
 		}
 	}
 
-	// Execute decisions and record results
+	// Execute decisions and record results. Trade throttle is applied here,
+	// immediately before order placement, so AI churn cannot become live orders.
+	opensAllowedThisCycle := 0
 	for _, d := range sortedDecisions {
 		// Check if trader is stopped before each decision (allow immediate stop during execution)
 		at.isRunningMutex.RLock()
@@ -264,6 +296,17 @@ func (at *AutoTrader) runCycle() error {
 			Success:    false,
 		}
 
+		if reason := at.tradeThrottleReason(d, ctx, opensAllowedThisCycle); reason != "" {
+			at.logWarnf("🧊 %s %s blocked: %s", d.Symbol, d.Action, reason)
+			actionRecord.Error = reason
+			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🧊 %s %s blocked: %s", d.Symbol, d.Action, reason))
+			record.Decisions = append(record.Decisions, actionRecord)
+			continue
+		}
+		if isOpenAction(d.Action) {
+			opensAllowedThisCycle++
+		}
+
 		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
 			at.logErrorf("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
@@ -284,6 +327,114 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	return nil
+}
+
+func normalizeUniverseSymbol(symbol string) string {
+	return market.Normalize(strings.TrimSpace(symbol))
+}
+
+// universeBaseKey returns the bare base ticker used for fuzzy candidate
+// matching. The AI sometimes echoes a candidate as "QNTUSDC", "QNT-USDC",
+// "QNTUSDT", or even just "QNT" instead of the canonical "xyz:QNT" we
+// supplied in the prompt. All of those resolve to the same Hyperliquid
+// instrument, so we accept any of them when the base matches an allowed
+// candidate's base.
+func universeBaseKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	if s == "" {
+		return ""
+	}
+	// Drop any xyz:/XYZ: prefix.
+	s = strings.TrimPrefix(s, "XYZ:")
+	// Drop common quote suffixes in order of specificity.
+	for _, suf := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
+		if strings.HasSuffix(s, suf) && len(s) > len(suf) {
+			s = strings.TrimSuffix(s, suf)
+			break
+		}
+	}
+	// Normalize alias (TESLA -> TSLA, ROBINHOOD -> HOOD, etc.).
+	return hyperliquid.NormalizeXYZAlias(s)
+}
+
+func isOpenDecision(action string) bool {
+	a := strings.ToLower(strings.TrimSpace(action))
+	return a == "open_long" || a == "open_short"
+}
+
+func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decision, ctx *kernel.Context) []kernel.Decision {
+	if ctx == nil || len(decisions) == 0 {
+		return decisions
+	}
+
+	allowed := make(map[string]bool, len(ctx.CandidateCoins))
+	allowedBases := make(map[string]bool, len(ctx.CandidateCoins))
+	for _, coin := range ctx.CandidateCoins {
+		allowed[normalizeUniverseSymbol(coin.Symbol)] = true
+		if base := universeBaseKey(coin.Symbol); base != "" {
+			allowedBases[base] = true
+		}
+	}
+
+	positions := make(map[string]bool, len(ctx.Positions))
+	positionBases := make(map[string]bool, len(ctx.Positions))
+	for _, pos := range ctx.Positions {
+		positions[normalizeUniverseSymbol(pos.Symbol)] = true
+		if base := universeBaseKey(pos.Symbol); base != "" {
+			positionBases[base] = true
+		}
+	}
+
+	filtered := make([]kernel.Decision, 0, len(decisions))
+	for _, d := range decisions {
+		sym := normalizeUniverseSymbol(d.Symbol)
+		if sym == "" || sym == "ALL" {
+			filtered = append(filtered, d)
+			continue
+		}
+
+		if allowed[sym] || positions[sym] {
+			filtered = append(filtered, d)
+			continue
+		}
+
+		// Fall back to base-level match so AI outputs like "QNTUSDC" still
+		// resolve to candidate "xyz:QNT". Rewrite the decision's symbol to
+		// the canonical form so downstream order placement works.
+		if base := universeBaseKey(d.Symbol); base != "" {
+			if allowedBases[base] || positionBases[base] {
+				if canonical := canonicalUniverseSymbolForBase(ctx, base); canonical != "" {
+					d.Symbol = canonical
+				}
+				filtered = append(filtered, d)
+				continue
+			}
+		}
+
+		if isOpenDecision(d.Action) {
+			at.logWarnf("🚫 Blocked AI %s for %s: symbol is outside strategy candidate universe", d.Action, d.Symbol)
+		} else {
+			at.logWarnf("🚫 Dropped AI decision for %s: symbol is outside strategy candidate universe", d.Symbol)
+		}
+	}
+	return filtered
+}
+
+// canonicalUniverseSymbolForBase finds the canonical candidate or position
+// symbol that has the given base. Used to rewrite an AI decision's symbol
+// (e.g. "QNTUSDC") to the form our order pipeline expects ("xyz:QNT").
+func canonicalUniverseSymbolForBase(ctx *kernel.Context, base string) string {
+	for _, coin := range ctx.CandidateCoins {
+		if universeBaseKey(coin.Symbol) == base {
+			return coin.Symbol
+		}
+	}
+	for _, pos := range ctx.Positions {
+		if universeBaseKey(pos.Symbol) == base {
+			return pos.Symbol
+		}
+	}
+	return ""
 }
 
 // buildTradingContext builds trading context
@@ -501,7 +652,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			}
 		}
 		// Get trading statistics for AI context
-		stats, err := at.store.Position().GetFullStats(at.id)
+		stats, err := at.store.Position().GetFullStats(at.id, at.initialBalance)
 		if err != nil {
 			at.logWarnf("⚠️ Failed to get trading stats: %v", err)
 		} else if stats == nil {
@@ -621,7 +772,7 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 func (at *AutoTrader) checkClaw402Balance() {
 	scanMinutes := int(at.config.ScanInterval.Minutes())
 	if scanMinutes <= 0 {
-		scanMinutes = 3
+		scanMinutes = 15
 	}
 	dailyCost, _ := store.EstimateRunway(1.0, at.config.CustomModelName, scanMinutes)
 	logger.Infof("💰 [%s] Estimated daily AI cost: ~$%.2f (model: %s, interval: %dm)",
@@ -631,10 +782,12 @@ func (at *AutoTrader) checkClaw402Balance() {
 		balance, err := wallet.QueryUSDCBalance(at.claw402WalletAddr)
 		if err != nil {
 			at.logWarnf("⚠️ Failed to query USDC balance: %v", err)
+			at.markAIWalletHealthUnknown()
 			return
 		}
 
-		if balance < 1.0 {
+		at.setAIWalletHealth(balance)
+		if balance < aiWalletLowThresholdUSDC {
 			at.logWarnf("⚠️ Low USDC balance: $%.2f — AI may stop soon!", balance)
 		}
 		if balance <= 0 {

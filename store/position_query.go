@@ -54,20 +54,20 @@ func (s *PositionStore) GetPositionStats(traderID string) (map[string]interface{
 	return stats, nil
 }
 
-// GetFullStats gets complete trading statistics
-func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
+// GetFullStats gets complete trading statistics. startingEquity is the real
+// account baseline used for the drawdown equity curve; pass 0 when unknown.
+func (s *PositionStore) GetFullStats(traderID string, startingEquity float64) (*TraderStats, error) {
+	return s.GetFullStatsByTraderFilters([]string{traderID}, nil, startingEquity)
+}
+
+// GetFullStatsByTraderFilters gets complete trading statistics for explicit
+// trader IDs plus optional legacy trader ID patterns. startingEquity is the
+// real account baseline for the drawdown calculation; pass 0 when unknown.
+func (s *PositionStore) GetFullStatsByTraderFilters(traderIDs []string, traderIDPatterns []string, startingEquity float64) (*TraderStats, error) {
 	stats := &TraderStats{}
 
-	var count int64
-	if err := s.db.Model(&TraderPosition{}).Where("trader_id = ? AND status = ?", traderID, "CLOSED").Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		return stats, nil
-	}
-
 	var positions []TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").
+	err := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).
 		Order("exit_time ASC").
 		Find(&positions).Error
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 		stats.SharpeRatio = calculateSharpeRatioFromPnls(pnls)
 	}
 	if len(pnls) > 0 {
-		stats.MaxDrawdownPct = calculateMaxDrawdownFromPnls(pnls)
+		stats.MaxDrawdownPct = calculateMaxDrawdownFromPnls(pnls, startingEquity)
 	}
 
 	return stats, nil
@@ -194,13 +194,21 @@ func calculateSharpeRatioFromPnls(pnls []float64) float64 {
 	return mean / stdDev
 }
 
-// calculateMaxDrawdownFromPnls calculates maximum drawdown
-func calculateMaxDrawdownFromPnls(pnls []float64) float64 {
+// calculateMaxDrawdownFromPnls reconstructs an equity curve from the realized
+// PnL sequence on top of startingEquity and returns the max peak-to-trough
+// drawdown as a PERCENT (e.g. 18.5 = -18.5%). The baseline matters: the same
+// $87 dip is 0.9% of a $10k account but 18% of a $480 one, so callers should
+// pass the trader's real initial balance. A non-positive baseline falls back
+// to a neutral $10k so the metric stays defined (but understated) when the
+// account baseline is unknown.
+func calculateMaxDrawdownFromPnls(pnls []float64, startingEquity float64) float64 {
 	if len(pnls) == 0 {
 		return 0
 	}
 
-	const startingEquity = 10000.0
+	if startingEquity <= 0 {
+		startingEquity = 10000.0
+	}
 	equity := startingEquity
 	peak := startingEquity
 	var maxDD float64
@@ -234,8 +242,14 @@ type SymbolStats struct {
 
 // GetSymbolStats gets per-symbol trading statistics
 func (s *PositionStore) GetSymbolStats(traderID string, limit int) ([]SymbolStats, error) {
+	return s.GetSymbolStatsByTraderFilters([]string{traderID}, nil, limit)
+}
+
+// GetSymbolStatsByTraderFilters gets per-symbol trading statistics for explicit
+// trader IDs plus optional legacy trader ID patterns.
+func (s *PositionStore) GetSymbolStatsByTraderFilters(traderIDs []string, traderIDPatterns []string, limit int) ([]SymbolStats, error) {
 	var positions []TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").Find(&positions).Error
+	err := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).Find(&positions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query symbol stats: %w", err)
 	}
@@ -311,8 +325,8 @@ func (s *PositionStore) GetHoldingTimeStats(traderID string) ([]HoldingTimeStats
 	}
 
 	rangeStats := map[string]*struct {
-		count   int
-		wins    int
+		count    int
+		wins     int
 		totalPnL float64
 	}{
 		"<1h":   {},
@@ -374,8 +388,14 @@ type DirectionStats struct {
 
 // GetDirectionStats analyzes long vs short performance
 func (s *PositionStore) GetDirectionStats(traderID string) ([]DirectionStats, error) {
+	return s.GetDirectionStatsByTraderFilters([]string{traderID}, nil)
+}
+
+// GetDirectionStatsByTraderFilters analyzes long vs short performance for
+// explicit trader IDs plus optional legacy trader ID patterns.
+func (s *PositionStore) GetDirectionStatsByTraderFilters(traderIDs []string, traderIDPatterns []string) ([]DirectionStats, error) {
 	var positions []TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").Find(&positions).Error
+	err := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).Find(&positions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query direction stats: %w", err)
 	}

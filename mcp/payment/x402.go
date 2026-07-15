@@ -35,13 +35,102 @@ const (
 	X402Timeout = 5 * time.Minute
 )
 
+func x402ContextFromRequest(req *mcp.Request) context.Context {
+	if req != nil && req.Ctx != nil {
+		return req.Ctx
+	}
+	return context.Background()
+}
+
+func x402Sleep(ctx context.Context, d time.Duration) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func doInitialX402Request(
+	ctx context.Context,
+	httpClient *http.Client,
+	buildReqFn func() (*http.Request, error),
+	providerTag string,
+	logger mcp.Logger,
+) (*http.Response, error) {
+	var lastBody []byte
+	var lastErr error
+	var lastStatus int
+
+	for attempt := 1; attempt <= X402MaxPaymentRetries; attempt++ {
+		req, err := buildReqFn()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req = req.WithContext(ctx)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			if attempt < X402MaxPaymentRetries {
+				wait := X402RetryBaseWait * time.Duration(attempt)
+				logger.Warnf("⚠️  [%s] Initial request failed: %v, retrying in %v (%d/%d)...",
+					providerTag, err, wait, attempt+1, X402MaxPaymentRetries)
+				if err := x402Sleep(ctx, wait); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			return nil, fmt.Errorf("failed to send request: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPaymentRequired {
+			return resp, nil
+		}
+
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read response: %w", readErr)
+		}
+		lastBody = body
+		lastStatus = resp.StatusCode
+
+		if isRetryableInitialX402Status(resp.StatusCode) && attempt < X402MaxPaymentRetries {
+			wait := X402RetryBaseWait * time.Duration(attempt)
+			logger.Warnf("⚠️  [%s] Initial server error (status %d), retrying in %v (%d/%d)...",
+				providerTag, resp.StatusCode, wait, attempt+1, X402MaxPaymentRetries)
+			if err := x402Sleep(ctx, wait); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		return nil, fmt.Errorf("%s API error (status %d): %s", providerTag, resp.StatusCode, string(body))
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("failed to send request after %d retries: %w", X402MaxPaymentRetries, lastErr)
+	}
+	return nil, fmt.Errorf("%s API error after %d retries (status %d): %s", providerTag, X402MaxPaymentRetries, lastStatus, string(lastBody))
+}
+
+func isRetryableInitialX402Status(status int) bool {
+	return status == http.StatusTooManyRequests || status >= 500
+}
+
 // ── Shared x402 types ────────────────────────────────────────────────────────
 
 // X402v2PaymentRequired is the structure of the Payment-Required header (x402 v2).
 type X402v2PaymentRequired struct {
-	X402Version int              `json:"x402Version"`
+	X402Version int                `json:"x402Version"`
 	Accepts     []X402AcceptOption `json:"accepts"`
-	Resource    *X402Resource    `json:"resource"`
+	Resource    *X402Resource      `json:"resource"`
 }
 
 // X402AcceptOption is a payment option from the x402 v2 header.
@@ -114,20 +203,20 @@ func SignBasePaymentHeader(privateKey *ecdsa.PrivateKey, paymentHeaderB64 string
 
 // DoX402Request executes an HTTP request and handles the x402 v2 payment flow.
 func DoX402Request(
+	ctx context.Context,
 	httpClient *http.Client,
 	buildReqFn func() (*http.Request, error),
 	signFn X402SignFunc,
 	providerTag string,
 	logger mcp.Logger,
 ) ([]byte, error) {
-	req, err := buildReqFn()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := doInitialX402Request(ctx, httpClient, buildReqFn, providerTag, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -157,6 +246,7 @@ func DoX402Request(
 			if err != nil {
 				return nil, fmt.Errorf("failed to build retry request: %w", err)
 			}
+			req2 = req2.WithContext(ctx)
 			req2.Header.Set("X-Payment", paymentSig)
 			req2.Header.Set("Payment-Signature", paymentSig)
 
@@ -166,7 +256,9 @@ func DoX402Request(
 					wait := X402RetryBaseWait * time.Duration(attempt)
 					logger.Warnf("⚠️  [%s] Payment request failed: %v, retrying in %v (%d/%d)...",
 						providerTag, err, wait, attempt+1, X402MaxPaymentRetries)
-					time.Sleep(wait)
+					if err := x402Sleep(ctx, wait); err != nil {
+						return nil, err
+					}
 					continue
 				}
 				return nil, fmt.Errorf("failed to send payment retry: %w", err)
@@ -221,7 +313,9 @@ func DoX402Request(
 						providerTag, resp2.StatusCode, wait, attempt+1, X402MaxPaymentRetries)
 				}
 
-				time.Sleep(wait)
+				if err := x402Sleep(ctx, wait); err != nil {
+					return nil, err
+				}
 				continue
 			}
 
@@ -256,25 +350,17 @@ func DoX402RequestStream(
 	providerTag string,
 	logger mcp.Logger,
 ) (*http.Response, error) {
-	// Initial request — use background context (no idle timeout yet).
-	req, err := buildReqFn()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	if ctx == nil {
+		ctx = context.Background()
 	}
-
-	resp, err := httpClient.Do(req)
+	resp, err := doInitialX402Request(ctx, httpClient, buildReqFn, providerTag, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, err
 	}
 
 	// Non-402 initial response
 	if resp.StatusCode != http.StatusPaymentRequired {
-		if resp.StatusCode == http.StatusOK {
-			return resp, nil
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("%s API error (status %d): %s", providerTag, resp.StatusCode, string(body))
+		return resp, nil
 	}
 
 	// 402 — extract payment header and sign
@@ -314,7 +400,9 @@ func DoX402RequestStream(
 				wait := X402RetryBaseWait * time.Duration(attempt)
 				logger.Warnf("⚠️  [%s] Payment request failed: %v, retrying in %v (%d/%d)...",
 					providerTag, err, wait, attempt+1, X402MaxPaymentRetries)
-				time.Sleep(wait)
+				if err := x402Sleep(ctx, wait); err != nil {
+					return nil, err
+				}
 				continue
 			}
 			return nil, fmt.Errorf("failed to send payment retry: %w", err)
@@ -369,7 +457,9 @@ func DoX402RequestStream(
 					providerTag, resp2.StatusCode, wait, attempt+1, X402MaxPaymentRetries)
 			}
 
-			time.Sleep(wait)
+			if err := x402Sleep(ctx, wait); err != nil {
+				return nil, err
+			}
 			continue
 		}
 
@@ -500,7 +590,7 @@ func X402Call(c *mcp.Client, signFn X402SignFunc, tag string, systemPrompt, user
 		return "", err
 	}
 
-	body, err := DoX402Request(c.HTTPClient, func() (*http.Request, error) {
+	body, err := DoX402Request(context.Background(), c.HTTPClient, func() (*http.Request, error) {
 		return c.Hooks.BuildRequest(c.Hooks.BuildUrl(), jsonData)
 	}, signFn, tag, c.Log)
 	if err != nil {
@@ -526,7 +616,7 @@ func X402CallFull(c *mcp.Client, signFn X402SignFunc, tag string, req *mcp.Reque
 		return nil, err
 	}
 
-	body, err := DoX402Request(c.HTTPClient, func() (*http.Request, error) {
+	body, err := DoX402Request(x402ContextFromRequest(req), c.HTTPClient, func() (*http.Request, error) {
 		return c.Hooks.BuildRequest(c.Hooks.BuildUrl(), jsonData)
 	}, signFn, tag, c.Log)
 	if err != nil {

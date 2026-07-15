@@ -10,6 +10,7 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/store"
+	"os"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type Server struct {
 	httpServer                *http.Server
 	port                      int
 	telegramReloadCh          chan<- struct{} // signal Telegram bot to reload
+	authLimiter               *ipRateLimiter  // per-IP throttle for login/register
 }
 
 // NewServer Creates API server
@@ -48,6 +50,10 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 		cryptoHandler:             cryptoHandler,
 		exchangeAccountStateCache: NewExchangeAccountStateCache(),
 		port:                      port,
+		// Auth throttle: allow a small burst (typos / page reloads) then ~1
+		// attempt every 6s (10/min) sustained per IP. Generous for a human,
+		// hostile to online password brute-force.
+		authLimiter: newIPRateLimiter(1.0/6.0, 8),
 	}
 
 	// Setup routes
@@ -56,24 +62,74 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	return s
 }
 
-// corsMiddleware CORS middleware
+// corsMiddleware returns a CORS handler. Origins come from CORS_ALLOWED_ORIGINS
+// (comma-separated). The literal value "*" enables permissive mode — DO NOT use
+// in production: the JWT is sent via Authorization header so a wildcard ACAO
+// makes stolen tokens replayable from any site.
 func corsMiddleware() gin.HandlerFunc {
+	raw := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	allowAny := raw == "*"
+	var allowlist map[string]struct{}
+	if !allowAny {
+		allowlist = make(map[string]struct{})
+		for _, o := range strings.Split(raw, ",") {
+			o = strings.TrimSpace(o)
+			if o == "" {
+				continue
+			}
+			allowlist[o] = struct{}{}
+		}
+		if len(allowlist) == 0 {
+			// Safe defaults for local development.
+			for _, o := range []string{
+				"http://localhost:3000",
+				"http://127.0.0.1:3000",
+				"http://localhost:5173",
+				"http://127.0.0.1:5173",
+			} {
+				allowlist[o] = struct{}{}
+			}
+			logger.Warnf("[CORS] CORS_ALLOWED_ORIGINS not set; defaulting to localhost dev origins only. Set this env var for production.")
+		}
+		if allowAny {
+			logger.Warnf("[CORS] CORS_ALLOWED_ORIGINS=* is INSECURE in production; restrict to your deployment origin(s).")
+		}
+	}
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			switch {
+			case allowAny:
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Vary", "Origin")
+			default:
+				if _, ok := allowlist[origin]; ok {
+					c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+					c.Writer.Header().Set("Vary", "Origin")
+				}
+				// Unknown origin: do not set ACAO; the browser will block.
+			}
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Max-Age", "600")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
 			return
 		}
-
 		c.Next()
 	}
 }
 
 // setupRoutes Setup routes
 func (s *Server) setupRoutes() {
+	// Ensure the auth throttle exists even when the Server was constructed
+	// directly (e.g. in tests) rather than via NewServer.
+	if s.authLimiter == nil {
+		s.authLimiter = newIPRateLimiter(1.0/6.0, 8)
+	}
+
 	// API route group
 	api := s.router.Group("/api")
 	{
@@ -92,10 +148,21 @@ func (s *Server) setupRoutes() {
 		// Wallet validation (no authentication required — used by frontend config form)
 		api.POST("/wallet/validate", s.handleWalletValidate)
 		api.POST("/wallet/generate", s.handleWalletGenerate)
-		// Crypto related endpoints (no authentication required, not exposed to bot)
+		s.route(api, "GET", "/hyperliquid/connect-config", "Get NOFX Hyperliquid builder authorization config", s.handleHyperliquidConnectConfig)
+		s.route(api, "GET", "/hyperliquid/account", "Get Hyperliquid account balance summary", s.handleHyperliquidAccount)
+		s.route(api, "GET", "/hyperliquid/agent", "Get Hyperliquid approved agent wallets and authorization expiry", s.handleHyperliquidAgent)
+		s.route(api, "POST", "/hyperliquid/submit-exchange", "Submit a user-signed Hyperliquid approval action", s.handleHyperliquidSubmitExchange)
+
+		// Crypto related endpoints (no authentication required, not exposed to bot).
+		// SECURITY: only the config + public-key endpoints are exposed. Transport
+		// encryption is one-directional (client encrypts to the server's public key;
+		// the server decrypts internally on the authenticated config-update handlers).
+		// A public POST /crypto/decrypt would be a decryption oracle: any
+		// unauthenticated caller could replay a captured ciphertext and get the
+		// plaintext (exchange/API credentials) back. It is intentionally NOT
+		// registered. See crypto_handler.go.
 		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
 		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
-		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
 
 		// Public competition data (no authentication required)
 		s.route(api, "GET", "/traders", "Public trader list", s.handlePublicTraderList)
@@ -113,11 +180,20 @@ func (s *Server) setupRoutes() {
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)
 		s.route(api, "POST", "/strategies/estimate-tokens", "Estimate token usage for a strategy config", s.handleEstimateTokens)
 
-		// Authentication related routes (no authentication required)
-		s.route(api, "POST", "/register", "Register new user", s.handleRegister)
-		s.route(api, "POST", "/login", "User login, returns JWT token", s.handleLogin)
-		s.route(api, "POST", "/reset-password", "Reset password", s.handleResetPassword)
-		s.route(api, "POST", "/reset-account", "Clear all users and reset system to allow re-registration", s.handleResetAccount)
+		// Authentication related routes (no authentication required).
+		// These are throttled per-IP to blunt online password brute-force; see
+		// ratelimit.go. Everything else in the public block is read-only or
+		// idempotent, so the throttle is scoped to the credential endpoints.
+		authRoutes := api.Group("/", rateLimitMiddleware(s.authLimiter))
+		s.route(authRoutes, "POST", "/register", "Register new user", s.handleRegister)
+		s.route(authRoutes, "POST", "/login", "User login, returns JWT token", s.handleLogin)
+		// SECURITY: password/account recovery is NOT exposed over HTTP. An
+		// unauthenticated recovery endpoint is a remote auth-bypass on any
+		// public-facing deployment (the confirm phrase is in the frontend and
+		// returned by the API, so it is friction, not authentication). Recovery
+		// is now a local CLI run on the host — `nofx reset-password` /
+		// `nofx reset-account` — which requires shell access the attacker lacks.
+		// See cli.go.
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())
@@ -126,9 +202,6 @@ func (s *Server) setupRoutes() {
 			s.route(protected, "POST", "/logout", "Logout (blacklist token)", s.handleLogout)
 			s.route(protected, "POST", "/onboarding/beginner", "Prepare beginner claw402 wallet and default model", s.handleBeginnerOnboarding)
 			s.route(protected, "GET", "/onboarding/beginner/current", "Get current beginner claw402 wallet", s.handleCurrentBeginnerWallet)
-			s.route(protected, "GET", "/agent/preferences", "Get persistent agent preferences", s.handleGetAgentPreferences)
-			s.route(protected, "POST", "/agent/preferences", "Create persistent agent preference", s.handleCreateAgentPreference)
-			s.route(protected, "DELETE", "/agent/preferences/:id", "Delete persistent agent preference", s.handleDeleteAgentPreference)
 
 			// User account management
 			s.routeWithSchema(protected, "PUT", "/user/password", "Change current user password",
@@ -137,6 +210,11 @@ func (s *Server) setupRoutes() {
 
 			// Server IP query (requires authentication, for whitelist configuration)
 			s.route(protected, "GET", "/server-ip", "Get server public IP (for exchange whitelist)", s.handleGetServerIP)
+
+			s.route(protected, "GET", "/vergex/signal-ranking", "Vergex signal ranking via claw402 (?marketType=all&limit=30)", s.handleVergexSignalRanking)
+			s.route(protected, "GET", "/vergex/signal-lab", "Vergex signal lab via claw402 (?marketType=hip3_perp&symbol=AAPL)", s.handleVergexSignalLab)
+			s.route(protected, "GET", "/vergex/cost-liquidation-heatmap", "Vergex cost/liquidation heatmap via claw402 (?marketType=hip3_perp&symbol=AAPL)", s.handleVergexCostLiquidationHeatmap)
+			s.route(protected, "GET", "/vergex/flow-markets", "Vergex net-flow market ranking via claw402 (?chain=mainnet&window=1h&limit=25)", s.handleVergexFlowMarkets)
 
 			// AI trader management
 			s.routeWithSchema(protected, "GET", "/my-traders", "List user's traders with status",
@@ -147,7 +225,7 @@ NOTE: The id field is "trader_id" (NOT "id"). Always read trader_id from this en
 				`:id = trader_id from GET /api/my-traders`,
 				s.handleGetTraderConfig)
 			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
-				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
+				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 15, minimum 3>}
 IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.`,
 				s.handleCreateTrader)
 			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
@@ -159,8 +237,17 @@ Only include fields you want to change.`,
 				`:id = trader_id from GET /api/my-traders. Stops and permanently removes the trader and all its data.`,
 				s.handleDeleteTrader)
 			s.routeWithSchema(protected, "POST", "/traders/:id/start", "Start trader — begins live trading",
-				`:id = trader_id from GET /api/my-traders. No request body needed. The trader must have a valid exchange and AI model configured.`,
+				`:id = trader_id from GET /api/my-traders. No request body needed. The trader must have a valid exchange and AI model configured.
+Runs launch preflight first and returns 400 with {"error_key":"trader.start.preflight_failed","preflight":{...}} when checks fail. Append ?force=true to skip balance gates.`,
 				s.handleStartTrader)
+			s.routeWithSchema(protected, "GET", "/traders/:id/preflight", "Run launch readiness checks for a trader",
+				`:id = trader_id from GET /api/my-traders.
+Returns: {"ready":<bool>,"checks":[{"id":"ai_model|ai_wallet|ai_wallet_funds|strategy|exchange_config|exchange_account|exchange_funds","status":"ok|failed|warning|skipped","code":"<string>","message":"<string>","required":<number>,"actual":<number>,"asset":"<string>","address":"<string>"}],"min_ai_fee_usdc":<number>,"min_trading_usdc":<number>}`,
+				s.handleTraderPreflight)
+			s.routeWithSchema(protected, "POST", "/launch/preflight", "Run launch readiness checks before creating a trader",
+				`Body: {"ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<optional, EXACT id from GET /api/strategies>"}
+Returns the same shape as GET /api/traders/:id/preflight. Use this before POST /api/traders to surface every missing prerequisite at once.`,
+				s.handleLaunchPreflight)
 			s.routeWithSchema(protected, "POST", "/traders/:id/stop", "Stop trader — halts live trading",
 				`:id = trader_id from GET /api/my-traders. No request body needed. Gracefully stops the trading loop.`,
 				s.handleStopTrader)
@@ -257,10 +344,10 @@ CRITICAL: Always use the "id" field for strategy_id.`,
 IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills everything in. Only include "config" when the user explicitly requests custom settings (specific coins, custom leverage, custom timeframes).
 
 StrategyConfig fields:
-  coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short) | "mixed"
-  coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — only when source_type="static"
-  coin_source.use_ai500, ai500_limit: number of coins from AI500 pool (default 10)
-  coin_source.use_oi_top/use_oi_low, oi_top_limit/oi_low_limit: OI-based coin selection
+  coin_source.source_type: "vergex_signal" (Claw402/Vergex signal-ranking; default and recommended)
+  coin_source.vergex_limit: number of Claw402 candidates enriched with detail data (default 10, max 10)
+  coin_source.vergex_market_type: "all" for the full Claw402 board; detail calls use each ranking item's market_type
+  coin_source.vergex_chain: "hyperliquid"
   indicators.klines.primary_timeframe: "1m"|"3m"|"5m"|"15m"|"1h"|"4h" — scalping→"5m", trend/swing→"1h"/"4h"
   indicators.klines.primary_count: number of candles (20-100)
   indicators.klines.enable_multi_timeframe: true for trend/swing analysis
@@ -357,6 +444,10 @@ Returns the most recent AI decision for each symbol analyzed in the last scan cy
 				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
 Returns: {"total_trades":<int>,"winning_trades":<int>,"win_rate":<float>,"total_pnl":<float>,"sharpe_ratio":<float>,"max_drawdown":<float>}`,
 				s.handleStatistics)
+			s.routeWithSchema(protected, "GET", "/statistics/full", "Full trade-quality metrics (win rate, profit factor, Sharpe, max drawdown)",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns: {"total_trades","win_trades","loss_trades","win_rate","profit_factor","sharpe_ratio","total_pnl","total_fee","avg_win","avg_loss","max_drawdown_pct"}`,
+				s.handleStatisticsFull)
 
 		}
 	}
@@ -509,34 +600,45 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-// getTraderFromQuery Get trader from query parameter
+// getTraderFromQuery resolves a trader from the ?trader_id= query parameter,
+// strictly scoped to the authenticated caller.
+//
+// Ownership is always enforced against the caller's own trader list in the
+// store. We deliberately never fall back to the global in-memory trader map
+// (TraderManager holds every account's traders): returning an entry from it for
+// a trader the caller does not own is a cross-tenant data leak (IDOR) — a
+// freshly-registered user with no traders of their own could otherwise pass any
+// other account's trader_id and read its balance, positions and AI decisions.
 func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, string, error) {
 	userID := c.GetString("user_id")
 	traderID := c.Query("trader_id")
 
-	// Ensure user's traders are loaded into memory
-	err := s.traderManager.LoadUserTradersFromStore(s.store, userID)
-	if err != nil {
+	// Ensure user's traders are loaded into memory.
+	if err := s.traderManager.LoadUserTradersFromStore(s.store, userID); err != nil {
 		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)
 	}
 
-	if traderID == "" {
-		// If no trader_id specified, return first trader for this user
-		ids := s.traderManager.GetTraderIDs()
-		if len(ids) == 0 {
-			return nil, "", fmt.Errorf("No available traders")
-		}
-
-		// Get user's trader list, prioritize returning user's own traders
-		userTraders, err := s.store.Trader().List(userID)
-		if err == nil && len(userTraders) > 0 {
-			traderID = userTraders[0].ID
-		} else {
-			traderID = ids[0]
-		}
+	// Resolve strictly from the caller's own trader list.
+	userTraders, err := s.store.Trader().List(userID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to load traders for this account: %w", err)
+	}
+	if len(userTraders) == 0 {
+		return nil, "", fmt.Errorf("No available traders")
 	}
 
-	return s.traderManager, traderID, nil
+	if traderID == "" {
+		// No trader_id specified — default to the caller's first trader.
+		return s.traderManager, userTraders[0].ID, nil
+	}
+
+	// A trader_id was supplied — it must belong to the caller.
+	for _, t := range userTraders {
+		if t.ID == traderID {
+			return s.traderManager, traderID, nil
+		}
+	}
+	return nil, "", fmt.Errorf("trader not found for this account")
 }
 
 // authMiddleware JWT authentication middleware
