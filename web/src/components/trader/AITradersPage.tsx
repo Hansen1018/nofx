@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
+import { ApiError } from '../../lib/httpClient'
+import { ROUTES } from '../../router/paths'
 import type {
   TraderInfo,
   CreateTraderRequest,
@@ -305,7 +307,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       await mutateTraders()
     } catch (error) {
-      console.error('Failed to toggle trader:', error)
+      // Launch preflight rejections carry an actionable reason (e.g. "AI fee
+      // wallet is empty") — show it instead of a generic failure toast.
+      if (
+        error instanceof ApiError &&
+        error.errorKey === 'trader.start.preflight_failed'
+      ) {
+        toast.error(error.message)
+        return
+      }
       toast.error(t('operationFailed', language))
     }
   }
@@ -658,10 +668,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!setupTarget) return
 
     if (setupTarget === 'claw402') {
-      if (supportedModels.length === 0 && allModels.length === 0) return
-      handleOpenClaw402Config()
+      // The welcome page shows the deposit QR, auto-creates the wallet if
+      // needed, and polls the balance — friendlier than the key-config modal.
+      navigate(ROUTES.welcome)
     } else if (setupTarget === 'hyperliquid') {
       handleOpenHyperliquidConfig()
+    } else if (setupTarget === 'hyperliquid-funds') {
+      // Funding shortfall: bring the guided launch panel (with the trading
+      // balance step and live preflight polling) into view.
+      document
+        .getElementById('autopilot-launch-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      toast.info(
+        'Deposit USDC to your Hyperliquid account, the balance check updates automatically.'
+      )
     } else {
       return
     }
@@ -674,6 +694,21 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const refreshLaunchState = async () => {
     await Promise.all([loadConfigs(), mutateTraders()])
   }
+
+  const hasRunningTrader = (traders || []).some((trader) => trader.is_running)
+  const launchPanel = (
+    <AutopilotLaunchPanel
+      models={allModels}
+      exchanges={allExchanges}
+      exchangeAccountStates={exchangeAccountStates}
+      traders={traders || []}
+      isLoggedIn={Boolean(user && token)}
+      language={language}
+      onRefresh={refreshLaunchState}
+      onOpenClaw402Config={handleOpenClaw402Config}
+      onOpenHyperliquidConfig={handleOpenHyperliquidConfig}
+    />
+  )
 
   return (
     <DeepVoidBackground className="py-8" disableAnimation>
@@ -749,6 +784,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
+        {/* Newcomers see the guided launch FIRST — the config grid is detail.
+            Once an autopilot is running, the running bot takes back the top. */}
+        {!hasRunningTrader && launchPanel}
+
         {/* Configuration Status Grid */}
         <ConfigStatusGrid
           configuredModels={configuredModels}
@@ -766,17 +805,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           onCopyAddress={handleCopyAddress}
         />
 
-        <AutopilotLaunchPanel
-          models={allModels}
-          exchanges={allExchanges}
-          exchangeAccountStates={exchangeAccountStates}
-          traders={traders || []}
-          isLoggedIn={Boolean(user && token)}
-          language={language}
-          onRefresh={refreshLaunchState}
-          onOpenClaw402Config={handleOpenClaw402Config}
-          onOpenHyperliquidConfig={handleOpenHyperliquidConfig}
-        />
+        {hasRunningTrader && launchPanel}
 
         {/* Traders List */}
         <TradersList

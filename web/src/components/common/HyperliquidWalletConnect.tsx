@@ -239,22 +239,31 @@ export function HyperliquidWalletConnect({
   const [agentInfo, setAgentInfo] = useState<HyperliquidAgentInfo | null>(null)
   const [agentInfoLoading, setAgentInfoLoading] = useState(false)
   const [hasWalletProvider, setHasWalletProvider] = useState(false)
+  // Address of a fully-authorized hyperliquid exchange saved on the SERVER.
+  // The local FlowState lives in this browser's localStorage, so a fresh
+  // browser would otherwise show the red "Connect" CTA even though trading
+  // authorization is complete and the bot is running.
+  const [serverExchangeAddr, setServerExchangeAddr] = useState('')
   const text = useMemo(
     () => ({
       title: language === 'zh' ? 'Hyperliquid Wallet' : 'Hyperliquid Wallet',
       connect: language === 'zh' ? 'Connect Hyperliquid' : 'Connect Hyperliquid',
       connected: language === 'zh' ? 'Connected' : 'Connected',
-      mainWallet: language === 'zh' ? 'EVM main wallet' : 'EVM main wallet',
+      mainWallet: language === 'zh' ? 'Connect your wallet' : 'Connect your wallet',
       generateAgent:
         language === 'zh'
-          ? 'Generate NOFX agent wallet'
-          : 'Generate NOFX agent wallet',
+          ? 'Create a trading key for NOFX'
+          : 'Create a trading key for NOFX',
       approveAgent:
-        language === 'zh' ? 'Authorize agent trading' : 'Authorize agent trading',
+        language === 'zh'
+          ? 'Approve it in your wallet (trade-only, cannot withdraw)'
+          : 'Approve it in your wallet (trade-only, cannot withdraw)',
       approveBuilder:
-        language === 'zh' ? 'Finalize trading authorization' : 'Finalize trading authorization',
-      save: language === 'zh' ? 'Save to NOFX' : 'Save to NOFX',
-      done: language === 'zh' ? 'Flow complete' : 'Flow complete',
+        language === 'zh'
+          ? 'Approve the small per-trade builder fee'
+          : 'Approve the small per-trade builder fee',
+      save: language === 'zh' ? 'Save to NOFX — done' : 'Save to NOFX — done',
+      done: language === 'zh' ? 'All set — trading authorized' : 'All set — trading authorized',
       balance: language === 'zh' ? 'Hyperliquid balance' : 'Hyperliquid balance',
       withdrawable: language === 'zh' ? 'Withdrawable' : 'Withdrawable',
       equity: language === 'zh' ? 'Equity' : 'Equity',
@@ -299,6 +308,31 @@ export function HyperliquidWalletConnect({
   useEffect(() => {
     saveState(state)
   }, [state])
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setServerExchangeAddr('')
+      return
+    }
+    let cancelled = false
+    api
+      .getExchangeConfigs()
+      .then((configs) => {
+        if (cancelled) return
+        const ready = configs.find(
+          (exchange) =>
+            exchange.exchange_type === 'hyperliquid' &&
+            exchange.enabled &&
+            Boolean(exchange.hyperliquidBuilderApproved) &&
+            (exchange.hyperliquidWalletAddr || '').trim() !== ''
+        )
+        setServerExchangeAddr(ready?.hyperliquidWalletAddr || '')
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [isLoggedIn])
 
   useEffect(() => {
     if (!isLoggedIn || !state.mainWallet) return
@@ -493,6 +527,11 @@ export function HyperliquidWalletConnect({
   const complete = Boolean(
     state.mainWallet && state.savedExchangeId && state.builderApproved
   )
+  // Trigger shows "connected" when either this browser finished the flow or
+  // the server already holds a fully-authorized exchange.
+  const connectedAddr = complete
+    ? state.mainWallet
+    : serverExchangeAddr || undefined
 
   async function connectWallet() {
     setError('')
@@ -898,14 +937,14 @@ export function HyperliquidWalletConnect({
           type="button"
           onClick={() => setOpen((value) => !value)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all border ${
-            complete
+            connectedAddr
               ? 'bg-nofx-success/10 border-nofx-success/30 text-nofx-success'
               : 'bg-nofx-gold/10 border-nofx-gold/30 text-nofx-gold hover:bg-nofx-gold/20'
           }`}
         >
           <Wallet className="w-4 h-4" />
           <span>
-            {complete ? shortAddress(state.mainWallet) : text.connect}
+            {connectedAddr ? shortAddress(connectedAddr) : text.connect}
           </span>
           <ChevronDown className="w-4 h-4" />
         </button>

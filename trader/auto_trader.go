@@ -177,8 +177,12 @@ type AutoTrader struct {
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
 	consecutiveAIFailures int                // Consecutive AI call failures
+	runtimeHealthMu       sync.RWMutex       // Guards safe mode + AI wallet health (loop writes, API reads)
 	safeMode              bool               // Safe mode: no new positions, protect existing ones
 	safeModeReason        string             // Why safe mode was activated
+	aiWalletStatus        string             // "ok"|"low"|"empty"|"unknown" — see runtime_health.go
+	aiWalletBalanceUSDC   float64            // Last observed Base USDC balance of the claw402 wallet
+	aiWalletCheckedAt     time.Time          // When the balance was last observed
 }
 
 // NewAutoTrader creates an automatic trader
@@ -418,15 +422,11 @@ func (at *AutoTrader) reloadStrategyConfigIfChanged() error {
 	}
 	strategyConfig.ClampLimits()
 
-	// Autopilot (vergex_signal/claw402) runs a balanced multi-position book:
-	// hold several instruments at once with a smaller per-position notional so
-	// multiple long/short positions fit the margin. Applied after ClampLimits so
-	// the book size is not capped back down to the conservative default.
-	if strategyConfig.CoinSource.SourceType == "vergex_signal" {
-		strategyConfig.RiskControl.MaxPositions = 6
-		strategyConfig.RiskControl.BTCETHMaxPositionValueRatio = 1.2
-		strategyConfig.RiskControl.AltcoinMaxPositionValueRatio = 1.2
-	}
+	// NOTE: this used to hardcode the Autopilot book shape (6 positions ×
+	// equity×1.2 notional), silently overriding whatever the user configured in
+	// their strategy. Sizing now comes from the strategy's own RiskControl —
+	// ClampLimits above bounds it (ratio 0.5–10, leverage caps), and the
+	// margin auto-reduce at order time keeps the book solvent.
 
 	claw402Key := at.config.Claw402WalletKey
 	if claw402Key == "" && at.config.AIModel == "claw402" && at.config.CustomAPIKey != "" {
@@ -608,6 +608,12 @@ func (at *AutoTrader) GetID() string {
 	return at.id
 }
 
+// GetInitialBalance returns the account baseline used for performance metrics
+// (e.g. the drawdown equity curve).
+func (at *AutoTrader) GetInitialBalance() float64 {
+	return at.initialBalance
+}
+
 // GetUnderlyingTrader returns the underlying Trader interface implementation
 // This is used by grid trading and other components that need direct exchange access
 func (at *AutoTrader) GetUnderlyingTrader() Trader {
@@ -710,7 +716,9 @@ func (at *AutoTrader) runPreLaunchChecks() {
 			balance, err := wallet.QueryUSDCBalance(addr)
 			if err != nil {
 				logger.Warnf("⚠️ [%s] Could not query USDC balance: %v", at.name, err)
+				at.markAIWalletHealthUnknown()
 			} else {
+				at.setAIWalletHealth(balance)
 				// Estimate runway
 				scanMinutes := int(at.config.ScanInterval.Minutes())
 				modelName := at.config.CustomModelName
