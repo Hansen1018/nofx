@@ -189,14 +189,13 @@ function defaultCoinSource(
     oi_low_limit: 0,
     use_hyper_all: false,
     use_hyper_main: false,
-    hyper_main_limit: 0,
     hyper_rank_category: source?.hyper_rank_category || 'all',
     hyper_rank_direction: 'gainers',
     hyper_rank_limit: 0,
     vergex_limit: vergexLimit,
     vergex_market_type: source?.vergex_market_type || 'all',
     vergex_chain: source?.vergex_chain || 'hyperliquid',
-    vergex_liq_band: source?.vergex_liq_band || '',
+    vergex_liq_band: (source?.vergex_liq_band || 'normal') as 'tight' | 'normal' | 'wide' | undefined,
   }
 }
 
@@ -262,14 +261,12 @@ function simplifyConfig(
   return {
     strategy_type: 'ai_trading',
     language: config?.language || 'zh',
-    ai_config: {
-      coin_source: defaultCoinSource(ai?.coin_source),
-      indicators: defaultIndicators(ai?.indicators),
-      risk_control: defaultRisk(ai?.risk_control),
-      custom_prompt: ai?.custom_prompt || '',
-      prompt_sections: ai?.prompt_sections,
-    },
-    grid_config: null,
+    coin_source: defaultCoinSource(ai?.coin_source),
+    indicators: defaultIndicators(ai?.indicators),
+    risk_control: defaultRisk(ai?.risk_control),
+    custom_prompt: ai?.custom_prompt || '',
+    prompt_sections: ai?.prompt_sections,
+    grid_config: undefined as unknown as any,
     publish_config: config?.publish_config,
   }
 }
@@ -1579,100 +1576,6 @@ export function StrategyStudioPage() {
     })
     setHasChanges(true)
   }
-
-  const handleStrategyTypeChange = (strategyType: NonNullable<StrategyConfig['strategy_type']>) => {
-    if (selectedStrategy?.is_default) return
-
-    const cachedGridConfig = selectedStrategy?.id
-      ? gridConfigCacheRef.current[selectedStrategy.id]
-      : null
-
-setEditingConfig((prev) => {
-      if (!prev) return prev
-
-      if (strategyType === 'ai_trading') {
-        if (selectedStrategy?.id && prev.grid_config) {
-          gridConfigCacheRef.current[selectedStrategy.id] = { ...prev.grid_config }
-        }
-
-        const { grid_config: _ignore, ...rest } = prev
-        return {
-          ...rest,
-          strategy_type: 'ai_trading' as const,
-        }
-      }
-
-      return {
-        ...prev,
-        strategy_type: 'grid_trading',
-        grid_config: cachedGridConfig ?? prev.grid_config ?? { ...defaultGridConfig },
-      }
-    })
-
-    setPromptPreview(null)
-    setAiTestResult(null)
-    setHasChanges(true)
-  }
-
-  // Fetch prompt preview
-  const fetchPromptPreview = async () => {
-    if (!token || !editingConfig) return
-    setIsLoadingPrompt(true)
-    try {
-      const response = await fetch(`${API_BASE}/api/strategies/preview-prompt`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          config: editingConfig,
-          account_equity: 1000,
-          prompt_variant: selectedVariant,
-        }),
-      })
-      if (!response.ok) throw new Error('Failed to fetch prompt preview')
-      const data = await response.json()
-      setPromptPreview(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setIsLoadingPrompt(false)
-    }
-  }
-
-  // Run AI test with real AI model
-  const runAiTest = async () => {
-    if (!token || !editingConfig || !selectedModelId) return
-    setIsRunningAiTest(true)
-    setAiTestResult(null)
-    try {
-      const response = await fetch(`${API_BASE}/api/strategies/test-run`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          config: editingConfig,
-          prompt_variant: selectedVariant,
-          ai_model_id: selectedModelId,
-          run_real_ai: true,
-        }),
-      })
-      if (!response.ok) throw new Error('Failed to run AI test')
-      const data = await response.json()
-      setAiTestResult(data)
-    } catch (err) {
-      setAiTestResult({
-        error: err instanceof Error ? err.message : 'Unknown error',
-      })
-    } finally {
-      setIsRunningAiTest(false)
-    }
-  }
-
-  const tr = (key: string) => t(`strategyStudio.${key}`, language)
 
   if (loading) {
     return (

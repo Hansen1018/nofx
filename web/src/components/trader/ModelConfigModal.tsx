@@ -18,6 +18,7 @@ interface ModelConfigModalProps {
   allModels: AIModel[]
   configuredModels: AIModel[]
   editingModelId: string | null
+  initialModelId?: string | null
   onSave: (
     modelId: string,
     apiKey: string,
@@ -33,13 +34,18 @@ export function ModelConfigModal({
   allModels,
   configuredModels,
   editingModelId,
+  initialModelId: _initialModelId,
   onSave,
   onDelete,
   onClose,
   language,
 }: ModelConfigModalProps) {
-  const [currentStep, setCurrentStep] = useState(editingModelId ? 1 : 0)
-  const [selectedModelId, setSelectedModelId] = useState(editingModelId || '')
+  const [currentStep, setCurrentStep] = useState(
+    editingModelId || _initialModelId ? 1 : 0
+  )
+  const [selectedModelId, setSelectedModelId] = useState(
+    editingModelId || _initialModelId || ''
+  )
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')

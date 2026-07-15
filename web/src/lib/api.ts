@@ -35,6 +35,7 @@ import type {
 } from '../types'
 import { CryptoService } from './crypto'
 import { httpClient } from './httpClient'
+import { walletApi } from './api/wallet'
 
 const API_BASE = '/api'
 
@@ -141,9 +142,13 @@ export const api = {
     if (!result.success) throw new Error('更新自定义策略失败')
   },
 
-  async getTraderConfig(traderId: string): Promise<TraderConfigData> {
-    const result = await httpClient.get<TraderConfigData>(
-      `${API_BASE}/traders/${traderId}/config`
+  async getTraderConfig(
+    traderId: string,
+    silent?: boolean
+  ): Promise<TraderConfigData> {
+    const result = await httpClient.request<TraderConfigData>(
+      `${API_BASE}/traders/${traderId}/config`,
+      { silent }
     )
     if (!result.success) throw new Error('获取交易员配置失败')
     return result.data!
@@ -870,4 +875,185 @@ export const api = {
     }
     return result.data
   },
+
+  // ====== Re-exported wallet helpers (newer Hyperliquid/Claw402 onboarding) ======
+  generateWallet: walletApi.generateWallet,
+  getHyperliquidConnectConfig: walletApi.getHyperliquidConnectConfig,
+  getHyperliquidAccount: walletApi.getHyperliquidAccount,
+  getHyperliquidAgent: walletApi.getHyperliquidAgent,
+  submitHyperliquidApproval: walletApi.submitHyperliquidApproval,
+
+  // ====== Claw402 / Vergex signal board (terminal dashboard) ======
+  // Returns the same wrapper shape as data.ts:
+  //   { data: { market, bins, ... }, meta?: unknown }
+  async getVergexSignalRanking(
+    limit = 25,
+    silent?: boolean
+  ): Promise<{
+    items?: Array<{ rank?: number; symbol: string; market_type?: string; bias?: string; score?: number; [key: string]: unknown }>
+    raw?: unknown
+  }> {
+    const params = new URLSearchParams({ limit: String(limit) })
+    const result = await httpClient.request<{
+      items?: Array<{ rank?: number; symbol: string; market_type?: string; bias?: string; score?: number; [key: string]: unknown }>
+      raw?: unknown
+    }>(
+      `${API_BASE}/vergex/signal-ranking?${params}`,
+      { silent }
+    )
+    if (!result.success)
+      throw new Error(result.message || 'Failed to fetch Vergex signal ranking')
+    return result.data || { items: [] }
+  },
+
+  async getVergexSignalLab(
+    params: { marketType: string; symbol: string; chain?: string; liqBand?: string },
+    silent?: boolean
+  ): Promise<{ data?: any; meta?: unknown }> {
+    const q = new URLSearchParams({
+      marketType: params.marketType,
+      symbol: params.symbol,
+    })
+    if (params.chain) q.set('chain', params.chain)
+    if (params.liqBand) q.set('liqBand', params.liqBand)
+    const result = await httpClient.request<any>(
+      `${API_BASE}/vergex/signal-lab?${q}`,
+      { silent, timeout: 60000 }
+    )
+    if (!result.success)
+      throw new Error(result.message || 'Failed to fetch Vergex signal lab')
+    return result.data || {}
+  },
+
+  async getVergexCostLiquidationHeatmap(
+    params: { marketType: string; symbol: string; chain?: string; liqBand?: string },
+    silent?: boolean
+  ): Promise<{ data?: any; meta?: unknown }> {
+    const q = new URLSearchParams({
+      marketType: params.marketType,
+      symbol: params.symbol,
+    })
+    if (params.chain) q.set('chain', params.chain)
+    if (params.liqBand) q.set('liqBand', params.liqBand)
+    const result = await httpClient.request<{ data?: any; meta?: unknown }>(
+      `${API_BASE}/vergex/cost-liquidation-heatmap?${q}`,
+      { silent, timeout: 90000 }
+    )
+    if (!result.success)
+      throw new Error(
+        result.message || 'Failed to fetch cost/liquidation heatmap'
+      )
+    // Server returns `{ data: { bins, market, ... }, meta }`. httpClient
+    // already gives us that envelope in `result.data`.
+    return result.data || {}
+  },
+
+  // ====== Full trader stats (terminal dashboard) ======
+  async getFullStats(
+    traderId?: string,
+    silent?: boolean
+  ): Promise<any> {
+    const url = traderId
+      ? `${API_BASE}/statistics/full?trader_id=${traderId}`
+      : `${API_BASE}/statistics/full`
+    const result = await httpClient.request<any>(url, { silent })
+    if (!result.success)
+      throw new Error('Failed to fetch full statistics')
+    return result.data!
+  },
+
+  async getFlowMarkets(
+    aiModelId?: string,
+    chain = 'mainnet',
+    window = '1h',
+    limit = 25,
+    silent?: boolean
+  ): Promise<{
+    data?: {
+      inflow?: Array<{ symbol: string; trades?: number; netFlow?: string; [key: string]: unknown }>
+      outflow?: Array<{ symbol: string; trades?: number; netFlow?: string; [key: string]: unknown }>
+      window?: string
+      [key: string]: unknown
+    }
+    meta?: unknown
+  }> {
+    const params = new URLSearchParams({ chain, window, limit: String(limit) })
+    if (aiModelId) params.set('ai_model_id', aiModelId)
+    const result = await httpClient.request<{
+      data?: {
+        inflow?: Array<{ symbol: string; trades?: number; netFlow?: string; [key: string]: unknown }>
+        outflow?: Array<{ symbol: string; trades?: number; netFlow?: string; [key: string]: unknown }>
+        window?: string
+        [key: string]: unknown
+      }
+      meta?: unknown
+    }>(
+      `${API_BASE}/flow-markets?${params}`,
+      { silent }
+    )
+    if (!result.success)
+      throw new Error('Failed to fetch flow markets')
+    return result.data || {}
+  },
+
+  async getSignalRanking(
+    aiModelId?: string,
+    chain = 'mainnet',
+    marketType = 'all',
+    limit = 30,
+    silent?: boolean
+  ): Promise<{
+    items?: Array<{ rank?: number; symbol: string; market_type?: string; bias?: string; score?: number; category?: string; [key: string]: unknown }>
+    meta?: unknown
+  }> {
+    const params = new URLSearchParams({
+      chain,
+      market_type: marketType,
+      limit: String(limit),
+    })
+    if (aiModelId) params.set('ai_model_id', aiModelId)
+    const result = await httpClient.request<{
+      items?: Array<{ rank?: number; symbol: string; market_type?: string; bias?: string; score?: number; category?: string; [key: string]: unknown }>
+      meta?: unknown
+    }>(
+      `${API_BASE}/signal-ranking?${params}`,
+      { silent }
+    )
+    if (!result.success)
+      throw new Error('Failed to fetch signal ranking')
+    return result.data || {}
+  },
+
+  // ====== K-lines (terminal chart) ======
+  async getKlines(
+    symbol: string,
+    interval = '5m',
+    exchange = 'hyperliquid',
+    limit = 60,
+    silent?: boolean
+  ): Promise<any[]> {
+    const params = new URLSearchParams({
+      symbol,
+      interval,
+      exchange,
+      limit: String(limit),
+    })
+    const result = await httpClient.request<any[]>(
+      `${API_BASE}/klines?${params}`,
+      { silent }
+    )
+    if (!result.success) throw new Error('Failed to fetch klines')
+    return result.data || []
+  },
+
+  // ====== Symbol list (used by strategy studio preview) ======
+  async getSymbols(exchange = 'hyperliquid-xyz'): Promise<any> {
+    const params = new URLSearchParams({ exchange })
+    const result = await httpClient.request<any>(
+      `${API_BASE}/symbols?${params}`
+    )
+    if (!result.success) throw new Error('Failed to fetch symbols')
+    return result.data || { symbols: [] }
+  },
 }
+

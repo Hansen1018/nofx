@@ -13,6 +13,17 @@ export interface SystemStatus {
   ai_provider: string
   strategy_type?: 'ai_trading' | 'grid_trading'
   grid_symbol?: string
+  safe_mode?: boolean
+  safe_mode_reason?: string
+  ai_wallet_status?:
+    | 'unknown'
+    | 'missing'
+    | 'funded'
+    | 'attention'
+    | 'empty'
+    | 'low'
+  ai_wallet_balance_usdc?: string | number
+  ai_wallet_address?: string
 }
 
 export interface AccountInfo {
@@ -162,12 +173,19 @@ export interface Exchange {
   has_api_key?: boolean
   has_secret_key?: boolean
   has_passphrase?: boolean
+  has_aster_private_key?: boolean
+  has_lighter_private_key?: boolean
+  has_lighter_api_key_private_key?: boolean
   apiKey?: string
   secretKey?: string
   passphrase?: string            // OKX specific
   testnet?: boolean
   // Hyperliquid specific
   hyperliquidWalletAddr?: string
+  hyperliquidUnifiedAcct?: boolean
+  hyperliquidBuilderApproved?: boolean
+  hyperliquid_unified_account?: boolean
+  hyperliquid_builder_approved?: boolean
   // Aster specific
   asterUser?: string
   asterSigner?: string
@@ -188,6 +206,8 @@ export interface CreateExchangeRequest {
   passphrase?: string
   testnet?: boolean
   hyperliquid_wallet_addr?: string
+  hyperliquid_unified_account?: boolean
+  hyperliquid_builder_approved?: boolean
   aster_user?: string
   aster_signer?: string
   aster_private_key?: string
@@ -238,6 +258,8 @@ export interface UpdateExchangeConfigRequest {
       testnet?: boolean
       // Hyperliquid 特定字段
       hyperliquid_wallet_addr?: string
+      hyperliquid_unified_account?: boolean
+      hyperliquid_builder_approved?: boolean
       // Aster 特定字段
       aster_user?: string
       aster_signer?: string
@@ -502,6 +524,20 @@ export interface PromptSectionsConfig {
   decision_process?: string;
 }
 
+export interface AIStrategyConfig {
+  coin_source: CoinSourceConfig;
+  indicators: IndicatorConfig;
+  risk_control: RiskControlConfig;
+  prompt_sections?: PromptSectionsConfig;
+  custom_prompt?: string;
+}
+
+export interface PublishStrategyConfig {
+  is_public?: boolean;
+  config_visible?: boolean;
+  tags?: string[];
+}
+
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
   strategy_type?: 'ai_trading' | 'grid_trading';
@@ -513,6 +549,10 @@ export interface StrategyConfig {
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
+  // Optional split-out AI config so the strategy can be cloned / published
+  // without requiring grid_config. Mirrors the new dev frontend shape.
+  ai_config?: AIStrategyConfig;
+  publish_config?: PublishStrategyConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig;
 }
@@ -552,7 +592,16 @@ export interface GridStrategyConfig {
 }
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed';
+  source_type:
+    | 'static'
+    | 'ai500'
+    | 'oi_top'
+    | 'oi_low'
+    | 'mixed'
+    | 'hyper_rank'
+    | 'hyper_all'
+    | 'hyper_main'
+    | 'vergex_signal';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
   use_ai500: boolean;
@@ -561,6 +610,25 @@ export interface CoinSourceConfig {
   oi_top_limit?: number;
   use_oi_low: boolean;
   oi_low_limit?: number;
+  use_hyper_all?: boolean;
+  use_hyper_main?: boolean;
+  // Hyperliquid ranked source (stock/volume/gainers)
+  hyper_rank_category?:
+    | 'all'
+    | 'stock'
+    | 'crypto'
+    | 'perp'
+    | 'commodity'
+    | 'index'
+    | 'forex'
+    | 'pre_ipo'
+  hyper_rank_direction?: 'volume' | 'gainers' | 'losers' | 'new'
+  hyper_rank_limit?: number
+  // Vergex (Claw402) signal-board source
+  vergex_limit?: number
+  vergex_market_type?: 'all' | 'spot' | 'perp' | 'stock'
+  vergex_chain?: 'hyperliquid' | 'base' | 'solana'
+  vergex_liq_band?: 'tight' | 'normal' | 'wide'
   // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }
 
@@ -813,6 +881,35 @@ export interface TraderStats {
   avg_win: number;
   avg_loss: number;
   max_drawdown_pct: number;
+}
+
+// TraderFullStats mirrors dev backend's /statistics/full payload.
+// Loose shape — fields are accessed dynamically by the terminal dashboard.
+export interface TraderFullStats {
+  trader_id?: string;
+  trader_name?: string;
+  ai_model?: string;
+  exchange?: string;
+  total_equity?: number;
+  total_pnl?: number;
+  total_pnl_pct?: number;
+  realized_pnl?: number;
+  unrealized_pnl?: number;
+  initial_balance?: number;
+  available_balance?: number;
+  margin_used?: number;
+  margin_used_pct?: number;
+  position_count?: number;
+  long_count?: number;
+  short_count?: number;
+  max_drawdown_pct?: number;
+  drawdown_baseline?: number;
+  has_drawdown_data?: boolean;
+  risk_radar?: Record<string, number | string | null>;
+  execution_log?: any[];
+  recent_decisions?: any[];
+  stats?: TraderStats;
+  [key: string]: unknown;
 }
 
 // Matches Go SymbolStats struct exactly

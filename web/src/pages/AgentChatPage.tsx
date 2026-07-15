@@ -36,6 +36,7 @@ interface Message {
   time: string
   streaming?: boolean
   steps?: AgentStep[]
+  [key: string]: unknown
 }
 
 interface AgentStep {
@@ -109,7 +110,7 @@ export function AgentChatPage() {
   const { token, user } = useAuth()
   const [storageUserId, setStorageUserId] = useState<string | undefined>(() => getStoredAuthUserId())
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024)
-  const storageKey = chatStorageKey(user?.id || storageUserId)
+  const storageKey = chatStorageKey(user?.id || storageUserId || 'default')
   const [messages, setMessages] = useState<Message[]>(
     () => loadAgentMessages<Message>(window.localStorage, user?.id || storageUserId).messages
   )
