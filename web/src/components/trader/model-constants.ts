@@ -7,6 +7,7 @@ export interface Claw402Model {
   desc: string
   icon: string
   price: number  // USD per call
+  isNew?: boolean
 }
 
 export interface AIProviderConfig {
@@ -59,6 +60,9 @@ export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'claude-opus', name: 'Claude Opus', provider: 'Anthropic', desc: '$0.12/call', icon: '🎯', price: 0.12 },
   { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'Anthropic', desc: '$0.18/call', icon: '🚀', price: 0.18 },
   { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'OpenAI', desc: '$0.50/call', icon: '🧠', price: 0.50 },
+  { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'OpenAI', desc: '$0.20/call', icon: '🌕', price: 0.20, isNew: true },
+  { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', provider: 'OpenAI', desc: '$0.10/call', icon: '🌍', price: 0.10, isNew: true },
+  { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', provider: 'OpenAI', desc: '$0.04/call', icon: '🌑', price: 0.04, isNew: true },
 ]
 
 export const BLOCKRUN_MODELS: BlockrunModel[] = [
@@ -70,6 +74,21 @@ export const BLOCKRUN_MODELS: BlockrunModel[] = [
   {
     id: 'gpt-5.5',
     name: 'GPT-5.5',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.6-sol',
+    name: 'GPT-5.6 Sol',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.6-terra',
+    name: 'GPT-5.6 Terra',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.6-luna',
+    name: 'GPT-5.6 Luna',
     desc: 'Base wallet payment',
   },
   {
@@ -92,7 +111,7 @@ export const BLOCKRUN_MODELS: BlockrunModel[] = [
     name: 'Qwen 3 Max',
     desc: 'Base wallet payment',
   },
-]
+] 
 
 // AI Provider configuration - default models and API links
 export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
@@ -107,7 +126,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'Alibaba Cloud',
   },
   openai: {
-    defaultModel: 'gpt-5.2',
+    defaultModel: 'gpt-5.6',
     apiUrl: 'https://platform.openai.com/api-keys',
     apiName: 'OpenAI',
   },
