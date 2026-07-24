@@ -264,7 +264,7 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		c.CoinSource.UseOILow = false
 		c.CoinSource.UseHyperAll = false
 		c.CoinSource.UseHyperMain = false
-		c.CoinSource.HyperRankCategory = "stock"
+c.CoinSource.HyperRankCategory = "stock"
 		c.CoinSource.HyperRankDirection = direction
 		c.CoinSource.HyperRankLimit = limit
 	}
@@ -279,11 +279,14 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 	}
 	setStableRisk := func(c *store.StrategyConfig) {
 		c.RiskControl.MaxPositions = 2
-		c.RiskControl.BTCETHMaxLeverage = 3
-		c.RiskControl.AltcoinMaxLeverage = 3
-		c.RiskControl.BTCETHMaxPositionValueRatio = 2.0
-		c.RiskControl.AltcoinMaxPositionValueRatio = 0.6
-		c.RiskControl.MaxMarginUsage = 0.45
+		c.RiskControl.BTCETHMaxLeverage = 5
+		c.RiskControl.AltcoinMaxLeverage = 5
+		// Few, concentrated positions held for big moves. 5x leverage so a
+		// wide (-5%) stop is survivable rather than an instant liquidation;
+		// 2 positions × 2.5x = 5x total notional (full margin, ~20% cushion).
+		c.RiskControl.BTCETHMaxPositionValueRatio = 2.5
+		c.RiskControl.AltcoinMaxPositionValueRatio = 2.5
+		c.RiskControl.MaxMarginUsage = 1.0
 		c.RiskControl.MinConfidence = 78
 		c.RiskControl.MinRiskRewardRatio = 3.0
 		c.Indicators.Klines.PrimaryTimeframe = "15m"
