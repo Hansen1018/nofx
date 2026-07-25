@@ -30,30 +30,34 @@ var modelPrices = map[string]float64{
 	// Terra: input $2.50 / cached $0.25 / output $15 per 1M tokens.
 	// Luna: input $1 / cached $0.10 / output $6 per 1M tokens.
 	// Per-call estimates assume ~30K mix of input + output tokens.
-	"gpt-5.6":       0.20,
-	"gpt-5.6-sol":   0.20,
-	"gpt-5.6-terra": 0.10,
-	"gpt-5.6-luna":  0.04,
+	"gpt-5.6":        0.20,
+	"gpt-5.6-sol":    0.20,
+	"gpt-5.6-terra":  0.10,
+	"gpt-5.6-luna":   0.04,
 	// GPT-5.5 — input $5 / output $30 per 1M tokens per openai.com quick
 	// comparison; same tier as Sol so analogous ~$0.15/call estimate.
-	"gpt-5.5":         0.15,
-	"gpt-5.4":         0.05,
-	"gpt-5.4-pro":     0.50,
-	"gpt-5.3":         0.01,
-	"gpt-5-mini":      0.005,
-	"claude-opus":     0.12,
-	"MiniMax-M3":      0.20,
-	"claude-opus-4-8": 0.18,
-	"claude-opus-5":   0.18,
-	"claude-sonnet-5": 0.09,
-	"claude-fable-5":  0.36,
-	"qwen-max":        0.01,
-	"qwen-plus":       0.005,
-	"qwen-turbo":      0.002,
-	"qwen-flash":      0.002,
-	"grok-4.1":        0.06,
-	"gemini-3.1-pro":  0.03,
-	"kimi-k2.5":       0.008,
+	"gpt-5.5":        0.15,
+	"gpt-5.4":        0.05,
+	"gpt-5.4-pro":    0.50,
+	"gpt-5.3":        0.01,
+	"gpt-5-mini":     0.005,
+	"claude-opus":       0.12,
+	"MiniMax-M3":         0.20,
+	// Claude Opus 4.8 — same per-call tier as PR #1510; Anthropic kept 4.7 pricing.
+	"claude-opus-4-8":   0.18,
+	"claude-opus-5":     0.18,
+	"claude-sonnet-5":   0.09,
+	// Claude Fable 5 — first public Mythos-class model (above Opus tier).
+	//   $10/1M input, $50/1M output per anthropic.com; ~2× the Opus 4.8 token
+	//   price, so per-call estimate is ~2× 4.8's.
+	"claude-fable-5":    0.36,
+	"qwen-max":          0.01,
+	"qwen-plus":         0.005,
+	"qwen-turbo":        0.002,
+	"qwen-flash":        0.002,
+	"grok-4.1":          0.06,
+	"gemini-3.1-pro":    0.03,
+	"kimi-k2.5":         0.008,
 }
 
 // GetModelPrice returns the price per call for a given model
