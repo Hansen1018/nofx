@@ -84,9 +84,11 @@ function fmtTime(raw?: string | number): string {
 }
 
 /** Hold duration from entry/exit epoch-ms as a compact 45m / 2h10 / 1d3h. */
-function fmtHold(entry?: number, exit?: number): string {
-  if (!entry || !exit || exit <= entry) return '—'
-  const mins = Math.round((exit - entry) / 60000)
+function fmtHold(entry?: string | number, exit?: string | number): string {
+  const e = typeof entry === 'string' ? Number(entry) : entry
+  const x = typeof exit === 'string' ? Number(exit) : exit
+  if (!e || !x || x <= e) return '—'
+  const mins = Math.round((x - e) / 60000)
   if (mins < 60) return `${mins}m`
   const h = Math.floor(mins / 60)
   const m = mins % 60
@@ -94,7 +96,6 @@ function fmtHold(entry?: number, exit?: number): string {
   const d = Math.floor(h / 24)
   return `${d}d${h % 24}h`
 }
-
 function useTick(ms = 1000) {
   const [, set] = useState(0)
   useEffect(() => {
@@ -177,7 +178,7 @@ export function TerminalDashboard({
 
   const latest = decisions && decisions.length > 0 ? decisions[0] : undefined
   const candidateCoins = latest?.candidate_coins ?? []
-  const flowItems = flow?.data?.inflow ?? []
+  const flowItems: any[] = flow?.data?.inflow ?? [] 
 
   // Both the cost/liq map and the order book follow this symbol so they stay in
   // sync. The heatmap only covers hip3_perp synthetic markets, so we pick a
@@ -330,7 +331,7 @@ export function TerminalDashboard({
               {status.ai_wallet_status === 'empty'
                 ? 'AI fee wallet is out of USDC — decisions are failing.'
                 : status.ai_wallet_status === 'low'
-                  ? `AI fee wallet is low (${(status.ai_wallet_balance_usdc ?? 0).toFixed(2)} USDC) — top up soon.`
+                  ? `AI fee wallet is low (${Number(status.ai_wallet_balance_usdc ?? 0).toFixed(2)} USDC) — top up soon.`
                   : 'Safe mode: AI failed repeatedly, no new positions are being opened.'}
             </span>
             <span style={{ color: 'var(--tm-ink-2)' }}>
@@ -429,7 +430,7 @@ export function TerminalDashboard({
             <OrderBook symbol={activeSym} demo={on} markPrice={positions?.find((p) => baseLabel(p.symbol) === activeSym)?.entry_price} />
           </div>
           <div style={{ ...sc, height: ROW1_H, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <SignalMatrix items={signalRank?.items} max={18} active={activeSym} onSelect={setSelectedSym} />
+            <SignalMatrix items={signalRank?.items as any} max={18} active={activeSym} onSelect={setSelectedSym} />
             {/* the live K-line always sits under the selector and flexes to fill */}
             <div className="tm-rule" style={{ margin: '10px 0 8px' }} />
             <div style={{ flex: 1, minHeight: 0 }}>

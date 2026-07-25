@@ -8,6 +8,7 @@ export type Page =
   | 'faq'
   | 'login'
   | 'register'
+  | 'agent'
 
 export const ROUTES = {
   home: '/',
@@ -24,6 +25,7 @@ export const ROUTES = {
   dashboard: '/dashboard',
   strategy: '/strategy',
   strategyMarket: '/strategy-market',
+  agent: '/agent',
 } as const
 
 export const PAGE_PATHS: Record<Page, string> = {
@@ -36,6 +38,7 @@ export const PAGE_PATHS: Record<Page, string> = {
   faq: ROUTES.faq,
   login: ROUTES.login,
   register: ROUTES.register,
+  agent: ROUTES.agent,
 }
 
 export const LEGACY_HASH_ROUTES: Record<string, string> = {

@@ -83,7 +83,7 @@ You **must** output decisions in the following JSON format:
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT|UPDATE_STOP_LOSS",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,
@@ -191,13 +191,16 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 ## Decision Principles
 
 ### Risk First
-- Margin usage must not exceed 30%
-- Must stop-loss when single position loss reaches -5%
+- Margin usage must not exceed {risk_control.max_margin_usage * 100}%
+- Must stop-loss when single position loss reaches {risk_control.hard_stop_loss_pct}%
+- When UnrealizedPnL reaches +{risk_control.breakeven_threshold}%, move stop-loss to entry price to protect principal
+- Use update_stop_loss action to adjust stop-loss during position (only move in profitable direction)
 - Capital protection first, profit second
 
 ### Trailing Take-Profit
-- Consider partial/full profit-taking when PnL pulls back 30% from peak
-- Example: Peak PnL +5%, Current PnL +3.5% → 30% drawdown, should take profit
+- Consider partial/full profit-taking when PnL pulls back {risk_control.trailing_stop_pct}% from peak
+- Minimum profit required: {risk_control.trailing_stop_min_profit}%
+- Auto-close when drawdown reaches {risk_control.trailing_stop_drawdown}%
 
 ### Trend Following
 - Only enter when trends align across multiple timeframes
@@ -218,7 +221,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT|UPDATE_STOP_LOSS",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,

@@ -42,12 +42,8 @@ export function getShortName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : fullName
 }
 
-export const DEFAULT_CLAW402_MODEL = 'deepseek-v4-flash'
-
 // Models available through Claw402 (x402 USDC payment protocol)
 export const CLAW402_MODELS: Claw402Model[] = [
-  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'DeepSeek', desc: '$0.003/call', icon: '⚡', price: 0.003, isNew: true },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'DeepSeek', desc: '$0.01/call', icon: '🧠', price: 0.01, isNew: true },
   { id: 'deepseek', name: 'DeepSeek V3', provider: 'DeepSeek', desc: '$0.003/call', icon: '🔥', price: 0.003 },
   { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'DeepSeek', desc: '$0.005/call', icon: '🤔', price: 0.005 },
   { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', desc: '$0.005/call', icon: '🚀', price: 0.005 },
@@ -59,6 +55,7 @@ export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'qwen-max', name: 'Qwen Max', provider: 'Alibaba', desc: '$0.01/call', icon: '🌟', price: 0.01 },
   { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'Google', desc: '$0.03/call', icon: '💎', price: 0.03 },
   { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', desc: '$0.05/call', icon: '⚡', price: 0.05 },
+  { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', desc: '$0.15/call', icon: '💫', price: 0.15 },
   { id: 'grok-4.1', name: 'Grok 4.1', provider: 'xAI', desc: '$0.06/call', icon: '⚡', price: 0.06 },
   { id: 'claude-opus', name: 'Claude Opus', provider: 'Anthropic', desc: '$0.12/call', icon: '🎯', price: 0.12 },
   { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'Anthropic', desc: '$0.18/call', icon: '🚀', price: 0.18 },
@@ -66,12 +63,35 @@ export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', provider: 'Anthropic', desc: '$0.09/call', icon: '✨', price: 0.09, isNew: true },
   { id: 'claude-fable-5', name: 'Claude Fable 5', provider: 'Anthropic', desc: '$0.36/call', icon: '🐉', price: 0.36, isNew: true },
   { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'OpenAI', desc: '$0.50/call', icon: '🧠', price: 0.50 },
+  { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'OpenAI', desc: '$0.20/call', icon: '🌕', price: 0.20, isNew: true },
+  { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', provider: 'OpenAI', desc: '$0.10/call', icon: '🌍', price: 0.10, isNew: true },
+  { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', provider: 'OpenAI', desc: '$0.04/call', icon: '🌑', price: 0.04, isNew: true },
 ]
 
 export const BLOCKRUN_MODELS: BlockrunModel[] = [
   {
     id: 'gpt-5.2',
     name: 'GPT-5.2',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.5',
+    name: 'GPT-5.5',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.6-sol',
+    name: 'GPT-5.6 Sol',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.6-terra',
+    name: 'GPT-5.6 Terra',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gpt-5.6-luna',
+    name: 'GPT-5.6 Luna',
     desc: 'Base wallet payment',
   },
   {
@@ -109,7 +129,7 @@ export const BLOCKRUN_MODELS: BlockrunModel[] = [
     name: 'Qwen 3 Max',
     desc: 'Base wallet payment',
   },
-]
+] 
 
 // AI Provider configuration - default models and API links
 export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
@@ -124,7 +144,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'Alibaba Cloud',
   },
   openai: {
-    defaultModel: 'gpt-5.2',
+    defaultModel: 'gpt-5.6',
     apiUrl: 'https://platform.openai.com/api-keys',
     apiName: 'OpenAI',
   },
@@ -149,12 +169,12 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'Moonshot',
   },
   minimax: {
-    defaultModel: 'MiniMax-M2.7',
+    defaultModel: 'MiniMax-M3',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
   },
   claw402: {
-    defaultModel: DEFAULT_CLAW402_MODEL,
+    defaultModel: 'glm-5',
     apiUrl: 'https://claw402.ai',
     apiName: 'Claw402',
   },

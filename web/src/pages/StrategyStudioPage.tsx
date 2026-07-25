@@ -189,14 +189,13 @@ function defaultCoinSource(
     oi_low_limit: 0,
     use_hyper_all: false,
     use_hyper_main: false,
-    hyper_main_limit: 0,
     hyper_rank_category: source?.hyper_rank_category || 'all',
     hyper_rank_direction: 'gainers',
     hyper_rank_limit: 0,
     vergex_limit: vergexLimit,
     vergex_market_type: source?.vergex_market_type || 'all',
     vergex_chain: source?.vergex_chain || 'hyperliquid',
-    vergex_liq_band: source?.vergex_liq_band || '',
+    vergex_liq_band: (source?.vergex_liq_band || 'normal') as 'tight' | 'normal' | 'wide' | undefined,
   }
 }
 
@@ -262,14 +261,12 @@ function simplifyConfig(
   return {
     strategy_type: 'ai_trading',
     language: config?.language || 'zh',
-    ai_config: {
-      coin_source: defaultCoinSource(ai?.coin_source),
-      indicators: defaultIndicators(ai?.indicators),
-      risk_control: defaultRisk(ai?.risk_control),
-      custom_prompt: ai?.custom_prompt || '',
-      prompt_sections: ai?.prompt_sections,
-    },
-    grid_config: null,
+    coin_source: defaultCoinSource(ai?.coin_source),
+    indicators: defaultIndicators(ai?.indicators),
+    risk_control: defaultRisk(ai?.risk_control),
+    custom_prompt: ai?.custom_prompt || '',
+    prompt_sections: ai?.prompt_sections,
+    grid_config: undefined as unknown as any,
     publish_config: config?.publish_config,
   }
 }

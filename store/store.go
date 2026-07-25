@@ -158,11 +158,11 @@ func (s *Store) initTables() error {
 	if err := s.Grid().InitTables(); err != nil {
 		return fmt.Errorf("failed to initialize grid tables: %w", err)
 	}
-	if err := s.TelegramConfig().(*telegramConfigStore).initTables(); err != nil {
-		return fmt.Errorf("failed to initialize telegram config tables: %w", err)
-	}
 	if err := s.AICharge().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize AI charge tables: %w", err)
+	}
+	if err := s.TelegramConfig().(*telegramConfigStore).initTables(); err != nil {
+		return fmt.Errorf("failed to initialize telegram config tables: %w", err)
 	}
 	return nil
 }
@@ -287,7 +287,7 @@ func (s *Store) Grid() *GridStore {
 	return s.grid
 }
 
-// AICharge gets AI charge storage
+// AICharge gets AI charge records storage
 func (s *Store) AICharge() *AIChargeStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()

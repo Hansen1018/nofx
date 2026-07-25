@@ -7,7 +7,7 @@ import (
 	"nofx/store"
 )
 
-func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
+func TestCreateDefaultStrategiesUsesReadyToRunUSStockPresets(t *testing.T) {
 	st, err := store.New(t.TempDir() + "/nofx.db")
 	if err != nil {
 		t.Fatalf("store.New failed: %v", err)
@@ -24,8 +24,8 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List strategies failed: %v", err)
 	}
-	if len(strategies) != 1 {
-		t.Fatalf("expected 1 default strategy, got %d", len(strategies))
+	if len(strategies) != 3 {
+		t.Fatalf("expected 3 default strategies, got %d", len(strategies))
 	}
 
 	byName := map[string]*store.Strategy{}
@@ -35,7 +35,7 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 		if strategy.IsActive {
 			activeCount++
 		}
-		if strategy.Name == "Balanced Strategy" || strategy.Name == "Steady Strategy" || strategy.Name == "Aggressive Strategy" {
+		if strategy.Name == "均衡策略" || strategy.Name == "稳健策略" || strategy.Name == "积极策略" {
 			t.Fatalf("legacy crypto-style default strategy still present: %s", strategy.Name)
 		}
 	}
@@ -43,27 +43,53 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 		t.Fatalf("expected exactly one active strategy, got %d", activeCount)
 	}
 
-	defaultStrategy := byName["NOFX Claw402 Auto Strategy"]
-	if defaultStrategy == nil || !defaultStrategy.IsActive {
-		t.Fatalf("NOFX Claw402 Auto Strategy should exist and be active")
+	trend := byName["美股趋势策略"]
+	if trend == nil || !trend.IsActive {
+		t.Fatalf("美股趋势策略 should exist and be active")
 	}
-	trendCfg, err := defaultStrategy.ParseConfig()
+	trendCfg, err := trend.ParseConfig()
 	if err != nil {
-		t.Fatalf("default ParseConfig failed: %v", err)
+		t.Fatalf("trend ParseConfig failed: %v", err)
 	}
-	if trendCfg.CoinSource.SourceType != "vergex_signal" || trendCfg.CoinSource.VergexLimit != 10 || trendCfg.CoinSource.VergexMarketType != "all" {
-		t.Fatalf("default strategy should use the Claw402/Vergex all-market signal ranking, got %+v", trendCfg.CoinSource)
+	if trendCfg.CoinSource.SourceType != "hyper_rank" || trendCfg.CoinSource.HyperRankCategory != "stock" || trendCfg.CoinSource.HyperRankDirection != "volume" {
+		t.Fatalf("trend strategy should use Hyperliquid stock volume ranking, got %+v", trendCfg.CoinSource)
 	}
-	if trendCfg.CoinSource.UseAI500 || trendCfg.RiskControl.MaxPositions != 2 {
-		t.Fatalf("default strategy should be Claw402/Vergex native with a 2-position concentrated book, got coin=%+v risk=%+v", trendCfg.CoinSource, trendCfg.RiskControl)
+if trendCfg.CoinSource.UseAI500 || trendCfg.RiskControl.MaxPositions != 2 {
+		t.Fatalf("default trend strategy should be a 2-position concentrated book, got coin=%+v risk=%+v", trendCfg.CoinSource, trendCfg.RiskControl)
+	}
+	if trendCfg.CoinSource.SourceType != "hyper_rank" ||
+		trendCfg.CoinSource.HyperRankCategory != "stock" ||
+		trendCfg.CoinSource.HyperRankDirection != "volume" {
+		t.Fatalf("trend strategy should use Hyperliquid US-stock volume ranking, got %+v", trendCfg.CoinSource)
 	}
 	if trendCfg.RiskControl.BTCETHMaxLeverage != 5 || trendCfg.RiskControl.AltcoinMaxLeverage != 5 {
-		t.Fatalf("default strategy should use 5x leverage for all Claw402 opens, got risk=%+v", trendCfg.RiskControl)
+		t.Fatalf("default strategy should use 5x leverage for all opens, got risk=%+v", trendCfg.RiskControl)
 	}
 	if trendCfg.RiskControl.BTCETHMaxPositionValueRatio != 2.5 ||
 		trendCfg.RiskControl.AltcoinMaxPositionValueRatio != 2.5 ||
 		trendCfg.RiskControl.MaxMarginUsage != 1.0 {
-		t.Fatalf("default strategy should size Claw402 opens at 2.5x equity notional (2 positions = 5x total at 5x), got risk=%+v", trendCfg.RiskControl)
+		t.Fatalf("default strategy should size opens at 2.5x equity notional (2 positions = 5x total at 5x), got risk=%+v", trendCfg.RiskControl)
+	}
+
+	megaCap := byName["美股大盘稳健策略"]
+	if megaCap == nil {
+		t.Fatalf("美股大盘稳健策略 should exist")
+	}
+	megaCfg, err := megaCap.ParseConfig()
+	if err != nil {
+		t.Fatalf("megaCap ParseConfig failed: %v", err)
+	}
+	if megaCfg.CoinSource.SourceType != "static" {
+		t.Fatalf("mega-cap strategy should use static stock symbols, got %+v", megaCfg.CoinSource)
+	}
+	wantSymbols := []string{"AAPL-USDC", "MSFT-USDC", "GOOGL-USDC", "AMZN-USDC", "META-USDC"}
+	if len(megaCfg.CoinSource.StaticCoins) != len(wantSymbols) {
+		t.Fatalf("unexpected static stock list: %+v", megaCfg.CoinSource.StaticCoins)
+	}
+	for i, want := range wantSymbols {
+		if megaCfg.CoinSource.StaticCoins[i] != want {
+			t.Fatalf("static stock %d: want %s got %s", i, want, megaCfg.CoinSource.StaticCoins[i])
+		}
 	}
 }
 
@@ -79,7 +105,7 @@ func TestCreateDefaultStrategiesMigratesLegacyPresetsWithoutOverridingActiveCust
 	legacy := &store.Strategy{
 		ID:          uuid.New().String(),
 		UserID:      userID,
-		Name:        "Balanced Strategy",
+		Name:        "均衡策略",
 		Description: "legacy",
 		IsActive:    false,
 	}
@@ -124,11 +150,13 @@ func TestCreateDefaultStrategiesMigratesLegacyPresetsWithoutOverridingActiveCust
 			activeNames = append(activeNames, strategy.Name)
 		}
 	}
-	if byName["Balanced Strategy"] != 0 {
+	if byName["均衡策略"] != 0 {
 		t.Fatalf("legacy preset should be removed, got names=%+v", byName)
 	}
-	if byName["NOFX Claw402 Auto Strategy"] != 1 {
-		t.Fatalf("expected exactly one NOFX Claw402 Auto Strategy, got names=%+v", byName)
+	for _, name := range []string{"美股趋势策略", "美股大盘稳健策略", "美股突破策略"} {
+		if byName[name] != 1 {
+			t.Fatalf("expected exactly one %s, got names=%+v", name, byName)
+		}
 	}
 	if len(activeNames) != 1 || activeNames[0] != "aa" {
 		t.Fatalf("existing active custom strategy should stay the only active one, got %+v", activeNames)

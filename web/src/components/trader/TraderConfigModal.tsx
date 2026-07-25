@@ -1,21 +1,8 @@
 import { useState, useEffect } from 'react'
-import type {
-  AIModel,
-  Exchange,
-  CreateTraderRequest,
-  Strategy,
-  TraderConfigData,
-} from '../../types'
+import type { AIModel, Exchange, CreateTraderRequest, Strategy, TraderConfigData } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
-import {
-  Pencil,
-  Plus,
-  X as IconX,
-  Sparkles,
-  ExternalLink,
-  UserPlus,
-} from 'lucide-react'
+import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../../lib/httpClient'
 import { NofxSelect } from '../ui/select'
 
@@ -26,42 +13,26 @@ function getShortName(fullName: string): string {
 }
 
 function getStrategyAIConfig(strategy: Strategy) {
-  return (
-    strategy.config.ai_config ||
-    (strategy.config.coin_source && strategy.config.risk_control
+  return strategy.config.ai_config || (
+    strategy.config.coin_source && strategy.config.risk_control
       ? {
           coin_source: strategy.config.coin_source,
           risk_control: strategy.config.risk_control,
         }
-      : null)
+      : null
   )
 }
 
-// Exchange registration link configuration
-const EXCHANGE_REGISTRATION_LINKS: Record<
-  string,
-  { url: string; hasReferral?: boolean }
-> = {
-  binance: {
-    url: 'https://www.binance.com/join?ref=NOFXENG',
-    hasReferral: true,
-  },
+// 交易所注册链接配置
+const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: boolean }> = {
+  binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
   okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
   bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
-  hyperliquid: {
-    url: 'https://app.hyperliquid.xyz/join/AITRADING',
-    hasReferral: true,
-  },
-  aster: {
-    url: 'https://www.asterdex.com/en/referral/fdfc0e',
-    hasReferral: true,
-  },
-  lighter: {
-    url: 'https://app.lighter.xyz/?referral=68151432',
-    hasReferral: true,
-  },
+  hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
+  aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
+  lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
 }
-// Internal form state type
+// 表单内部状态类型
 interface FormState {
   trader_id?: string
   trader_name: string
@@ -381,73 +352,32 @@ export function TraderConfigModal({
                     {selectedStrategy.description ||
                       (language === 'zh' ? 'No description' : 'No description')}
                   </p>
-                  {selectedStrategy.config.strategy_type === 'grid_trading' &&
-                  selectedStrategy.config.grid_config ? (
-                    <div className="grid grid-cols-2 gap-2 text-xs text-nofx-text-muted">
-                      <div>
-                        {language === 'zh' ? 'Symbol' : 'Symbol'}:{' '}
-                        {selectedStrategy.config.grid_config.symbol || '-'}
-                      </div>
-                      <div>
-                        {language === 'zh' ? 'Grids' : 'Grids'}:{' '}
-                        {selectedStrategy.config.grid_config.grid_count}
-                      </div>
+                  {selectedStrategy.config.strategy_type === 'grid_trading' && selectedStrategy.config.grid_config ? (
+                    <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
+                      <div>{language === 'zh' ? '交易对' : 'Symbol'}: {selectedStrategy.config.grid_config.symbol || '-'}</div>
+                      <div>{language === 'zh' ? '网格数' : 'Grids'}: {selectedStrategy.config.grid_config.grid_count}</div>
                     </div>
-                  ) : (
-                    (() => {
-                      const aiConfig = getStrategyAIConfig(selectedStrategy)
-                      if (!aiConfig) return null
-                      return (
-                        <div className="grid grid-cols-2 gap-2 text-xs text-nofx-text-muted">
-                          <div>
-                            {t('coinSource', language)}:{' '}
-                            {aiConfig.coin_source.source_type === 'static'
-                              ? language === 'zh'
-                                ? 'Fixed US stocks'
-                                : 'Fixed US stocks'
-                              : aiConfig.coin_source.source_type ===
-                                  'vergex_signal'
-                                ? language === 'zh'
-                                  ? 'Vergex signal board'
-                                  : 'Vergex signal board'
-                                : aiConfig.coin_source.source_type ===
-                                    'hyper_rank'
-                                  ? language === 'zh'
-                                    ? 'Claw402 board'
-                                    : 'Claw402 board'
-                                  : aiConfig.coin_source.source_type ===
-                                      'hyper_all'
-                                    ? language === 'zh'
-                                      ? 'Hyperliquid all markets'
-                                      : 'Hyperliquid all markets'
-                                    : aiConfig.coin_source.source_type ===
-                                        'hyper_main'
-                                      ? language === 'zh'
-                                        ? 'Hyperliquid main markets'
-                                        : 'Hyperliquid main markets'
-                                      : aiConfig.coin_source.source_type ===
-                                          'ai500'
-                                        ? 'AI500'
-                                        : aiConfig.coin_source.source_type ===
-                                            'oi_top'
-                                          ? 'OI Top'
-                                          : aiConfig.coin_source.source_type ===
-                                              'oi_low'
-                                            ? 'OI Low'
-                                            : '-'}
-                          </div>
-                          <div>
-                            {t('marginLimit', language)}:{' '}
-                            {(
-                              (aiConfig.risk_control?.max_margin_usage || 0.9) *
-                              100
-                            ).toFixed(0)}
-                            %
-                          </div>
+                  ) : (() => {
+                    const aiConfig = getStrategyAIConfig(selectedStrategy)
+                    if (!aiConfig) return null
+                    return (
+                      <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
+                        <div>
+                          {t('coinSource', language)}: {aiConfig.coin_source.source_type === 'static' ? (language === 'zh' ? '固定美股' : 'Fixed US stocks') :
+                            aiConfig.coin_source.source_type === 'vergex_signal' ? (language === 'zh' ? 'Vergex 信号板' : 'Vergex signal board') :
+                            aiConfig.coin_source.source_type === 'hyper_rank' ? (language === 'zh' ? 'Hyperliquid 美股榜单' : 'Hyperliquid US stock ranking') :
+                            aiConfig.coin_source.source_type === 'hyper_all' ? (language === 'zh' ? 'Hyperliquid 全市场' : 'Hyperliquid all markets') :
+                            aiConfig.coin_source.source_type === 'hyper_main' ? (language === 'zh' ? 'Hyperliquid 主流市场' : 'Hyperliquid main markets') :
+                            aiConfig.coin_source.source_type === 'ai500' ? 'AI500' :
+                            aiConfig.coin_source.source_type === 'oi_top' ? 'OI Top' :
+                            aiConfig.coin_source.source_type === 'oi_low' ? 'OI Low' : '-'}
                         </div>
-                      )
-                    })()
-                  )}
+                        <div>
+                          {t('marginLimit', language)}: {((aiConfig.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
@@ -555,10 +485,10 @@ export function TraderConfigModal({
                 </p>
               </div>
 
-              <div className="p-3 bg-nofx-bg-lighter border border-nofx-gold/20 rounded flex items-center gap-2">
+              <div className="p-3 bg-[#1E2329] border border-[#2B3139] rounded flex items-center gap-2">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="w-4 h-4 text-nofx-gold"
+                  className="w-4 h-4 text-[#F0B90B]"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -570,7 +500,7 @@ export function TraderConfigModal({
                   <line x1="12" x2="12" y1="8" y2="12" />
                   <line x1="12" x2="12.01" y1="16" y2="16" />
                 </svg>
-                <span className="text-sm text-nofx-text-muted">
+                <span className="text-sm text-[#848E9C]">
                   {t('autoFetchBalanceInfo', language)}
                 </span>
               </div>

@@ -136,7 +136,7 @@ export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460,
     const stale = !!loaded && loaded !== requested
     const raw = stale ? [] : d?.bins ?? []
     const rows: Row[] = raw
-      .map((b) => ({
+      .map((b: { px?: number; bucketStartPrice?: number; bucketEndPrice?: number; longCost?: number; shortCost?: number; longLiq?: number; shortLiq?: number }) => ({
         px: b.px ?? ((b.bucketStartPrice ?? 0) + (b.bucketEndPrice ?? 0)) / 2,
         longCost: b.longCost ?? 0,
         shortCost: b.shortCost ?? 0,
@@ -144,10 +144,10 @@ export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460,
         shortLiq: b.shortLiq ?? 0,
         ...b,
       }))
-      .filter((r) => r.px > 0 && (r.longCost || r.shortCost || r.longLiq || r.shortLiq))
-      .sort((a, b) => b.px - a.px)
+      .filter((r: Row) => r.px > 0 && (r.longCost || r.shortCost || r.longLiq || r.shortLiq))
+      .sort((a: Row, b: Row) => b.px - a.px)
     const maxSide = rows.reduce(
-      (m, r) => Math.max(m, r.longCost + r.longLiq, r.shortCost + r.shortLiq),
+      (m: number, r: Row) => Math.max(m, r.longCost + r.longLiq, r.shortCost + r.shortLiq),
       1,
     )
     const totals = rows.reduce(
