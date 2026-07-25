@@ -68,6 +68,8 @@ var claw402ModelEndpoints = map[string]string{
 	// Anthropic
 	"claude-opus":      "/api/v1/ai/anthropic/messages/opus",
 	"claude-opus-4-8": "/api/v1/ai/anthropic/messages/opus-4-8",
+	"claude-opus-5":   "/api/v1/ai/anthropic/messages/opus-5",
+	"claude-sonnet-5": "/api/v1/ai/anthropic/messages/sonnet-5",
 	"claude-fable-5":  "/api/v1/ai/anthropic/messages/fable-5",
 	// DeepSeek
 	"deepseek":          "/api/v1/ai/deepseek/chat",

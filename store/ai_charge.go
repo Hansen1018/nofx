@@ -45,6 +45,8 @@ var modelPrices = map[string]float64{
 	"MiniMax-M3":         0.20,
 	// Claude Opus 4.8 — same per-call tier as PR #1510; Anthropic kept 4.7 pricing.
 	"claude-opus-4-8":   0.18,
+	"claude-opus-5":     0.18,
+	"claude-sonnet-5":   0.09,
 	// Claude Fable 5 — first public Mythos-class model (above Opus tier).
 	//   $10/1M input, $50/1M output per anthropic.com; ~2× the Opus 4.8 token
 	//   price, so per-call estimate is ~2× 4.8's.
