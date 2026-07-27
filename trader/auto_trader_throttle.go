@@ -22,11 +22,11 @@ const (
 	autopilotNoiseCloseHoldDuration = 3 * time.Hour
 	// Re-entering a just-closed symbol was a consistent loss source: the
 	// replay's top-20 configs cluster tightly at ~4h.
-	autopilotReentryCooldown        = 4 * time.Hour
-	earlyCloseStopLossBypassPct     = -3.0
-	earlyCloseTakeProfitBypassPct   = 8.0
-	noiseCloseLossFloorPct          = -2.0
-	noiseCloseProfitCeilingPct      = 3.0
+	autopilotReentryCooldown      = 4 * time.Hour
+	earlyCloseStopLossBypassPct   = -3.0
+	earlyCloseTakeProfitBypassPct = 8.0
+	noiseCloseLossFloorPct        = -2.0
+	noiseCloseProfitCeilingPct    = 3.0
 )
 
 // positionPricePnLPct converts the margin-based UnrealizedPnLPct reported for

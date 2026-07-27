@@ -713,7 +713,7 @@ export function ExchangeConfigModal({
                     <HyperliquidFundsPanel
                       language={language}
                       walletAddress={selectedExchange.hyperliquidWalletAddr}
-                      unifiedAccount={selectedExchange.hyperliquidUnifiedAccount ?? true}
+                      unifiedAccount={selectedExchange.hyperliquidUnifiedAcct ?? true}
                     />
                   )}
                 </div>

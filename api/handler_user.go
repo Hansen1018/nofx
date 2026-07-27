@@ -264,7 +264,7 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		c.CoinSource.UseOILow = false
 		c.CoinSource.UseHyperAll = false
 		c.CoinSource.UseHyperMain = false
-c.CoinSource.HyperRankCategory = "stock"
+		c.CoinSource.HyperRankCategory = "stock"
 		c.CoinSource.HyperRankDirection = direction
 		c.CoinSource.HyperRankLimit = limit
 	}
