@@ -458,7 +458,7 @@ function Claw402ConfigForm({
                   <div className="text-[10px] truncate" style={{ color: '#848E9C' }}>
                     {m.provider} · {m.desc}
                   </div>
-                  <div className="text-[10px]" style={{ color: '#00E096' }}>
+<div className="text-[10px]" style={{ color: '#00E096' }}>
                     ~${m.price}/call
                   </div>
                 </div>
