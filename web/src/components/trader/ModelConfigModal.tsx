@@ -10,6 +10,7 @@ import { ModelCard } from './ModelCard'
 import {
   BLOCKRUN_MODELS,
   CLAW402_MODELS,
+  DEFAULT_CLAW402_MODEL,
   AI_PROVIDER_CONFIG,
   getShortName,
 } from './model-constants'
@@ -50,11 +51,18 @@ export function ModelConfigModal({
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')
 
-  // Always prefer allModels (supportedModels) for provider/id lookup;
-  // fall back to configuredModels for edit mode details (apiKey etc.)
-  const selectedModel =
-    allModels?.find((m) => m.id === selectedModelId) ||
-    configuredModels?.find((m) => m.id === selectedModelId)
+  // The configured entry carries the saved details (wallet address, custom
+  // model name, has_api_key); the template from supportedModels only describes
+  // the provider. When editing, the configured entry must win — both can share
+  // the same id (e.g. "claw402").
+  const configuredModel = configuredModels?.find((m) => m.id === selectedModelId)
+  const templateModel = allModels?.find((m) => m.id === selectedModelId)
+  const selectedModel = editingModelId
+    ? configuredModel || templateModel
+    : templateModel || configuredModel
+  const hasExistingKey = Boolean(
+    configuredModel?.has_api_key || configuredModel?.apiKey
+  )
 
   useEffect(() => {
     if (editingModelId && selectedModel) {
@@ -327,6 +335,11 @@ function Claw402ConfigForm({
 
   const isKeyValid = apiKey.length === 66 && apiKey.startsWith('0x') && /^0x[0-9a-fA-F]{64}$/.test(apiKey)
 
+  // Editing with a stored key: allow saving (e.g. switching model) without
+  // re-entering the private key, as long as the field is left blank.
+  const canSubmit =
+    isKeyValid || (Boolean(editingModelId) && Boolean(hasExistingKey) && !apiKey)
+
   // Truncate address for display
 
 
@@ -438,7 +451,7 @@ function Claw402ConfigForm({
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {CLAW402_MODELS.map((m) => {
-            const isSelected = (modelName || 'deepseek') === m.id
+            const isSelected = (modelName || DEFAULT_CLAW402_MODEL) === m.id
             return (
               <button
                 key={m.id}
@@ -743,7 +756,7 @@ function Claw402ConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!isKeyValid}
+          disabled={!canSubmit}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: isKeyValid ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
         >
@@ -964,7 +977,11 @@ function StandardProviderConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!selectedModel || !apiKey.trim()}
+          disabled={
+            !selectedModel ||
+            (!apiKey.trim() &&
+              !(editingModelId && selectedModel.has_api_key))
+          }
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: '#8B5CF6', color: '#fff' }}
         >

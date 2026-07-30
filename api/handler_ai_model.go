@@ -192,7 +192,24 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		logger.Infof("🔓 Decrypted model config data (UserID: %s)", userID)
 	}
 
-	// Update each model's configuration and track traders that need reload
+	// Update each model's configuration and track traders that need reload.
+	// The request key may be either the model row id or the provider name
+	// (legacy clients send the provider, e.g. "claw402", while trader rows
+	// reference the full model id) — resolve both, mirroring the matching in
+	// AIModelStore.Update, otherwise running traders keep the old model.
+	modelIDCandidates := func(modelID string) map[string]bool {
+		candidates := map[string]bool{modelID: true}
+		if models, listErr := s.store.AIModel().List(userID); listErr == nil {
+			for _, m := range models {
+				if m.ID == modelID || m.Provider == modelID {
+					candidates[m.ID] = true
+					candidates[m.Provider] = true
+				}
+			}
+		}
+		return candidates
+	}
+
 	tradersToReload := make(map[string]bool)
 	for modelID, modelData := range req.Models {
 		// SSRF protection: validate custom_api_url before storing
@@ -206,9 +223,11 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		}
 
 		// Find traders using this AI model BEFORE updating
-		traders, _ := s.store.Trader().ListByAIModelID(userID, modelID)
-		for _, t := range traders {
-			tradersToReload[t.ID] = true
+		for candidateID := range modelIDCandidates(modelID) {
+			traders, _ := s.store.Trader().ListByAIModelID(userID, candidateID)
+			for _, t := range traders {
+				tradersToReload[t.ID] = true
+			}
 		}
 
 		err := s.store.AIModel().Update(userID, modelID, modelData.Enabled, modelData.APIKey, modelData.CustomAPIURL, modelData.CustomModelName)
@@ -239,7 +258,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 func (s *Server) handleGetSupportedModels(c *gin.Context) {
 	// Return static list of supported AI models with default versions
 	supportedModels := []map[string]interface{}{
-		{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "defaultModel": "deepseek-chat"},
+{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "defaultModel": "deepseek-chat"},
 		{"id": "qwen", "name": "Qwen", "provider": "qwen", "defaultModel": "qwen3-max"},
 		{"id": "openai", "name": "OpenAI", "provider": "openai", "defaultModel": "gpt-5.6"},
 		{"id": "claude", "name": "Claude", "provider": "claude", "defaultModel": "claude-opus-5"},

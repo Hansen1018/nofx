@@ -43,6 +43,7 @@ export function getShortName(fullName: string): string {
 }
 
 // Models available through Claw402 (x402 USDC payment protocol)
+// Must stay in sync with the claw402 catalog (GET /api/v1/catalog)
 export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'deepseek', name: 'DeepSeek V3', provider: 'DeepSeek', desc: '$0.003/call', icon: '🔥', price: 0.003 },
   { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'DeepSeek', desc: '$0.005/call', icon: '🤔', price: 0.005 },

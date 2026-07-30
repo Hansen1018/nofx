@@ -50,10 +50,11 @@ func shortAddr(addr string) string {
 
 const (
 	DefaultClaw402URL   = "https://claw402.ai"
-	DefaultClaw402Model = "deepseek-v4-flash"
+	DefaultClaw402Model = "gpt-5.6"
 )
 
 // claw402ModelEndpoints maps user-friendly model names to claw402 API paths.
+// Must stay in sync with the claw402 catalog (GET /api/v1/catalog).
 var claw402ModelEndpoints = map[string]string{
 	// OpenAI
 	"gpt-5.6":      "/api/v1/ai/openai/chat/5.6",
