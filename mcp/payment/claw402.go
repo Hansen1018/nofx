@@ -57,17 +57,17 @@ const (
 // Must stay in sync with the claw402 catalog (GET /api/v1/catalog).
 var claw402ModelEndpoints = map[string]string{
 	// OpenAI
-	"gpt-5.6":      "/api/v1/ai/openai/chat/5.6",
-	"gpt-5.6-sol":  "/api/v1/ai/openai/chat/5.6-sol",
+	"gpt-5.6":       "/api/v1/ai/openai/chat/5.6",
+	"gpt-5.6-sol":   "/api/v1/ai/openai/chat/5.6-sol",
 	"gpt-5.6-terra": "/api/v1/ai/openai/chat/5.6-terra",
 	"gpt-5.6-luna":  "/api/v1/ai/openai/chat/5.6-luna",
-	"gpt-5.5":     "/api/v1/ai/openai/chat/5.5",
-	"gpt-5.4":     "/api/v1/ai/openai/chat/5.4",
-	"gpt-5.4-pro": "/api/v1/ai/openai/chat/5.4-pro",
-	"gpt-5.3":     "/api/v1/ai/openai/chat/5.3",
-	"gpt-5-mini":  "/api/v1/ai/openai/chat/5-mini",
+	"gpt-5.5":       "/api/v1/ai/openai/chat/5.5",
+	"gpt-5.4":       "/api/v1/ai/openai/chat/5.4",
+	"gpt-5.4-pro":   "/api/v1/ai/openai/chat/5.4-pro",
+	"gpt-5.3":       "/api/v1/ai/openai/chat/5.3",
+	"gpt-5-mini":    "/api/v1/ai/openai/chat/5-mini",
 	// Anthropic
-	"claude-opus":      "/api/v1/ai/anthropic/messages/opus",
+	"claude-opus":     "/api/v1/ai/anthropic/messages/opus",
 	"claude-opus-4-8": "/api/v1/ai/anthropic/messages/opus-4-8",
 	"claude-opus-5":   "/api/v1/ai/anthropic/messages/opus-5",
 	"claude-sonnet-5": "/api/v1/ai/anthropic/messages/sonnet-5",

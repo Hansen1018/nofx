@@ -131,7 +131,7 @@ func (at *AutoTrader) runCycle() error {
 		}
 	}
 
-// Record AI charge (track cost regardless of decision outcome).
+	// Record AI charge (track cost regardless of decision outcome).
 	// Use the effective model name (custom model, e.g. "gpt-5.6") so the
 	// per-call price lookup matches what was actually invoked — at.aiModel is
 	// the provider id (e.g. "claw402") and would fall back to the default price.

@@ -258,7 +258,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 func (s *Server) handleGetSupportedModels(c *gin.Context) {
 	// Return static list of supported AI models with default versions
 	supportedModels := []map[string]interface{}{
-{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "defaultModel": "deepseek-chat"},
+		{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "defaultModel": "deepseek-chat"},
 		{"id": "qwen", "name": "Qwen", "provider": "qwen", "defaultModel": "qwen3-max"},
 		{"id": "openai", "name": "OpenAI", "provider": "openai", "defaultModel": "gpt-5.6"},
 		{"id": "claude", "name": "Claude", "provider": "claude", "defaultModel": "claude-opus-5"},
