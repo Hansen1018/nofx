@@ -12,6 +12,7 @@ import (
 	"nofx/store"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,11 @@ import (
 
 // Server HTTP API server
 type Server struct {
+	planningOnce              sync.Once
+	planningMu                sync.RWMutex
+	planningClosing           bool
+	planning                  *planningServices
+	planningError             error
 	router                    *gin.Engine
 	traderManager             *manager.TraderManager
 	store                     *store.Store
@@ -148,6 +154,7 @@ func (s *Server) setupRoutes() {
 		// Wallet validation (no authentication required — used by frontend config form)
 		api.POST("/wallet/validate", s.handleWalletValidate)
 		api.POST("/wallet/generate", s.handleWalletGenerate)
+		api.GET("/wallet/balance", s.handleWalletBalance)
 		s.route(api, "GET", "/hyperliquid/connect-config", "Get NOFX Hyperliquid builder authorization config", s.handleHyperliquidConnectConfig)
 		s.route(api, "GET", "/hyperliquid/account", "Get Hyperliquid account balance summary", s.handleHyperliquidAccount)
 		s.route(api, "GET", "/hyperliquid/agent", "Get Hyperliquid approved agent wallets and authorization expiry", s.handleHyperliquidAgent)
@@ -197,6 +204,9 @@ func (s *Server) setupRoutes() {
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())
+		s.registerPlanning(api, protected)
+		// UI-only secret export: do not register in the AI route/tool catalog.
+		protected.POST("/wallet/export", s.handleWalletExport)
 		{
 			// Logout (add to blacklist)
 			s.route(protected, "POST", "/logout", "Logout (blacklist token)", s.handleLogout)
@@ -369,7 +379,7 @@ StrategyConfig fields:
   indicators.rsi_periods: [7,14] default
   indicators.atr_periods: [14] default
   indicators.boll_periods: [20] default
-  indicators.nofxos_api_key: ALWAYS "cm_568c67eae410d912c54c"
+  indicators.nofxos_api_key: leave empty; paid data uses the configured Claw402 fee wallet
   indicators.enable_quant_data: ALWAYS true
   indicators.enable_quant_oi: ALWAYS true
   indicators.enable_quant_netflow: ALWAYS true
@@ -726,6 +736,13 @@ func (s *Server) Start() error {
 
 // Shutdown Gracefully shutdown server
 func (s *Server) Shutdown() error {
+	s.planningMu.Lock()
+	s.planningClosing = true
+	planning := s.planning
+	s.planningMu.Unlock()
+	if planning != nil {
+		planning.live.Shutdown()
+	}
 	if s.httpServer == nil {
 		return nil
 	}

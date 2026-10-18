@@ -9,16 +9,16 @@ export default function AgentTerminal() {
             className="w-[380px] lg:w-[440px] relative group"
         >
             {/* Terminal frame */}
-            <div className="relative bg-nofx-bg-lighter rounded-2xl overflow-hidden shadow-lg border border-[rgba(26,24,19,0.14)]">
+            <div className="relative bg-nofx-bg-lighter rounded-2xl overflow-hidden shadow-lg border border-[rgba(25,36,52,0.14)]">
 
                 {/* Header bar - macOS style */}
-                <div className="flex items-center justify-between px-4 py-2.5 bg-nofx-bg-deeper border-b border-[rgba(26,24,19,0.14)]">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-nofx-bg-deeper border-b border-[rgba(25,36,52,0.14)]">
                     {/* Window controls */}
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-3 rounded-full bg-[#D6433A] hover:brightness-110 transition-all" />
-                            <div className="w-3 h-3 rounded-full bg-[#E0483B] hover:brightness-110 transition-all" />
-                            <div className="w-3 h-3 rounded-full bg-[#2E8B57] hover:brightness-110 transition-all" />
+                            <div className="w-3 h-3 rounded-full bg-nofx-danger hover:brightness-110 transition-all" />
+                            <div className="w-3 h-3 rounded-full bg-[#295be8] hover:brightness-110 transition-all" />
+                            <div className="w-3 h-3 rounded-full bg-nofx-success hover:brightness-110 transition-all" />
                         </div>
                     </div>
                     {/* Title */}
@@ -26,18 +26,18 @@ export default function AgentTerminal() {
                         <span className="text-nofx-text-muted text-xs font-mono">NOFX Trader Terminal</span>
                     </div>
                     {/* Live indicator */}
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-nofx-success/10 border border-nofx-success/20">
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-nofx-success/10 border border-nofx-success/20">
                         <div className="w-1.5 h-1.5 bg-nofx-success rounded-full animate-pulse" />
                         <span className="text-nofx-success text-[10px] font-mono uppercase tracking-wider">Live</span>
                     </div>
                 </div>
 
                 {/* Portfolio PnL Section */}
-                <div className="p-4 border-b border-[rgba(26,24,19,0.14)]">
+                <div className="p-4 border-b border-[rgba(25,36,52,0.14)]">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-nofx-text-muted text-xs font-mono uppercase tracking-wider">Portfolio PnL</span>
                         <div className="flex gap-1">
-                            <button className="px-2 py-0.5 bg-nofx-gold/20 border border-nofx-gold/30 rounded text-[10px] text-nofx-gold font-mono">24H</button>
+                            <button className="px-2 py-0.5 bg-nofx-gold/20 border border-nofx-gold/30 rounded-sm text-[10px] text-nofx-gold font-mono">24H</button>
                             <button className="px-2 py-0.5 text-[10px] text-nofx-text-muted font-mono hover:text-nofx-text transition-colors">7D</button>
                             <button className="px-2 py-0.5 text-[10px] text-nofx-text-muted font-mono hover:text-nofx-text transition-colors">30D</button>
                         </div>
@@ -71,7 +71,7 @@ export default function AgentTerminal() {
                 </div>
 
                 {/* Metrics Row */}
-                <div className="grid grid-cols-3 divide-x divide-[rgba(26,24,19,0.14)] border-b border-[rgba(26,24,19,0.14)]">
+                <div className="grid grid-cols-3 divide-x divide-[rgba(25,36,52,0.14)] border-b border-[rgba(25,36,52,0.14)]">
                     <div className="p-3 text-center">
                         <div className="text-nofx-text-muted text-[10px] font-mono uppercase tracking-wider mb-1">OI</div>
                         <div className="text-nofx-text font-bold font-mono">$847M</div>
@@ -86,14 +86,14 @@ export default function AgentTerminal() {
                         <div className="text-nofx-text-muted text-[10px] font-mono uppercase tracking-wider mb-1">L/S Ratio</div>
                         <div className="text-nofx-text font-bold font-mono">1.24</div>
                         <div className="flex gap-0.5 mt-1 px-2">
-                            <div className="h-1 bg-nofx-success/60 rounded-l flex-[55]" />
-                            <div className="h-1 bg-nofx-danger/60 rounded-r flex-[45]" />
+                            <div className="h-1 bg-nofx-success/60 rounded-l flex-55" />
+                            <div className="h-1 bg-nofx-danger/60 rounded-r flex-45" />
                         </div>
                     </div>
                 </div>
 
                 {/* Order Book */}
-                <div className="p-4 border-b border-[rgba(26,24,19,0.14)]">
+                <div className="p-4 border-b border-[rgba(25,36,52,0.14)]">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-nofx-text text-xs font-mono uppercase tracking-wider">Order Book</span>
                         <span className="text-nofx-text-muted text-[10px] font-mono">Spread: <span className="text-nofx-gold">0.02%</span></span>
@@ -106,8 +106,8 @@ export default function AgentTerminal() {
                                 { price: '97,267.00', amount: '1.832', depth: 55 },
                                 { price: '97,251.00', amount: '0.945', depth: 30 },
                             ].map((ask, i) => (
-                                <div key={i} className="relative flex justify-between text-[11px] py-1 px-1.5 rounded">
-                                    <div className="absolute inset-0 bg-nofx-danger/10 rounded-sm" style={{ width: `${ask.depth}%` }} />
+                                <div key={i} className="relative flex justify-between text-[11px] py-1 px-1.5 rounded-sm">
+                                    <div className="absolute inset-0 bg-nofx-danger/10 rounded-xs" style={{ width: `${ask.depth}%` }} />
                                     <span className="relative text-nofx-danger font-mono">{ask.price}</span>
                                     <span className="relative text-nofx-text-muted font-mono">{ask.amount}</span>
                                 </div>
@@ -120,8 +120,8 @@ export default function AgentTerminal() {
                                 { price: '97,221.00', amount: '4.592', depth: 100 },
                                 { price: '97,198.00', amount: '1.845', depth: 50 },
                             ].map((bid, i) => (
-                                <div key={i} className="relative flex justify-between text-[11px] py-1 px-1.5 rounded">
-                                    <div className="absolute inset-0 bg-nofx-success/10 rounded-sm" style={{ width: `${bid.depth}%` }} />
+                                <div key={i} className="relative flex justify-between text-[11px] py-1 px-1.5 rounded-sm">
+                                    <div className="absolute inset-0 bg-nofx-success/10 rounded-xs" style={{ width: `${bid.depth}%` }} />
                                     <span className="relative text-nofx-success font-mono">{bid.price}</span>
                                     <span className="relative text-nofx-text-muted font-mono">{bid.amount}</span>
                                 </div>
@@ -157,7 +157,7 @@ export default function AgentTerminal() {
                                     <div>
                                         <div className="text-nofx-text text-sm font-mono">{pos.name}</div>
                                         <div className="flex items-center gap-2 text-[10px]">
-                                            <span className="text-nofx-success bg-nofx-success/10 px-1.5 py-0.5 rounded font-mono">LONG</span>
+                                            <span className="text-nofx-success bg-nofx-success/10 px-1.5 py-0.5 rounded-sm font-mono">LONG</span>
                                             <span className="text-nofx-text-muted font-mono">{pos.size} {pos.coin}</span>
                                         </div>
                                     </div>
@@ -172,7 +172,7 @@ export default function AgentTerminal() {
                 </div>
 
                 {/* Footer status bar */}
-                <div className="px-4 py-2 bg-nofx-bg-deeper border-t border-[rgba(26,24,19,0.14)] flex items-center justify-between">
+                <div className="px-4 py-2 bg-nofx-bg-deeper border-t border-[rgba(25,36,52,0.14)] flex items-center justify-between">
                     <div className="flex items-center gap-3 text-[10px] font-mono text-nofx-text-muted">
                         <span className="flex items-center gap-1">
                             <div className="w-1.5 h-1.5 bg-nofx-success rounded-full" />

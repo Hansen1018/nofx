@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { DecisionRecord } from '../../types'
+import { formatRequestError } from '../../lib/requestErrors'
 
 /**
  * ExecutionLog renders the AI trading agent's real decisions and order results
@@ -9,8 +10,8 @@ import type { DecisionRecord } from '../../types'
  * indented sub-line per execution-log entry, color-coded by
  * success / throttle / risk.
  *
- * Real data only — renders verbatim what's present on each DecisionRecord;
- * verbose throttle strings are tidied for the gist but never invented.
+ * Real data only — renders each DecisionRecord without changing stored history;
+ * verbose throttle and transport errors are summarized without inventing results.
  */
 
 const C_AMBER = '#c8860b' // throttle / block warnings
@@ -93,7 +94,7 @@ function cleanLog(raw: string): string {
   }
   // drop a redundant leading "SYMBOL action" prefix when present
   s = s.replace(/^[A-Z0-9:_-]{2,12}\s+(open_long|open_short|close_long|close_short)\s+/i, '')
-  return s
+  return formatRequestError(s)
 }
 
 interface ExecutionLogProps {
@@ -192,7 +193,7 @@ function Cycle({ record }: CycleProps) {
           fontSize: 9,
           padding: '2px 6px',
           marginBottom: actions.length || logs.length || record.error_message ? 4 : 0,
-          background: 'rgba(26,24,19,0.045)',
+          background: 'rgba(25,36,52,0.045)',
           borderLeft: `2px solid ${fault ? 'var(--tm-dn)' : 'var(--tm-hair)'}`,
           color: 'var(--tm-ink-2)',
         }}
@@ -296,7 +297,7 @@ function SubLine({ tone, text }: { tone: LogTone; text: string }) {
       }}
     >
       <span style={{ flex: '0 0 auto', width: 10, textAlign: 'center' }}>{glyph}</span>
-      <span style={{ wordBreak: 'break-word' }}>{text}</span>
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{text}</span>
     </div>
   )
 }
