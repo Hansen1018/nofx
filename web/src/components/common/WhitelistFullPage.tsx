@@ -112,7 +112,7 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
                   className="flex items-center justify-center gap-2 py-2 border border-[rgba(25,36,52,0.14)] bg-nofx-bg hover:bg-nofx-bg-deeper text-nofx-text-muted hover:text-nofx-text transition-colors text-[10px] uppercase"
                 >
                   <Send className="w-3 h-3" />
-                  Support
+                  Join Community
                 </a>
               </div>
             </div>

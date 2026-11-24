@@ -31,7 +31,7 @@ export function SiteFooter({ language }: { language: Language }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Community ↗
+            Telegram Community ↗
           </a>
         </div>
       </div>

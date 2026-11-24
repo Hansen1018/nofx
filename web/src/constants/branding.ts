@@ -8,7 +8,8 @@ const _e = (s: string) => btoa(s)
 // Encoded official links - tampering will break functionality
 const ENCODED_LINKS = {
   twitter: 'aHR0cHM6Ly94LmNvbS92ZXJnZXhfYWk=',
-  telegram: 'aHR0cHM6Ly90Lm1lL25vZnhfZGV2X2NvbW11bml0eQ==', // https://t.me/nofx_dev_community
+  // Public community link only; this is not a Telegram bot integration.
+  telegram: 'aHR0cHM6Ly90Lm1lL25vZnhfZGV2X2NvbW11bml0eQ==',
   github: 'aHR0cHM6Ly9naXRodWIuY29tL3RpbmtsZS1jb21tdW5pdHkvbm9meA==', // https://github.com/NoFxAiOS/nofx
 }
 
@@ -24,7 +25,7 @@ function simpleHash(str: string): number {
   let hash = 0
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
+    hash = (hash << 5) - hash + char
     hash = hash & hash
   }
   return Math.abs(hash)
@@ -49,9 +50,15 @@ function getVerifiedLink(key: keyof typeof ENCODED_LINKS): string {
 
 // Export verified official links
 export const OFFICIAL_LINKS = {
-  get twitter() { return getVerifiedLink('twitter') },
-  get telegram() { return getVerifiedLink('telegram') },
-  get github() { return getVerifiedLink('github') },
+  get telegram() {
+    return getVerifiedLink('telegram')
+  },
+  get twitter() {
+    return getVerifiedLink('twitter')
+  },
+  get github() {
+    return getVerifiedLink('github')
+  },
 } as const
 
 // Brand watermark component data
@@ -64,7 +71,7 @@ export const BRAND_INFO = {
     x: () => OFFICIAL_LINKS.twitter,
     tg: () => OFFICIAL_LINKS.telegram,
     gh: () => OFFICIAL_LINKS.github,
-  }
+  },
 } as const
 
 // Used internally - do not remove
